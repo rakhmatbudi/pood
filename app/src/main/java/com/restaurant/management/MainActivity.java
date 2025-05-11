@@ -68,12 +68,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkLoginStatus() {
-        SharedPreferences sharedPreferences = getSharedPreferences("RestaurantApp", MODE_PRIVATE);
-        boolean isLoggedIn = sharedPreferences.getBoolean("isLoggedIn", false);
-        int userId = sharedPreferences.getInt("userId", -1);
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+        boolean isLoggedIn = sharedPreferences.getBoolean(getString(R.string.pref_is_logged_in), false);
+        int userId = sharedPreferences.getInt(getString(R.string.pref_user_id), -1);
 
         if (isLoggedIn && userId != -1) {
-            navigateToCashierActivity(userId);
+            navigateToDashboardActivity(userId);
         }
     }
 
@@ -83,7 +83,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Simple validation
         if (email.isEmpty() || password.isEmpty()) {
-            Toast.makeText(this, "Please enter email and password", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, getString(R.string.please_enter_email_password), Toast.LENGTH_SHORT).show();
             return;
         }
 
@@ -217,32 +217,25 @@ public class MainActivity extends AppCompatActivity {
                     loginButton.setEnabled(true);
 
                     if (loginSuccess) {
-                        // Validate that we got proper user data
-                        if (finalUserId == -1) {
-                            Toast.makeText(MainActivity.this,
-                                    "Login successful but user ID not found in response",
-                                    Toast.LENGTH_LONG).show();
-                            return;
-                        }
 
                         // Save login state
-                        SharedPreferences sharedPreferences = getSharedPreferences("RestaurantApp", MODE_PRIVATE);
+                        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                         SharedPreferences.Editor editor = sharedPreferences.edit();
-                        editor.putBoolean("isLoggedIn", true);
-                        editor.putInt("userId", finalUserId);
-                        editor.putString("userName", finalUserName);
-                        editor.putInt("userRole", finalUserRole);
-                        editor.putString("token", finalToken); // Also save the token for future API calls
+                        editor.putBoolean(getString(R.string.pref_is_logged_in), true);
+                        editor.putInt(getString(R.string.pref_user_id), finalUserId);
+                        editor.putString(getString(R.string.pref_user_name), finalUserName);
+                        editor.putInt(getString(R.string.pref_user_role), finalUserRole);
+                        editor.putString(getString(R.string.pref_token), finalToken); // Also save the token for future API calls
                         editor.apply();
 
                         Log.d(TAG, "Saved to SharedPreferences - userId: " + finalUserId +
                                 ", userName: " + finalUserName + ", userRole: " + finalUserRole);
 
-                        Toast.makeText(MainActivity.this, "Login successful", Toast.LENGTH_SHORT).show();
-                        navigateToCashierActivity(finalUserId);
+                        Toast.makeText(MainActivity.this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show();
+                        navigateToDashboardActivity(finalUserId);
                     } else {
                         // Try to extract error message from response
-                        String errorMessage = "Invalid email or password";
+                        String errorMessage = getString(R.string.invalid_credentials);
                         try {
                             JSONObject jsonResponse = new JSONObject(responseData);
                             if (jsonResponse.has("message")) {
@@ -263,7 +256,7 @@ public class MainActivity extends AppCompatActivity {
                     progressBar.setVisibility(View.GONE);
                     loginButton.setEnabled(true);
                     Toast.makeText(MainActivity.this,
-                            "Network error. Please check your connection and try again.",
+                            getString(R.string.network_error),
                             Toast.LENGTH_SHORT).show();
                 });
             } finally {
@@ -274,9 +267,9 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    private void navigateToCashierActivity(int userId) {
-        Intent intent = new Intent(MainActivity.this, CashierActivity.class);
-        intent.putExtra("userId", userId);
+    private void navigateToDashboardActivity(int userId) {
+        Intent intent = new Intent(MainActivity.this, DashboardActivity.class);
+        intent.putExtra(getString(R.string.extra_user_id), userId);
         startActivity(intent);
         finish();
     }

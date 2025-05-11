@@ -29,8 +29,6 @@
     <string name="amount_must_be_greater_than_zero">Opening amount must be greater than zero</string>
     <string name="session_opened_successfully">Session opened successfully</string>
     <string name="failed_to_open_session">Failed to open session</string>
-    <string name="network_error">Network error. Please check your connection and try again.</string>
-
     <string name="nav_header_title">Android Studio</string>
     <string name="nav_header_subtitle">android.studio@android.com</string>
     <string name="nav_header_desc">Navigation header</string>
@@ -74,6 +72,9 @@
     <string name="pref_file_name">RestaurantApp</string>
     <string name="pref_user_id">userId</string>
     <string name="pref_user_name">userName</string>
+    <string name="pref_user_role">userRole</string>
+    <string name="pref_token">token</string>
+    <string name="pref_is_logged_in">isLoggedIn</string>
 
     <!-- Intent Extras -->
     <string name="extra_user_id">userId</string>
@@ -91,6 +92,11 @@
     <string name="failed_to_check_session">Failed to check session: %1$s</string>
     <string name="session_opened_by_with_amount">Session opened by %1$s with amount: %2$s</string>
     <string name="error_processing_response">Error processing response: %1$s</string>
+    <string name="please_enter_email_password">Please enter email and password</string>
+    <string name="login_success_but_no_id">Login successful but user ID not found in response</string>
+    <string name="login_successful">Login successful</string>
+    <string name="invalid_credentials">Invalid email or password</string>
+    <string name="network_error">Network error. Please check your connection and try again.</string>
 
     <!-- API Response -->
     <string name="unexpected_response_code">Unexpected response code: </string>
@@ -98,5 +104,4 @@
     <!-- Date and Time Formats -->
     <string name="date_format">EEEE, MMMM dd, yyyy</string>
     <string name="time_format">HH:mm:ss</string>
-
 </resources>

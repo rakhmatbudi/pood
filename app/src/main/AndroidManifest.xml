@@ -24,18 +24,18 @@
         </activity>
 
         <activity
-            android:name=".CashierActivity"
+            android:name=".DashboardActivity"
             android:exported="false" />
 
         <activity
             android:name=".OpenSessionActivity"
             android:exported="false"
-            android:parentActivityName=".CashierActivity" />
+            android:parentActivityName=".DashboardActivity" />
 
         <activity
             android:name=".EndSessionActivity"
             android:exported="false"
-            android:parentActivityName=".CashierActivity" />
+            android:parentActivityName=".DashboardActivity" />
 
     </application>
 

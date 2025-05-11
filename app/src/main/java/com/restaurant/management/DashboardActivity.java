@@ -39,9 +39,9 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
-public class CashierActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
+public class DashboardActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
-    private static final String TAG = "CashierActivity";
+    private static final String TAG = "DashboardActivity";
     private static final String API_URL = "https://api.pood.lol/cashier-sessions/current";
 
     private DrawerLayout drawerLayout;
@@ -65,7 +65,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
     protected void onCreate(Bundle savedInstanceState) {
         try {
             super.onCreate(savedInstanceState);
-            setContentView(R.layout.activity_cashier);
+            setContentView(R.layout.activity_dashboard);
 
             // Initialize toolbar
             Toolbar toolbar = findViewById(R.id.toolbar);
@@ -130,7 +130,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
                 public void onClick(View v) {
                     try {
                         // Navigate to OpenSessionActivity
-                        Intent intent = new Intent(CashierActivity.this, OpenSessionActivity.class);
+                        Intent intent = new Intent(DashboardActivity.this, OpenSessionActivity.class);
                         intent.putExtra(getString(R.string.extra_user_id), userId);
                         startActivity(intent);
 
@@ -138,7 +138,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
                         checkActiveCashierSession();
                     } catch (Exception e) {
                         Log.e(TAG, "Error navigating to OpenSessionActivity", e);
-                        Toast.makeText(CashierActivity.this,
+                        Toast.makeText(DashboardActivity.this,
                                 getString(R.string.navigation_error, e.getMessage()),
                                 Toast.LENGTH_LONG).show();
                     }
@@ -148,7 +148,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
             endSessionButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Toast.makeText(CashierActivity.this,
+                    Toast.makeText(DashboardActivity.this,
                             getString(R.string.end_session_clicked),
                             Toast.LENGTH_SHORT).show();
 
@@ -159,7 +159,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
             });
 
         } catch (Exception e) {
-            Log.e(TAG, "Error in CashierActivity.onCreate", e);
+            Log.e(TAG, "Error in DashboardActivity.onCreate", e);
             Toast.makeText(this,
                     getString(R.string.error_initializing, e.getMessage()),
                     Toast.LENGTH_LONG).show();
@@ -199,7 +199,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
                         }
                         sessionStatusTextView.setText(getString(R.string.error_checking_session));
                         sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
-                        Toast.makeText(CashierActivity.this,
+                        Toast.makeText(DashboardActivity.this,
                                 getString(R.string.failed_to_check_session, e.getMessage()),
                                 Toast.LENGTH_SHORT).show();
 
@@ -244,7 +244,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
                                     openSessionButton.setEnabled(false);
                                     endSessionButton.setEnabled(true);
 
-                                    Toast.makeText(CashierActivity.this,
+                                    Toast.makeText(DashboardActivity.this,
                                             getString(R.string.session_opened_by_with_amount, cashierName, openingAmount),
                                             Toast.LENGTH_SHORT).show();
 
@@ -272,7 +272,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
                             }
                             sessionStatusTextView.setText(getString(R.string.error_checking_session));
                             sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
-                            Toast.makeText(CashierActivity.this,
+                            Toast.makeText(DashboardActivity.this,
                                     getString(R.string.error_processing_response, e.getMessage()),
                                     Toast.LENGTH_SHORT).show();
                         }
@@ -295,8 +295,8 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
         int id = item.getItemId();
 
-        if (id == R.id.nav_cashier) {
-            // Already in cashier activity
+        if (id == R.id.nav_dashboard) {
+            // Already in dashboard activity
             Toast.makeText(this, getString(R.string.already_in_dashboard), Toast.LENGTH_SHORT).show();
         } else if (id == R.id.nav_logout) {
             // Clear session data
@@ -306,7 +306,7 @@ public class CashierActivity extends AppCompatActivity implements NavigationView
             editor.apply();
 
             // Navigate to login screen
-            Intent intent = new Intent(CashierActivity.this, MainActivity.class);
+            Intent intent = new Intent(DashboardActivity.this, MainActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish();
