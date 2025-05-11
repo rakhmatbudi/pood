@@ -1,59 +1,56 @@
-// ========== 5.2.3. CashierSession.java ==========
-
 package com.restaurant.management.models;
 
-import androidx.room.Entity;
-import androidx.room.PrimaryKey;
-import androidx.room.ColumnInfo;
-import androidx.room.ForeignKey;
-import androidx.room.Index;
+import com.google.gson.annotations.SerializedName;
 
-import java.math.BigDecimal;
 import java.util.Date;
 
-@Entity(tableName = "cashier_sessions",
-        foreignKeys = @ForeignKey(entity = User.class,
-                parentColumns = "id",
-                childColumns = "user_id",
-                onDelete = ForeignKey.SET_NULL),
-        indices = {@Index("user_id")})
+/**
+ * Model class for Cashier Session
+ */
 public class CashierSession {
 
-    @PrimaryKey(autoGenerate = true)
+    @SerializedName("id")
     private int id;
 
-    @ColumnInfo(name = "user_id")
-    private Integer userId;
+    @SerializedName("user_id")
+    private int userId;
 
-    @ColumnInfo(name = "opening_amount")
-    private BigDecimal openingAmount;
+    @SerializedName("user_name")
+    private String userName;
 
-    @ColumnInfo(name = "closing_amount")
-    private BigDecimal closingAmount;
+    @SerializedName("start_amount")
+    private double startAmount;
 
-    @ColumnInfo(name = "expected_amount")
-    private BigDecimal expectedAmount;
+    @SerializedName("end_amount")
+    private double endAmount;
 
-    @ColumnInfo(name = "difference")
-    private BigDecimal difference;
+    @SerializedName("start_time")
+    private Date startTime;
 
-    @ColumnInfo(name = "notes")
-    private String notes;
+    @SerializedName("end_time")
+    private Date endTime;
 
-    @ColumnInfo(name = "opened_at")
-    private Date openedAt;
+    @SerializedName("status")
+    private String status;
 
-    @ColumnInfo(name = "closed_at")
-    private Date closedAt;
+    // Default constructor
+    public CashierSession() {
+    }
 
-    @ColumnInfo(name = "created_at")
-    private Date createdAt;
-
-    @ColumnInfo(name = "updated_at")
-    private Date updatedAt;
+    // Constructor with all fields
+    public CashierSession(int id, int userId, String userName, double startAmount, double endAmount,
+                          Date startTime, Date endTime, String status) {
+        this.id = id;
+        this.userId = userId;
+        this.userName = userName;
+        this.startAmount = startAmount;
+        this.endAmount = endAmount;
+        this.startTime = startTime;
+        this.endTime = endTime;
+        this.status = status;
+    }
 
     // Getters and Setters
-
     public int getId() {
         return id;
     }
@@ -62,83 +59,81 @@ public class CashierSession {
         this.id = id;
     }
 
-    public Integer getUserId() {
+    public int getUserId() {
         return userId;
     }
 
-    public void setUserId(Integer userId) {
+    public void setUserId(int userId) {
         this.userId = userId;
     }
 
-    public BigDecimal getOpeningAmount() {
-        return openingAmount;
+    public String getUserName() {
+        return userName;
     }
 
-    public void setOpeningAmount(BigDecimal openingAmount) {
-        this.openingAmount = openingAmount;
+    public void setUserName(String userName) {
+        this.userName = userName;
     }
 
-    public BigDecimal getClosingAmount() {
-        return closingAmount;
+    public double getStartAmount() {
+        return startAmount;
     }
 
-    public void setClosingAmount(BigDecimal closingAmount) {
-        this.closingAmount = closingAmount;
+    public void setStartAmount(double startAmount) {
+        this.startAmount = startAmount;
     }
 
-    public BigDecimal getExpectedAmount() {
-        return expectedAmount;
+    public double getEndAmount() {
+        return endAmount;
     }
 
-    public void setExpectedAmount(BigDecimal expectedAmount) {
-        this.expectedAmount = expectedAmount;
+    public void setEndAmount(double endAmount) {
+        this.endAmount = endAmount;
     }
 
-    public BigDecimal getDifference() {
-        return difference;
+    public Date getStartTime() {
+        return startTime;
     }
 
-    public void setDifference(BigDecimal difference) {
-        this.difference = difference;
+    public void setStartTime(Date startTime) {
+        this.startTime = startTime;
     }
 
-    public String getNotes() {
-        return notes;
+    public Date getEndTime() {
+        return endTime;
     }
 
-    public void setNotes(String notes) {
-        this.notes = notes;
+    public void setEndTime(Date endTime) {
+        this.endTime = endTime;
     }
 
-    public Date getOpenedAt() {
-        return openedAt;
+    public String getStatus() {
+        return status;
     }
 
-    public void setOpenedAt(Date openedAt) {
-        this.openedAt = openedAt;
+    public void setStatus(String status) {
+        this.status = status;
     }
 
-    public Date getClosedAt() {
-        return closedAt;
+    /**
+     * Calculate the session total (end amount - start amount)
+     * @return the session total amount
+     */
+    public double getSessionTotal() {
+        return endAmount - startAmount;
     }
 
-    public void setClosedAt(Date closedAt) {
-        this.closedAt = closedAt;
-    }
-
-    public Date getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Date createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Date getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Date updatedAt) {
-        this.updatedAt = updatedAt;
+    @Override
+    public String toString() {
+        return "CashierSession{" +
+                "id=" + id +
+                ", userId=" + userId +
+                ", userName='" + userName + '\'' +
+                ", startAmount=" + startAmount +
+                ", endAmount=" + endAmount +
+                ", startTime=" + startTime +
+                ", endTime=" + endTime +
+                ", status='" + status + '\'' +
+                '}';
     }
 }

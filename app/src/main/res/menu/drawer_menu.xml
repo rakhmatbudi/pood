@@ -1,13 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
+
     <group android:checkableBehavior="single">
         <item
             android:id="@+id/nav_cashier"
-            android:icon="@drawable/ic_cashier"
-            android:title="@string/cashier" />
-        <item
-            android:id="@+id/nav_logout"
-            android:icon="@drawable/ic_logout"
-            android:title="@string/logout" />
+            android:icon="@android:drawable/ic_menu_today"
+            android:title="@string/cashier_dashboard" />
     </group>
+
+    <item android:title="@string/account">
+        <menu>
+            <item
+                android:id="@+id/nav_logout"
+                android:icon="@android:drawable/ic_menu_close_clear_cancel"
+                android:title="@string/logout" />
+        </menu>
+    </item>
+
 </menu>

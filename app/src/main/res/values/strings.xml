@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Restaurant Management</string>
+    <string name="app_name">Cafe Serendipity</string>
     <string name="app_logo">App Logo</string>
     <string name="restaurant_management">Restaurant Management</string>
     <string name="restaurant_management_system">Restaurant Management System</string>
@@ -7,9 +7,9 @@
     <string name="password">Password</string>
     <string name="login">Login</string>
     <string name="cashier">Cashier</string>
+    <string name="account">Account</string>
     <string name="logout">Logout</string>
     <string name="session_status">Session Status</string>
-    <string name="no_active_session">No Active Session</string>
     <string name="session_active">Session Active</string>
     <string name="open_session">Open Session</string>
     <string name="end_session">End Session</string>
@@ -25,8 +25,11 @@
     <string name="confirm_open_session">Confirm Open Session</string>
     <string name="confirm_end_session">Confirm End Session</string>
     <string name="payment_modes">Payment Modes</string>
-    <string name="navigation_drawer_open">Open navigation drawer</string>
-    <string name="navigation_drawer_close">Close navigation drawer</string>
+
+    <string name="amount_must_be_greater_than_zero">Opening amount must be greater than zero</string>
+    <string name="session_opened_successfully">Session opened successfully</string>
+    <string name="failed_to_open_session">Failed to open session</string>
+    <string name="network_error">Network error. Please check your connection and try again.</string>
 
     <string name="nav_header_title">Android Studio</string>
     <string name="nav_header_subtitle">android.studio@android.com</string>
@@ -61,4 +64,39 @@
     <string name="session_status_active">Status: Active</string>
     <string name="session_opening_amount">Opening: %s</string>
     <string name="session_closing_amount">Closing: %s</string>
+
+    <!-- Navigation Drawer -->
+    <string name="navigation_drawer_open">Open navigation drawer</string>
+    <string name="navigation_drawer_close">Close navigation drawer</string>
+    <string name="already_in_dashboard">Already in dashboard</string>
+
+    <!-- Preferences -->
+    <string name="pref_file_name">RestaurantApp</string>
+    <string name="pref_user_id">userId</string>
+    <string name="pref_user_name">userName</string>
+
+    <!-- Intent Extras -->
+    <string name="extra_user_id">userId</string>
+
+    <!-- Session Status -->
+    <string name="checking_session_status">Checking session status…</string>
+    <string name="no_active_session">No Active Session</string>
+    <string name="active_session_cashier">Active Session - %1$s</string>
+    <string name="error_checking_session">Error checking session</string>
+
+    <!-- Toasts -->
+    <string name="navigation_error">Navigation error: %1$s</string>
+    <string name="end_session_clicked">End Session button clicked</string>
+    <string name="error_initializing">Error initializing dashboard: %1$s</string>
+    <string name="failed_to_check_session">Failed to check session: %1$s</string>
+    <string name="session_opened_by_with_amount">Session opened by %1$s with amount: %2$s</string>
+    <string name="error_processing_response">Error processing response: %1$s</string>
+
+    <!-- API Response -->
+    <string name="unexpected_response_code">Unexpected response code: </string>
+
+    <!-- Date and Time Formats -->
+    <string name="date_format">EEEE, MMMM dd, yyyy</string>
+    <string name="time_format">HH:mm:ss</string>
+
 </resources>
