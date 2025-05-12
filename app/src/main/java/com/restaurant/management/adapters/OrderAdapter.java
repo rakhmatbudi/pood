@@ -102,8 +102,32 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
                 customerNameTextView.setText(customerName);
             }
 
-            // Set items text
-            itemsTextView.setText(order.getItemsSummary());
+            // Set items text - MODIFIED to display quantity and menu items in a single line
+            List<String> items = order.getItems();
+            if (items != null && !items.isEmpty()) {
+                // Format is typically "1x Menu Item Name (notes)"
+                // We want to keep "1x Menu Item Name" but remove the notes and put all items on one line
+                StringBuilder itemsText = new StringBuilder();
+                for (int i = 0; i < items.size(); i++) {
+                    if (i > 0) {
+                        itemsText.append(", ");
+                    }
+
+                    String itemString = items.get(i);
+                    // Remove notes if present
+                    int notesIndex = itemString.indexOf(" (");
+                    if (notesIndex > 0) {
+                        // Remove the notes part
+                        itemsText.append(itemString.substring(0, notesIndex));
+                    } else {
+                        // No notes, keep the full string
+                        itemsText.append(itemString);
+                    }
+                }
+                itemsTextView.setText(itemsText.toString());
+            } else {
+                itemsTextView.setText("No items");
+            }
 
             // Set total
             totalTextView.setText(order.getFormattedTotal());
