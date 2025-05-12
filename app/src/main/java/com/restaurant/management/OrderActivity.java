@@ -317,27 +317,22 @@ public class OrderActivity extends AppCompatActivity {
         order.setOpen(orderJson.optBoolean("is_open", false));
         order.setCreatedAt(orderJson.optString("created_at", ""));
 
-        // Customer information handling
-        String customerName = "";
-        // Check if customer_name exists and is not null
+        // Customer information handling - only set a value if customer_name or customer_id is not null
         if (!orderJson.isNull("customer_name")) {
-            customerName = orderJson.optString("customer_name", "");
-        }
-
-        // If customer_name is empty, try to get customer_id as fallback
-        if (customerName.isEmpty() && !orderJson.isNull("customer_id")) {
+            // Customer name exists in API response
+            order.setCustomerName(orderJson.optString("customer_name", ""));
+        } else if (!orderJson.isNull("customer_id")) {
+            // Only customer_id exists
             long customerId = orderJson.optLong("customer_id", -1);
             if (customerId > 0) {
-                customerName = "Customer #" + customerId;
+                order.setCustomerName("Customer #" + customerId);
+            } else {
+                order.setCustomerName(null);  // Explicitly set to null
             }
+        } else {
+            // Both customer_name and customer_id are null
+            order.setCustomerName(null);  // Explicitly set to null
         }
-
-        // If both are null/empty, use table number as identifier
-        if (customerName.isEmpty()) {
-            customerName = "Table " + order.getTableNumber();
-        }
-
-        order.setCustomerName(customerName);
 
         // Store IDs
         order.setCashierSessionId(orderJson.optLong("cashier_session_id", -1));
