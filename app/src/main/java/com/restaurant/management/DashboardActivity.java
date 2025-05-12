@@ -337,7 +337,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         } else if (id == R.id.nav_orders) {
             try {
                 // Navigate to OrderActivity
-                Intent intent = new Intent(DashboardActivity.this, OrderActivity.class);
+                Intent intent = new Intent(DashboardActivity.this, OrderListActivity.class);
 
                 // Get session ID from SharedPreferences (now updated with session_id from API)
                 SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);

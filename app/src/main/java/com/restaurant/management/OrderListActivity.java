@@ -40,7 +40,7 @@ import okhttp3.Response;
 
 import java.util.Map;
 
-public class OrderActivity extends AppCompatActivity {
+public class OrderListActivity extends AppCompatActivity {
     private static final String TAG = "OrderActivity";
     private static final String BASE_API_URL = "https://api.pood.lol/orders/open/sessions/";
 

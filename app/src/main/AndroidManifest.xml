@@ -38,7 +38,7 @@
             android:parentActivityName=".DashboardActivity" />
 
         <activity
-            android:name=".OrderActivity"
+            android:name=".OrderListActivity"
             android:label="@string/orders"
             android:parentActivityName=".DashboardActivity">
             <meta-data
