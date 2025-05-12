@@ -60,7 +60,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
     // ViewHolder class
     class OrderViewHolder extends RecyclerView.ViewHolder {
         CardView orderCard;
-        TextView orderNumberTextView;
+
         TextView timeTextView;
         TextView tableNumberTextView;
         TextView customerNameTextView;
@@ -72,7 +72,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             super(itemView);
             // Initialize views matching your item_order.xml
             orderCard = itemView.findViewById(R.id.order_card);
-            orderNumberTextView = itemView.findViewById(R.id.order_number_text_view);
             timeTextView = itemView.findViewById(R.id.time_text_view);
             tableNumberTextView = itemView.findViewById(R.id.table_number_text_view);
             customerNameTextView = itemView.findViewById(R.id.customer_name_text_view);
@@ -91,7 +90,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
 
         void bind(Order order) {
             // Bind data from the Order model to the views
-            orderNumberTextView.setText("Order #" + order.getOrderNumber());
             timeTextView.setText(order.getCreatedAt());
             tableNumberTextView.setText("Table: " + order.getTableNumber());
 

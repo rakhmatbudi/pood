@@ -16,6 +16,9 @@ public class Order {
     private long cashierSessionId;
     private long serverId;
 
+    // New field for the order items from the API
+    private List<OrderItem> orderItems = new ArrayList<>();
+
     // Default constructor
     public Order() {
     }
@@ -126,25 +129,44 @@ public class Order {
         this.serverId = serverId;
     }
 
+    // New getter and setter for orderItems
+    public List<OrderItem> getOrderItems() {
+        return orderItems;
+    }
+
+    public void setOrderItems(List<OrderItem> orderItems) {
+        this.orderItems = orderItems;
+    }
+
+    // Helper method to add an order item
+    public void addOrderItem(OrderItem item) {
+        if (this.orderItems == null) {
+            this.orderItems = new ArrayList<>();
+        }
+        this.orderItems.add(item);
+    }
+
     // Helper method to get a formatted summary of items
     public String getItemsSummary() {
-        if (items.isEmpty()) {
-            return "No items";
-        }
+        StringBuilder builder = new StringBuilder();
 
-        StringBuilder summary = new StringBuilder();
-        for (int i = 0; i < Math.min(3, items.size()); i++) {
-            if (i > 0) {
-                summary.append(", ");
+        if (items != null && !items.isEmpty()) {
+            for (int i = 0; i < items.size(); i++) {
+                String item = items.get(i);
+
+                // Remove any "(null)" occurrences from the item string
+                item = item.replace(" (null)", "");
+
+                builder.append(item);
+
+                // Add line break if not the last item
+                if (i < items.size() - 1) {
+                    builder.append("\n");
+                }
             }
-            summary.append(items.get(i));
         }
 
-        if (items.size() > 3) {
-            summary.append(", +").append(items.size() - 3).append(" more");
-        }
-
-        return summary.toString();
+        return builder.toString();
     }
 
     // Helper method to get a formatted total

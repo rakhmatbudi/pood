@@ -22,6 +22,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.restaurant.management.adapters.OrderAdapter;
 import com.restaurant.management.models.Order;
+import com.restaurant.management.models.OrderItem;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -251,11 +252,24 @@ public class OrderActivity extends AppCompatActivity {
     private void processOrdersResponse(JSONObject jsonResponse) throws JSONException {
         allOrdersList.clear();
 
+        // Check status
+        String status = jsonResponse.optString("status", "");
+        if (!"success".equals(status)) {
+            Log.e(TAG, "API returned non-success status: " + status);
+            runOnUiThread(() -> {
+                swipeRefreshLayout.setRefreshing(false);
+                showErrorState(getString(R.string.unexpected_response_code) + status);
+            });
+            return;
+        }
+
         // Check for orders array
         if (jsonResponse.has("data") && !jsonResponse.isNull("data") &&
                 jsonResponse.get("data") instanceof JSONArray) {
 
             JSONArray ordersArray = jsonResponse.getJSONArray("data");
+            int count = jsonResponse.optInt("count", 0);
+            Log.d(TAG, "Found " + count + " orders in response");
 
             // Parse each order
             for (int i = 0; i < ordersArray.length(); i++) {
@@ -283,7 +297,7 @@ public class OrderActivity extends AppCompatActivity {
     private Order parseOrder(JSONObject orderJson) throws JSONException {
         Order order = new Order();
 
-        // Extract order data from your API format
+        // Extract order data from the API format
         order.setId(orderJson.optLong("id", -1));
         order.setTableNumber(orderJson.optString("table_number", ""));
         order.setOrderNumber(String.valueOf(order.getId()));
@@ -302,19 +316,92 @@ public class OrderActivity extends AppCompatActivity {
         order.setStatus("open".equals(apiStatus) ? "pending" : apiStatus);
         order.setOpen(orderJson.optBoolean("is_open", false));
         order.setCreatedAt(orderJson.optString("created_at", ""));
-        order.setCustomerName(""); // No customer name in API
+
+        // Customer information handling
+        String customerName = "";
+        // Check if customer_name exists and is not null
+        if (!orderJson.isNull("customer_name")) {
+            customerName = orderJson.optString("customer_name", "");
+        }
+
+        // If customer_name is empty, try to get customer_id as fallback
+        if (customerName.isEmpty() && !orderJson.isNull("customer_id")) {
+            long customerId = orderJson.optLong("customer_id", -1);
+            if (customerId > 0) {
+                customerName = "Customer #" + customerId;
+            }
+        }
+
+        // If both are null/empty, use table number as identifier
+        if (customerName.isEmpty()) {
+            customerName = "Table " + order.getTableNumber();
+        }
+
+        order.setCustomerName(customerName);
 
         // Store IDs
         order.setCashierSessionId(orderJson.optLong("cashier_session_id", -1));
         order.setServerId(orderJson.optLong("server_id", -1));
 
-        // Create placeholder items
-        List<String> items = new ArrayList<>();
-        items.add("Table " + order.getTableNumber());
-        items.add("Order #" + order.getOrderNumber());
-        order.setItems(items);
+        // Process order items
+        List<String> displayItems = new ArrayList<>();
+
+        // Extract order items
+        List<OrderItem> orderItems = new ArrayList<>();
+        if (orderJson.has("order_items") && !orderJson.isNull("order_items")) {
+            JSONArray itemsArray = orderJson.getJSONArray("order_items");
+
+            for (int i = 0; i < itemsArray.length(); i++) {
+                JSONObject itemJson = itemsArray.getJSONObject(i);
+                OrderItem item = parseOrderItem(itemJson);
+                orderItems.add(item);
+
+                // Add to display items
+                String itemDisplay = item.getQuantity() + "x " + item.getMenuItemName();
+
+                // Only add notes if not null or empty
+                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
+                    itemDisplay += " (" + item.getNotes() + ")";
+                }
+
+                displayItems.add(itemDisplay);
+            }
+        }
+
+        // Set items for display
+        order.setItems(displayItems);
+
+        // Store the order items in the order object
+        order.setOrderItems(orderItems);
 
         return order;
+    }
+
+    private OrderItem parseOrderItem(JSONObject itemJson) {
+        OrderItem item = new OrderItem();
+
+        item.setId(itemJson.optLong("id", -1));
+        item.setOrderId(itemJson.optLong("order_id", -1));
+        item.setMenuItemId(itemJson.optLong("menu_item_id", -1));
+        item.setMenuItemName(itemJson.optString("menu_item_name", ""));
+
+        // Check if variant_id is null in the JSON
+        if (!itemJson.isNull("variant_id")) {
+            item.setVariantId(itemJson.optLong("variant_id", -1));
+        } else {
+            item.setVariantId(null); // Explicitly set to null if it's null in the JSON
+        }
+
+        item.setQuantity(itemJson.optInt("quantity", 0));
+        item.setUnitPrice(itemJson.optDouble("unit_price", 0.0));
+        item.setTotalPrice(itemJson.optDouble("total_price", 0.0));
+        item.setNotes(itemJson.optString("notes", ""));
+        item.setStatus(itemJson.optString("status", ""));
+        item.setKitchenPrinted(itemJson.optBoolean("kitchen_printed", false));
+        item.setCreatedAt(itemJson.optString("created_at", ""));
+        item.setUpdatedAt(itemJson.optString("updated_at", ""));
+
+        return item;
     }
 
     private void filterOrders() {
@@ -328,6 +415,16 @@ public class OrderActivity extends AppCompatActivity {
                     order.getOrderNumber().toLowerCase().contains(searchQuery) ||
                     order.getTableNumber().toLowerCase().contains(searchQuery) ||
                     order.getCustomerName().toLowerCase().contains(searchQuery);
+
+            // Also search in order items (new feature)
+            if (!matchesSearch && order.getItems() != null) {
+                for (String item : order.getItems()) {
+                    if (item.toLowerCase().contains(searchQuery)) {
+                        matchesSearch = true;
+                        break;
+                    }
+                }
+            }
 
             boolean matchesFilter = true;
 
