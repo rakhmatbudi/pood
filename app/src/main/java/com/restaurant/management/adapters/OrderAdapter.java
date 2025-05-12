@@ -88,6 +88,30 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             });
         }
 
+        private String formatPriceWithCurrency(double price) {
+            // Round to the nearest integer (no decimal)
+            long roundedPrice = Math.round(price);
+
+            // Format as xxx.xxx.xxx
+            String priceStr = String.valueOf(roundedPrice);
+            StringBuilder formattedPrice = new StringBuilder();
+
+            int length = priceStr.length();
+            for (int i = 0; i < length; i++) {
+                formattedPrice.append(priceStr.charAt(i));
+                // Add dot after every 3 digits from the right, but not at the end
+                if ((length - i - 1) % 3 == 0 && i < length - 1) {
+                    formattedPrice.append('.');
+                }
+            }
+
+            // Get currency prefix from strings.xml
+            String currencyPrefix = context.getString(R.string.currency_prefix);
+
+            // Format according to the pattern in strings.xml (allows for different currency placement)
+            return context.getString(R.string.currency_format_pattern, currencyPrefix, formattedPrice.toString());
+        }
+
         void bind(Order order) {
             // Bind data from the Order model to the views
             timeTextView.setText(order.getCreatedAt());
@@ -129,8 +153,9 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
                 itemsTextView.setText("No items");
             }
 
-            // Set total
-            totalTextView.setText(order.getFormattedTotal());
+            // Set total with custom formatting (Rp. prefix, format as xxx.xxx.xxx with no decimal)
+            String formattedTotal = formatPriceWithCurrency(order.getTotal());
+            totalTextView.setText(formattedTotal);
 
             // Set status
             statusTextView.setText(order.getFormattedStatus());

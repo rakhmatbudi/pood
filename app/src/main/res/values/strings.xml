@@ -137,4 +137,8 @@
         <item>Processing</item>
         <item>Ready</item>
     </string-array>
+
+    <!-- Currency format settings -->
+    <string name="currency_prefix">Rp.</string>
+    <string name="currency_format_pattern">%1$s %2$s</string>
 </resources>
