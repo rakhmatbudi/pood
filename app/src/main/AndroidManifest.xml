@@ -37,6 +37,15 @@
             android:exported="false"
             android:parentActivityName=".DashboardActivity" />
 
+        <activity
+            android:name=".OrderActivity"
+            android:label="@string/orders"
+            android:parentActivityName=".DashboardActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".DashboardActivity" />
+        </activity>
+
     </application>
 
 </manifest>

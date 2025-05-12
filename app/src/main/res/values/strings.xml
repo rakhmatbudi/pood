@@ -1,4 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="business_name">Cafe Serendipity</string>
     <string name="app_name">Cafe Serendipity</string>
     <string name="app_logo">App Logo</string>
     <string name="restaurant_management">Restaurant Management</string>
@@ -11,8 +13,6 @@
     <string name="logout">Logout</string>
     <string name="session_status">Session Status</string>
     <string name="session_active">Session Active</string>
-    <string name="open_session">Open Session</string>
-    <string name="end_session">End Session</string>
     <string name="cash_denominations">Cash Denominations</string>
     <string name="cash_count">Cash Count</string>
     <string name="denomination">Denomination</string>
@@ -50,8 +50,6 @@
         item
     </string>
     <string name="session_summary">Session Summary</string>
-    <string name="cashier_dashboard">Cashier Dashboard</string>
-    <string name="actions">Actions</string>
 
     <string name="past_sessions">Past Sessions</string>
     <string name="no_past_sessions">No past sessions found</string>
@@ -75,6 +73,7 @@
     <string name="pref_user_role">userRole</string>
     <string name="pref_token">token</string>
     <string name="pref_is_logged_in">isLoggedIn</string>
+    <string name="pref_active_session_id">activeSessionId</string>
 
     <!-- Intent Extras -->
     <string name="extra_user_id">userId</string>
@@ -84,6 +83,32 @@
     <string name="no_active_session">No Active Session</string>
     <string name="active_session_cashier">Active Session - %1$s</string>
     <string name="error_checking_session">Error checking session</string>
+
+    <!-- Dashboard Layout -->
+    <string name="default_user_name">User Name</string>
+    <string name="default_date_time">Date and Time</string>
+    <string name="cashier_section_title">Cashier Session</string>
+    <string name="open_session">Open Session</string>
+    <string name="end_session">End Session</string>
+    <string name="dashboard_title">Dashboard</string>
+    <string name="dashboard">Dashboard</string>
+    <string name="actions">Actions</string>
+
+    <!-- Orders -->
+    <string name="orders">Orders</string>
+    <string name="search_orders">Search orders by number, table or customer</string>
+    <string name="filter_by_status">Filter by status:</string>
+    <string name="no_orders_found">No orders found</string>
+    <string name="no_matching_orders">No orders match your filters</string>
+    <string name="no_session_id">No session ID available</string>
+    <string name="no_active_session_found">No active session found</string>
+    <string name="order_number_placeholder">Order #12345</string>
+    <string name="order_number_format">Order #%1$s</string>
+    <string name="table_number_format">Table: %1$s</string>
+    <string name="items">Items:</string>
+    <string name="total">Total:</string>
+    <string name="status">Status:</string>
+    <string name="view_orders">View Orders</string>
 
     <!-- Toasts -->
     <string name="navigation_error">Navigation error: %1$s</string>
@@ -104,4 +129,12 @@
     <!-- Date and Time Formats -->
     <string name="date_format">EEEE, MMMM dd, yyyy</string>
     <string name="time_format">HH:mm:ss</string>
+
+    <!-- Order Filter Options -->
+    <string-array name="order_filter_options">
+        <item>All Orders</item>
+        <item>Pending</item>
+        <item>Processing</item>
+        <item>Ready</item>
+    </string-array>
 </resources>

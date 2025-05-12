@@ -14,18 +14,18 @@
         android:layout_height="wrap_content"
         android:contentDescription="@string/nav_header_desc"
         android:paddingTop="8dp"
-        android:src="@android:drawable/ic_menu_myplaces" />
+        android:src="@drawable/logo" />
 
     <TextView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:paddingTop="8dp"
-        android:text="Restaurant Management"
+        android:text="@string/business_name"
         android:textAppearance="@style/TextAppearance.AppCompat.Body1" />
 
     <TextView
         android:id="@+id/textView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Cashier Panel" />
+        android:text="@string/restaurant_management_system" />
 </LinearLayout>

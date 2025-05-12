@@ -39,6 +39,8 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import java.util.Iterator;
+
 public class DashboardActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
     private static final String TAG = "DashboardActivity";
@@ -85,11 +87,9 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             noPastSessionsTextView = findViewById(R.id.no_past_sessions_text_view);
             loadingProgressBar = findViewById(R.id.loading_progress_bar);
 
-            // Make sure button is visible and enabled
-            if (openSessionButton != null) {
-                openSessionButton.setVisibility(View.VISIBLE);
-                openSessionButton.setEnabled(true);
-            }
+            // Initial button visibility setup
+            openSessionButton.setVisibility(View.VISIBLE);
+            endSessionButton.setVisibility(View.GONE);
 
             // Set up navigation drawer
             ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
@@ -203,9 +203,9 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                 getString(R.string.failed_to_check_session, e.getMessage()),
                                 Toast.LENGTH_SHORT).show();
 
-                        // Default to allowing open session when we can't check
-                        openSessionButton.setEnabled(true);
-                        endSessionButton.setEnabled(false);
+                        // Show open session button when there's an error
+                        openSessionButton.setVisibility(View.VISIBLE);
+                        endSessionButton.setVisibility(View.GONE);
                     }
                 });
             }
@@ -218,6 +218,8 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                     }
 
                     String responseBody = response.body().string();
+                    Log.d(TAG, "API Response: " + responseBody);
+
                     JSONObject jsonObject = new JSONObject(responseBody);
 
                     final boolean hasActiveSession = "success".equals(jsonObject.getString("status")) &&
@@ -237,27 +239,57 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                     String cashierName = sessionData.getString("cashier_name");
                                     String openingAmount = sessionData.getString("opening_amount");
 
+                                    // Get the full response data for debugging
+                                    Log.d(TAG, "Full session data: " + sessionData);
+
+                                    // Store the session ID from the new API response format
+                                    if (sessionData.has("session_id")) {
+                                        long activeSessionId = sessionData.getLong("session_id");
+                                        Log.d(TAG, "Extracted session ID: " + activeSessionId);
+
+                                        // Store in SharedPreferences
+                                        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+                                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                                        editor.putLong(getString(R.string.pref_active_session_id), activeSessionId);
+                                        editor.apply();
+
+                                        // Verify it was saved correctly
+                                        long savedId = sharedPreferences.getLong(getString(R.string.pref_active_session_id), -1);
+                                        Log.d(TAG, "Verified saved session ID: " + savedId);
+                                    } else {
+                                        Log.e(TAG, "Session data does not contain 'session_id' field!");
+                                        // Log the keys present in sessionData for debugging
+                                        Iterator<String> keys = sessionData.keys();
+                                        StringBuilder keysBuilder = new StringBuilder("Available keys: ");
+                                        while (keys.hasNext()) {
+                                            keysBuilder.append(keys.next()).append(", ");
+                                        }
+                                        Log.d(TAG, keysBuilder.toString());
+                                    }
+
                                     sessionStatusTextView.setText(getString(R.string.active_session_cashier, cashierName));
                                     sessionStatusTextView.setTextColor(getResources().getColor(R.color.green));
 
-                                    // Disable open session button, enable end session button
-                                    openSessionButton.setEnabled(false);
-                                    endSessionButton.setEnabled(true);
+                                    // Update button visibility
+                                    openSessionButton.setVisibility(View.GONE);
+                                    endSessionButton.setVisibility(View.VISIBLE);
 
                                     Toast.makeText(DashboardActivity.this,
                                             getString(R.string.session_opened_by_with_amount, cashierName, openingAmount),
                                             Toast.LENGTH_SHORT).show();
-
                                 } catch (JSONException e) {
                                     Log.e(TAG, "Error parsing session data", e);
                                 }
                             } else {
+                                // No active session found in the response
+                                Log.d(TAG, "No active session found in API response");
+
                                 sessionStatusTextView.setText(getString(R.string.no_active_session));
                                 sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
 
-                                // Enable open session button, disable end session button
-                                openSessionButton.setEnabled(true);
-                                endSessionButton.setEnabled(false);
+                                // Show open session button when no active session
+                                openSessionButton.setVisibility(View.VISIBLE);
+                                endSessionButton.setVisibility(View.GONE);
                             }
                         }
                     });
@@ -275,6 +307,10 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                             Toast.makeText(DashboardActivity.this,
                                     getString(R.string.error_processing_response, e.getMessage()),
                                     Toast.LENGTH_SHORT).show();
+
+                            // Show open session button in case of error
+                            openSessionButton.setVisibility(View.VISIBLE);
+                            endSessionButton.setVisibility(View.GONE);
                         }
                     });
                 }
@@ -298,6 +334,31 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         if (id == R.id.nav_dashboard) {
             // Already in dashboard activity
             Toast.makeText(this, getString(R.string.already_in_dashboard), Toast.LENGTH_SHORT).show();
+        } else if (id == R.id.nav_orders) {
+            try {
+                // Navigate to OrderActivity
+                Intent intent = new Intent(DashboardActivity.this, OrderActivity.class);
+
+                // Get session ID from SharedPreferences (now updated with session_id from API)
+                SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+                long sessionId = sharedPreferences.getLong(getString(R.string.pref_active_session_id), -1);
+
+                // If no session ID found, fall back to the default from API example
+                if (sessionId == -1) {
+                    sessionId = 16; // Fallback value if not found in SharedPreferences
+                    Log.d(TAG, "No session ID in SharedPreferences, using default: " + sessionId);
+                } else {
+                    Log.d(TAG, "Using session ID from API: " + sessionId);
+                }
+
+                // Pass the session ID to OrderActivity
+                intent.putExtra("session_id", sessionId);
+
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting OrderActivity", e);
+                Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         } else if (id == R.id.nav_logout) {
             // Clear session data
             SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);

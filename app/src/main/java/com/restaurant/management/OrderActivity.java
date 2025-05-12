@@ -1,0 +1,398 @@
+package com.restaurant.management;
+
+import android.content.SharedPreferences;
+import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.util.Log;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.EditText;
+import android.widget.ProgressBar;
+import android.widget.Spinner;
+import android.widget.TextView;
+import android.widget.Toast;
+
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.Toolbar;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.restaurant.management.adapters.OrderAdapter;
+import com.restaurant.management.models.Order;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import okhttp3.Call;
+import okhttp3.Callback;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+import java.util.Map;
+
+public class OrderActivity extends AppCompatActivity {
+    private static final String TAG = "OrderActivity";
+    private static final String BASE_API_URL = "https://api.pood.lol/orders/open/sessions/";
+
+    private RecyclerView recyclerView;
+    private OrderAdapter orderAdapter;
+    private ProgressBar progressBar;
+    private TextView noOrdersTextView;
+    private EditText searchEditText;
+    private Spinner filterSpinner;
+    private SwipeRefreshLayout swipeRefreshLayout;
+
+    private List<Order> allOrdersList = new ArrayList<>();
+    private List<Order> filteredOrdersList = new ArrayList<>();
+    private OkHttpClient client = new OkHttpClient();
+    private long currentSessionId = -1;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_order);
+
+        // Initialize toolbar
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        setSupportActionBar(toolbar);
+        getSupportActionBar().setTitle(getString(R.string.orders));
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+
+        // Initialize UI components
+        recyclerView = findViewById(R.id.order_recycler_view);
+        progressBar = findViewById(R.id.progress_bar);
+        noOrdersTextView = findViewById(R.id.no_orders_text_view);
+        searchEditText = findViewById(R.id.search_edit_text);
+        filterSpinner = findViewById(R.id.filter_spinner);
+        swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+
+        // Get current session ID - either from intent or from active session check
+        Bundle extras = getIntent().getExtras();
+        if (extras != null && extras.containsKey("session_id")) {
+            currentSessionId = extras.getLong("session_id");
+            Log.d(TAG, "Got session ID directly from intent: " + currentSessionId);
+        } else {
+            // Get from shared preferences if not passed in intent
+            Log.d(TAG, "No session_id in intent extras, checking SharedPreferences...");
+            checkForActiveSession();
+        }
+
+        // Set up RecyclerView
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+        orderAdapter = new OrderAdapter(filteredOrdersList);
+        recyclerView.setAdapter(orderAdapter);
+
+        // Set up filter spinner
+        setupFilterSpinner();
+
+        // Set up search functionality
+        setupSearch();
+
+        // Set up swipe to refresh
+        swipeRefreshLayout.setOnRefreshListener(this::fetchOrders);
+
+        // Fetch initial data
+        fetchOrders();
+    }
+
+    private void checkForActiveSession() {
+        Log.d(TAG, "Checking for active session...");
+
+        // Check for active session ID in SharedPreferences
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+
+        // Log ALL shared preferences for debugging
+        Log.d(TAG, "All SharedPreferences in " + getString(R.string.pref_file_name) + ":");
+        Map<String, ?> allPrefs = sharedPreferences.getAll();
+        for (Map.Entry<String, ?> entry : allPrefs.entrySet()) {
+            Log.d(TAG, entry.getKey() + ": " + entry.getValue());
+        }
+
+        // Get the active session ID
+        String sessionIdKey = getString(R.string.pref_active_session_id);
+        currentSessionId = sharedPreferences.getLong(sessionIdKey, -1);
+        Log.d(TAG, "Retrieved session ID: " + currentSessionId + " using key: '" + sessionIdKey + "'");
+
+        if (currentSessionId == -1) {
+            // No active session found, show error message
+            Log.e(TAG, "No active session ID found in SharedPreferences");
+            Toast.makeText(this, getString(R.string.no_active_session_found), Toast.LENGTH_LONG).show();
+            finish(); // Close activity and go back
+        } else {
+            Log.d(TAG, "Active session found with ID: " + currentSessionId);
+        }
+    }
+
+    private void setupFilterSpinner() {
+        // Create an ArrayAdapter using string array and a default spinner layout
+        ArrayAdapter<CharSequence> adapter = ArrayAdapter.createFromResource(this,
+                R.array.order_filter_options, android.R.layout.simple_spinner_item);
+        // Specify the layout to use when the list of choices appears
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        // Apply the adapter to the spinner
+        filterSpinner.setAdapter(adapter);
+
+        // Set listener to handle selection changes
+        filterSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                filterOrders();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                // Do nothing
+            }
+        });
+    }
+
+    private void setupSearch() {
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // Not used
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Filter orders when text changes
+                filterOrders();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Not used
+            }
+        });
+    }
+
+    private void fetchOrders() {
+        // Log the current session ID
+        Log.d(TAG, "Fetching orders for session ID: " + currentSessionId);
+
+        if (currentSessionId == -1) {
+            // No session ID available
+            Log.e(TAG, "No session ID available, showing error");
+            showErrorState(getString(R.string.no_session_id));
+            swipeRefreshLayout.setRefreshing(false);
+            return;
+        }
+
+        // Show loading state
+        progressBar.setVisibility(View.VISIBLE);
+        recyclerView.setVisibility(View.GONE);
+        noOrdersTextView.setVisibility(View.GONE);
+
+        // Build the URL with the session ID
+        String apiUrl = BASE_API_URL + currentSessionId;
+        Log.d(TAG, "API URL: " + apiUrl);
+
+        // Get the auth token
+        String authToken = getAuthToken();
+        Log.d(TAG, "Auth token available: " + (authToken != null && !authToken.isEmpty()));
+
+        // Create request with token
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(apiUrl);
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        // Execute the request
+        Log.d(TAG, "Executing API request...");
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "API request failed", e);
+                runOnUiThread(() -> {
+                    swipeRefreshLayout.setRefreshing(false);
+                    showErrorState(getString(R.string.network_error));
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                Log.d(TAG, "Received API response, status code: " + response.code());
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "Response body: " + responseBody);
+
+                    if (!response.isSuccessful()) {
+                        throw new IOException("Unexpected response code: " + response.code());
+                    }
+
+                    JSONObject jsonResponse = new JSONObject(responseBody);
+                    processOrdersResponse(jsonResponse);
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing response", e);
+                    runOnUiThread(() -> {
+                        swipeRefreshLayout.setRefreshing(false);
+                        showErrorState(getString(R.string.error_processing_response, e.getMessage()));
+                    });
+                }
+            }
+        });
+    }
+
+    private void processOrdersResponse(JSONObject jsonResponse) throws JSONException {
+        allOrdersList.clear();
+
+        // Check for orders array
+        if (jsonResponse.has("data") && !jsonResponse.isNull("data") &&
+                jsonResponse.get("data") instanceof JSONArray) {
+
+            JSONArray ordersArray = jsonResponse.getJSONArray("data");
+
+            // Parse each order
+            for (int i = 0; i < ordersArray.length(); i++) {
+                JSONObject orderJson = ordersArray.getJSONObject(i);
+                Order order = parseOrder(orderJson);
+                allOrdersList.add(order);
+            }
+        }
+
+        // Update UI
+        runOnUiThread(() -> {
+            swipeRefreshLayout.setRefreshing(false);
+
+            if (allOrdersList.isEmpty()) {
+                showEmptyState();
+            } else {
+                filterOrders();
+                progressBar.setVisibility(View.GONE);
+                recyclerView.setVisibility(View.VISIBLE);
+                noOrdersTextView.setVisibility(View.GONE);
+            }
+        });
+    }
+
+    private Order parseOrder(JSONObject orderJson) throws JSONException {
+        Order order = new Order();
+
+        // Extract order data from your API format
+        order.setId(orderJson.optLong("id", -1));
+        order.setTableNumber(orderJson.optString("table_number", ""));
+        order.setOrderNumber(String.valueOf(order.getId()));
+
+        // Parse total amount
+        String totalAmountStr = orderJson.optString("total_amount", "0.0").replace(",", "");
+        try {
+            order.setTotal(Double.parseDouble(totalAmountStr));
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Error parsing total: " + totalAmountStr, e);
+            order.setTotal(0.0);
+        }
+
+        // Map status values
+        String apiStatus = orderJson.optString("status", "").toLowerCase();
+        order.setStatus("open".equals(apiStatus) ? "pending" : apiStatus);
+        order.setOpen(orderJson.optBoolean("is_open", false));
+        order.setCreatedAt(orderJson.optString("created_at", ""));
+        order.setCustomerName(""); // No customer name in API
+
+        // Store IDs
+        order.setCashierSessionId(orderJson.optLong("cashier_session_id", -1));
+        order.setServerId(orderJson.optLong("server_id", -1));
+
+        // Create placeholder items
+        List<String> items = new ArrayList<>();
+        items.add("Table " + order.getTableNumber());
+        items.add("Order #" + order.getOrderNumber());
+        order.setItems(items);
+
+        return order;
+    }
+
+    private void filterOrders() {
+        filteredOrdersList.clear();
+
+        String searchQuery = searchEditText.getText().toString().toLowerCase().trim();
+        int filterPosition = filterSpinner.getSelectedItemPosition();
+
+        for (Order order : allOrdersList) {
+            boolean matchesSearch = searchQuery.isEmpty() ||
+                    order.getOrderNumber().toLowerCase().contains(searchQuery) ||
+                    order.getTableNumber().toLowerCase().contains(searchQuery) ||
+                    order.getCustomerName().toLowerCase().contains(searchQuery);
+
+            boolean matchesFilter = true;
+
+            // Apply filter based on selection
+            switch (filterPosition) {
+                case 0: // All orders
+                    matchesFilter = true;
+                    break;
+                case 1: // Pending orders
+                    matchesFilter = "pending".equalsIgnoreCase(order.getStatus());
+                    break;
+                case 2: // Processing orders
+                    matchesFilter = "processing".equalsIgnoreCase(order.getStatus());
+                    break;
+                case 3: // Ready orders
+                    matchesFilter = "ready".equalsIgnoreCase(order.getStatus());
+                    break;
+            }
+
+            if (matchesSearch && matchesFilter) {
+                filteredOrdersList.add(order);
+            }
+        }
+
+        // Update adapter and UI
+        orderAdapter.notifyDataSetChanged();
+
+        if (filteredOrdersList.isEmpty() && !allOrdersList.isEmpty()) {
+            // Has orders but none match filter
+            noOrdersTextView.setText(getString(R.string.no_matching_orders));
+            noOrdersTextView.setVisibility(View.VISIBLE);
+            recyclerView.setVisibility(View.GONE);
+        } else if (filteredOrdersList.isEmpty()) {
+            // No orders at all
+            showEmptyState();
+        } else {
+            // Has filtered orders
+            noOrdersTextView.setVisibility(View.GONE);
+            recyclerView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    private String getAuthToken() {
+        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+        return sharedPreferences.getString(getString(R.string.pref_token), "");
+    }
+
+    private void showEmptyState() {
+        progressBar.setVisibility(View.GONE);
+        recyclerView.setVisibility(View.GONE);
+        noOrdersTextView.setText(getString(R.string.no_orders_found));
+        noOrdersTextView.setVisibility(View.VISIBLE);
+    }
+
+    private void showErrorState(String errorMessage) {
+        progressBar.setVisibility(View.GONE);
+        recyclerView.setVisibility(View.GONE);
+        noOrdersTextView.setText(errorMessage);
+        noOrdersTextView.setVisibility(View.VISIBLE);
+        Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
+    }
+}
