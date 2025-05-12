@@ -103,12 +103,19 @@
     <string name="no_session_id">No session ID available</string>
     <string name="no_active_session_found">No active session found</string>
     <string name="order_number_placeholder">Order #12345</string>
-    <string name="order_number_format">Order #%1$s</string>
-    <string name="table_number_format">Table: %1$s</string>
     <string name="items">Items:</string>
     <string name="total">Total:</string>
     <string name="status">Status:</string>
     <string name="view_orders">View Orders</string>
+    <string name="order_details">Order Details</string>
+    <string name="order_number_format">Order #%s</string>
+    <string name="table_number_format">Table: %s</string>
+    <string name="customer_name_format">Customer: %s</string>
+    <string name="order_status_format">Status: %s</string>
+    <string name="order_total_format">Total: %s</string>
+    <string name="order_date_format">Date: %s</string>
+    <string name="order_items">Order Items</string>
+    <string name="order_not_found">Order not found</string>
 
     <!-- Toasts -->
     <string name="navigation_error">Navigation error: %1$s</string>
@@ -130,6 +137,13 @@
     <string name="date_format">EEEE, MMMM dd, yyyy</string>
     <string name="time_format">HH:mm:ss</string>
 
+    <string name="unit_price_format">@ %s</string>
+    <string name="kitchen_printed">Printed</string>
+    <string name="kitchen_not_printed">Not Printed</string>
+    <string name="order_updated_format">Updated: %s</string>
+    <string name="order_server_format">Server: #%d</string>
+    <string name="order_session_format">Session: #%d</string>
+
     <!-- Order Filter Options -->
     <string-array name="order_filter_options">
         <item>All Orders</item>
@@ -141,4 +155,6 @@
     <!-- Currency format settings -->
     <string name="currency_prefix">Rp.</string>
     <string name="currency_format_pattern">%1$s %2$s</string>
+
+
 </resources>

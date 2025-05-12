@@ -1,5 +1,6 @@
 package com.restaurant.management;
 
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.Editable;
@@ -90,6 +91,13 @@ public class OrderListActivity extends AppCompatActivity {
         // Set up RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         orderAdapter = new OrderAdapter(filteredOrdersList);
+        orderAdapter.setOnOrderClickListener((order, position) -> {
+            // Navigate to OrderActivity with just the IDs
+            Intent intent = new Intent(OrderListActivity.this, OrderActivity.class);
+            intent.putExtra("order_id", order.getId());
+            intent.putExtra("session_id", currentSessionId);
+            startActivity(intent);
+        });
         recyclerView.setAdapter(orderAdapter);
 
         // Set up filter spinner

@@ -46,6 +46,11 @@
                 android:value=".DashboardActivity" />
         </activity>
 
+        <activity
+            android:name=".OrderActivity"
+            android:label="@string/order_details"
+            android:parentActivityName=".OrderListActivity" />
+
     </application>
 
 </manifest>
