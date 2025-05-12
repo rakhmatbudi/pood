@@ -116,6 +116,8 @@
     <string name="order_date_format">Date: %s</string>
     <string name="order_items">Order Items</string>
     <string name="order_not_found">Order not found</string>
+    <string name="add_item">ADD ITEM</string>
+    <string name="payment">PAYMENT</string>
 
     <!-- Toasts -->
     <string name="navigation_error">Navigation error: %1$s</string>

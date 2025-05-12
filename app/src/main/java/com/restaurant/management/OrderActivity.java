@@ -1,9 +1,11 @@
 package com.restaurant.management;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -52,6 +54,8 @@ public class OrderActivity extends AppCompatActivity {
     private RecyclerView orderItemsRecyclerView;
     private ProgressBar progressBar;
     private View contentLayout;
+    private Button addItemButton;
+    private Button paymentButton;
 
     private Order order;
     private String updatedAt; // Store updatedAt as a separate variable
@@ -90,6 +94,12 @@ public class OrderActivity extends AppCompatActivity {
         orderItemsRecyclerView = findViewById(R.id.order_items_recycler_view);
         progressBar = findViewById(R.id.progress_bar);
         contentLayout = findViewById(R.id.content_layout);
+        addItemButton = findViewById(R.id.add_item_button);
+        paymentButton = findViewById(R.id.payment_button);
+
+        // Set up button click listeners
+        addItemButton.setOnClickListener(v -> navigateToAddItem());
+        paymentButton.setOnClickListener(v -> navigateToPayment());
 
         // Setup RecyclerView
         orderItemsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -106,6 +116,28 @@ public class OrderActivity extends AppCompatActivity {
 
         // Fetch order details
         fetchOrderDetails(orderId);
+    }
+
+    private void navigateToAddItem() {
+        // Navigate to add item screen
+        Toast.makeText(this, "Add Item feature will be implemented soon", Toast.LENGTH_SHORT).show();
+
+        // Implementation example (uncomment when ready):
+        // Intent intent = new Intent(OrderActivity.this, AddItemActivity.class);
+        // intent.putExtra("order_id", order.getId());
+        // intent.putExtra("table_number", order.getTableNumber());
+        // startActivity(intent);
+    }
+
+    private void navigateToPayment() {
+        // Navigate to payment screen
+        Toast.makeText(this, "Payment feature will be implemented soon", Toast.LENGTH_SHORT).show();
+
+        // Implementation example (uncomment when ready):
+        // Intent intent = new Intent(OrderActivity.this, PaymentActivity.class);
+        // intent.putExtra("order_id", order.getId());
+        // intent.putExtra("total_amount", order.getTotal());
+        // startActivity(intent);
     }
 
     private void fetchOrderDetails(long orderId) {
@@ -295,6 +327,9 @@ public class OrderActivity extends AppCompatActivity {
         progressBar.setVisibility(View.GONE);
         contentLayout.setVisibility(View.VISIBLE);
 
+        // Enable/disable buttons based on order status
+        updateActionButtons();
+
         // Set order details in views
         orderNumberTextView.setText(getString(R.string.order_number_format, order.getOrderNumber()));
         tableNumberTextView.setText(getString(R.string.table_number_format, order.getTableNumber()));
@@ -332,6 +367,17 @@ public class OrderActivity extends AppCompatActivity {
             OrderItemAdapter adapter = new OrderItemAdapter(orderItems);
             orderItemsRecyclerView.setAdapter(adapter);
         }
+    }
+
+    private void updateActionButtons() {
+        // Only enable buttons if order is open
+        boolean isOrderOpen = order.isOpen();
+
+        addItemButton.setEnabled(isOrderOpen);
+        addItemButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
+
+        paymentButton.setEnabled(isOrderOpen);
+        paymentButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
     }
 
     private String formatAPIDate(String apiDateStr) {

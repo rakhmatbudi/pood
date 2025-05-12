@@ -47,44 +47,7 @@
                 tools:text="Rp. 45.000" />
         </LinearLayout>
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:layout_marginTop="4dp">
-
-            <TextView
-                android:id="@+id/item_unit_price_text_view"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textSize="14sp"
-                tools:text="@ Rp. 45.000" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center_vertical">
-
-                <TextView
-                    android:id="@+id/kitchen_status_text_view"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginEnd="6dp"
-                    android:textSize="14sp"
-                    tools:text="Printed" />
-
-                <TextView
-                    android:id="@+id/item_status_text_view"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="14sp"
-                    android:textStyle="italic"
-                    tools:text="new"
-                    tools:textColor="@color/status_pending" />
-            </LinearLayout>
-        </LinearLayout>
+        <!-- Removed the second row with unit price, kitchen status, and item status -->
 
         <TextView
             android:id="@+id/item_notes_text_view"
@@ -94,14 +57,5 @@
             android:textStyle="italic"
             android:textSize="14sp"
             tools:text="No mayo, extra cheese" />
-
-        <TextView
-            android:id="@+id/item_timestamp_text_view"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:textSize="12sp"
-            android:textColor="@android:color/darker_gray"
-            tools:text="May 12, 12:30" />
     </LinearLayout>
 </androidx.cardview.widget.CardView>
