@@ -70,6 +70,15 @@
                 android:value=".OrderActivity" />
         </activity>
 
+        <activity
+            android:name=".TransactionActivity"
+            android:label="@string/transactions"
+            android:parentActivityName=".DashboardActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".DashboardActivity" />
+        </activity>
+
     </application>
 
 </manifest>

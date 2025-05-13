@@ -1,6 +1,7 @@
 package com.restaurant.management.network;
 
 import com.restaurant.management.models.CashierSession;
+import com.restaurant.management.models.SessionPaymentsResponse;
 
 import java.util.List;
 import retrofit2.Call;
@@ -32,4 +33,7 @@ public interface ApiService {
      */
     @GET("cashier/sessions/{id}")
     Call<CashierSession> getSessionById(@Path("id") int sessionId);
+
+    @GET("payments/grouped/sessions/details")
+    Call<SessionPaymentsResponse> getSessionPayments();
 }

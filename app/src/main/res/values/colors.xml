@@ -25,4 +25,8 @@
 
     <color name="colorError">#F44336</color>
     <color name="colorNormal">#000000</color>
+
+    <color name="colorActive">#4CAF50</color>
+    <color name="colorInactive">#9E9E9E</color>
+    <color name="colorAmount">#1976D2</color>
 </resources>
