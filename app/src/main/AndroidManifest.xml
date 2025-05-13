@@ -60,6 +60,16 @@
                 android:value=".OrderActivity" />
         </activity>
 
+        <!-- Add PaymentActivity here -->
+        <activity
+            android:name=".PaymentActivity"
+            android:label="@string/payment"
+            android:parentActivityName=".OrderActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".OrderActivity" />
+        </activity>
+
     </application>
 
 </manifest>

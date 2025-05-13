@@ -22,4 +22,7 @@
     <color name="status_ready">#388E3C</color>
     <color name="status_completed">#512DA8</color>
     <color name="status_cancelled">#D32F2F</color>
+
+    <color name="colorError">#F44336</color>
+    <color name="colorNormal">#000000</color>
 </resources>

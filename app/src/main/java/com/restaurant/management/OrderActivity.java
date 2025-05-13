@@ -40,6 +40,7 @@ import okhttp3.Response;
 
 public class OrderActivity extends AppCompatActivity {
     private static final int ADD_ITEM_REQUEST_CODE = 100;
+    private static final int PAYMENT_REQUEST_CODE = 101;
     private static final String TAG = "OrderActivity";
     private static final String BASE_API_URL = "https://api.pood.lol/orders/";
 
@@ -127,6 +128,23 @@ public class OrderActivity extends AppCompatActivity {
             // Refresh order details when an item is added
             fetchOrderDetails(orderId);
             Toast.makeText(this, R.string.order_updated, Toast.LENGTH_SHORT).show();
+        } else if (requestCode == PAYMENT_REQUEST_CODE && resultCode == RESULT_OK) {
+            // Payment was successful, refresh order to show closed status
+            fetchOrderDetails(orderId);
+
+            // Show success message with payment method
+            if (data != null) {
+                String paymentMethod = data.getStringExtra("payment_method");
+                String formattedMethod = paymentMethod != null ?
+                        paymentMethod.substring(0, 1).toUpperCase() + paymentMethod.substring(1) :
+                        getString(R.string.unknown);
+
+                Toast.makeText(this,
+                        getString(R.string.payment_completed_format, formattedMethod),
+                        Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(this, R.string.payment_completed, Toast.LENGTH_SHORT).show();
+            }
         }
     }
 
@@ -139,14 +157,30 @@ public class OrderActivity extends AppCompatActivity {
     }
 
     private void navigateToPayment() {
-        // Navigate to payment screen
-        Toast.makeText(this, "Payment feature will be implemented soon", Toast.LENGTH_SHORT).show();
+        // Check if order is eligible for payment
+        if (order == null) {
+            Toast.makeText(this, R.string.order_not_available, Toast.LENGTH_SHORT).show();
+            return;
+        }
 
-        // Implementation example (uncomment when ready):
-        // Intent intent = new Intent(OrderActivity.this, PaymentActivity.class);
-        // intent.putExtra("order_id", order.getId());
-        // intent.putExtra("total_amount", order.getTotal());
-        // startActivity(intent);
+        if (order.getTotal() <= 0) {
+            Toast.makeText(this, R.string.zero_amount_error, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!order.isOpen()) {
+            Toast.makeText(this, R.string.order_already_closed, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Navigate to payment screen
+        Intent intent = new Intent(OrderActivity.this, PaymentActivity.class);
+        intent.putExtra("order_id", order.getId());
+        intent.putExtra("order_number", order.getOrderNumber());
+        intent.putExtra("table_number", order.getTableNumber());
+        intent.putExtra("total_amount", order.getTotal());
+        intent.putExtra("session_id", order.getCashierSessionId());
+        startActivityForResult(intent, PAYMENT_REQUEST_CODE);
     }
 
     private void fetchOrderDetails(long orderId) {

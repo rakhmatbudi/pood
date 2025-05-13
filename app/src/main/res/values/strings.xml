@@ -118,7 +118,8 @@
     <string name="order_not_found">Order not found</string>
     <string name="add_item_button">ADD ITEM</string>
     <string name="add_item">Add Item</string>
-    <string name="payment">PAYMENT</string>
+    <string name="payment_button">PAYMENT</string>
+    <string name="payment">Payment</string>
     <string name="add_new_order">Add New Order</string>
     <string name="create_new_order">Create New Order</string>
     <string name="table_number">Table Number</string>
@@ -187,5 +188,34 @@
     <string name="cancel">Cancel</string>
     <string name="add">Add</string>
 
+    <!-- Payment Activity -->
+    <string name="payment_method">Payment Method</string>
+    <string name="payment_method_cash">Cash</string>
+    <string name="payment_method_card">Credit/Debit Card</string>
+    <string name="payment_method_mobile">Mobile Payment</string>
+    <string name="payment_amount">Payment Amount</string>
+    <string name="amount_paid">Amount Paid</string>
+    <string name="change_format">Change: %s</string>
+    <string name="payment_notes">Notes (Optional)</string>
+    <string name="process_payment">Process Payment</string>
+
+    <!-- Error messages -->
+    <string name="invalid_order_data">Invalid order data</string>
+    <string name="invalid_amount">Invalid amount</string>
+    <string name="insufficient_payment">Payment amount is less than the total</string>
+    <string name="payment_failed_network">Payment failed: Network error</string>
+    <string name="payment_failed_server">Payment failed: Server error</string>
+    <string name="payment_failed_unknown">Payment failed: Unknown error</string>
+    <string name="payment_failed_parsing">Payment failed: Error processing response</string>
+    <string name="payment_failed_request">Payment failed: Error creating request</string>
+    <string name="payment_success">Payment processed successfully</string>
+
+    <!-- Order Activity updates -->
+    <string name="order_not_available">Order information not available</string>
+    <string name="zero_amount_error">Order total is zero</string>
+    <string name="order_already_closed">Order is already closed</string>
+    <string name="payment_completed">Payment completed successfully</string>
+    <string name="payment_completed_format">Payment completed successfully (%s)</string>
+    <string name="unknown">Unknown</string>
 
 </resources>
