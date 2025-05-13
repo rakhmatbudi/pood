@@ -39,6 +39,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 public class OrderActivity extends AppCompatActivity {
+    private static final int ADD_ITEM_REQUEST_CODE = 100;
     private static final String TAG = "OrderActivity";
     private static final String BASE_API_URL = "https://api.pood.lol/orders/";
 
@@ -118,15 +119,23 @@ public class OrderActivity extends AppCompatActivity {
         fetchOrderDetails(orderId);
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == ADD_ITEM_REQUEST_CODE && resultCode == RESULT_OK) {
+            // Refresh order details when an item is added
+            fetchOrderDetails(orderId);
+            Toast.makeText(this, R.string.order_updated, Toast.LENGTH_SHORT).show();
+        }
+    }
+
     private void navigateToAddItem() {
         // Navigate to add item screen
-        Toast.makeText(this, "Add Item feature will be implemented soon", Toast.LENGTH_SHORT).show();
-
-        // Implementation example (uncomment when ready):
-        // Intent intent = new Intent(OrderActivity.this, AddItemActivity.class);
-        // intent.putExtra("order_id", order.getId());
-        // intent.putExtra("table_number", order.getTableNumber());
-        // startActivity(intent);
+        Intent intent = new Intent(OrderActivity.this, AddItemActivity.class);
+        intent.putExtra("order_id", orderId);
+        intent.putExtra("table_number", order.getTableNumber());
+        startActivityForResult(intent, ADD_ITEM_REQUEST_CODE);
     }
 
     private void navigateToPayment() {

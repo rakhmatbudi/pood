@@ -51,6 +51,15 @@
             android:label="@string/order_details"
             android:parentActivityName=".OrderListActivity" />
 
+        <activity
+            android:name=".AddItemActivity"
+            android:label="@string/add_item"
+            android:parentActivityName=".OrderActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".OrderActivity" />
+        </activity>
+
     </application>
 
 </manifest>

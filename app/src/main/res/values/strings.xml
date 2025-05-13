@@ -116,7 +116,8 @@
     <string name="order_date_format">Date: %s</string>
     <string name="order_items">Order Items</string>
     <string name="order_not_found">Order not found</string>
-    <string name="add_item">ADD ITEM</string>
+    <string name="add_item_button">ADD ITEM</string>
+    <string name="add_item">Add Item</string>
     <string name="payment">PAYMENT</string>
 
     <!-- Toasts -->
@@ -157,6 +158,26 @@
     <!-- Currency format settings -->
     <string name="currency_prefix">Rp.</string>
     <string name="currency_format_pattern">%1$s %2$s</string>
+
+    <!-- Add Item Activity -->
+    <string name="search_menu_items">Search menu items</string>
+    <string name="search">Search</string>
+    <string name="menu_items">Menu Items</string>
+    <string name="invalid_order_details">Invalid order details</string>
+    <string name="item_added_successfully">Item added successfully</string>
+    <string name="error_adding_item">Error adding item</string>
+    <string name="error_creating_request">Error creating request</string>
+    <string name="invalid_quantity">Invalid quantity</string>
+    <string name="order_updated">Order updated successfully</string>
+
+    <!-- Item Detail Dialog -->
+    <string name="add_item_to_order">Add Item to Order</string>
+    <string name="decrease_quantity">Decrease quantity</string>
+    <string name="increase_quantity">Increase quantity</string>
+    <string name="notes_optional">Notes (Optional)</string>
+    <string name="notes_hint">Special instructions, allergies, etc.</string>
+    <string name="cancel">Cancel</string>
+    <string name="add">Add</string>
 
 
 </resources>
