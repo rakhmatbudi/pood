@@ -111,24 +111,30 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
             convertView = inflater.inflate(R.layout.item_transaction, parent, false);
         }
 
-        TextView tvTransactionId = convertView.findViewById(R.id.tvTransactionId);
         TextView tvOrderInfo = convertView.findViewById(R.id.tvOrderInfo);
         TextView tvAmount = convertView.findViewById(R.id.tvAmount);
         TextView tvPaymentMethod = convertView.findViewById(R.id.tvPaymentMethod);
         TextView tvPaymentTime = convertView.findViewById(R.id.tvPaymentTime);
         TextView tvItemCount = convertView.findViewById(R.id.tvItemCount);
 
-        tvTransactionId.setText(String.format(Locale.getDefault(), "Payment #%d", transaction.getId()));
+        // Display order info (Order ID and table number)
         tvOrderInfo.setText(String.format(Locale.getDefault(), "Order #%d • Table %s",
                 transaction.getOrderId(), transaction.getTableNumber()));
+
+        // Display amount
         tvAmount.setText(formatCurrency(transaction.getAmount()));
+
+        // Display payment method
         tvPaymentMethod.setText(transaction.getPaymentMethod());
+
+        // Display payment time
         tvPaymentTime.setText(dateFormat.format(transaction.getPaymentDate()));
+
+        // Display item count
         tvItemCount.setText(String.format(Locale.getDefault(), "%d items", transaction.getItemCount()));
 
         return convertView;
     }
-
     @Override
     public boolean isChildSelectable(int groupPosition, int childPosition) {
         return true;
