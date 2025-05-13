@@ -1,6 +1,8 @@
 package com.restaurant.management.adapters;
 
 import android.content.Context;
+import android.graphics.Typeface;
+import android.util.Log;
 import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -132,8 +134,11 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         tvPaymentTime.setText(dateFormat.format(transaction.getPaymentDate()));
 
         // Format and display order items
-        String orderItemsText = formatOrderItems(transaction.getOrderItems());
-        tvOrderItems.setText(orderItemsText);
+        String formattedItems = formatOrderItems(transaction.getOrderItems());
+        tvOrderItems.setText(formattedItems);
+
+        // Debug log the order items
+        Log.d("TransactionAdapter", "Setting order items text: " + formattedItems);
 
         return convertView;
     }
@@ -150,14 +155,19 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
 
         StringBuilder sb = new StringBuilder();
 
+        // Add more debugging
+        Log.d("TransactionAdapter", "Formatting " + orderItems.size() + " order items");
+
         for (int i = 0; i < orderItems.size(); i++) {
             OrderItem item = orderItems.get(i);
 
-            // Use the actual menu item name from the API
-            String itemName = item.getMenuItemName();
+            // Log each item being formatted
+            Log.d("TransactionAdapter", "Item " + i + ": ID=" + item.getMenuItemId() +
+                    ", Name=" + item.getMenuItemName() + ", Qty=" + item.getQuantity());
 
+            // Use the actual menu item name
             sb.append(item.getQuantity()).append("x ");
-            sb.append(itemName);
+            sb.append(item.getMenuItemName());
 
             if (i < orderItems.size() - 1) {
                 sb.append(", ");
@@ -166,9 +176,12 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
 
         String result = sb.toString();
 
+        // For debugging, log the final formatted string
+        Log.d("TransactionAdapter", "Final formatted string: " + result);
+
         // Truncate if longer than 30 characters
-        if (result.length() > 35) {
-            result = result.substring(0, 32) + "...";
+        if (result.length() > 30) {
+            result = result.substring(0, 27) + "...";
         }
 
         return result;

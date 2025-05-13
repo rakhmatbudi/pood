@@ -144,14 +144,14 @@ public class TransactionActivity extends AppCompatActivity {
         for (SessionWithPayments sessionData : sessionsData) {
             int sessionId = sessionData.getCashierSessionId();
 
-            // Create a new CashierSession object with the available data
+            // Create a new CashierSession object
             CashierSession session = new CashierSession();
             session.setId(sessionId);
-            session.setUserName("Cashier #" + sessionId); // Placeholder
-            session.setStartAmount(0); // Placeholder
-            session.setEndAmount(0); // Placeholder
-            session.setStartTime(new Date()); // Placeholder
-            session.setStatus("ACTIVE"); // Placeholder
+            session.setUserName("Cashier #" + sessionId);
+            session.setStartAmount(0);
+            session.setEndAmount(0);
+            session.setStartTime(new Date());
+            session.setStatus("ACTIVE");
 
             sessionList.add(session);
 
@@ -173,7 +173,7 @@ public class TransactionActivity extends AppCompatActivity {
                     paymentDate = apiDateFormat.parse(dateStr);
                 } catch (ParseException e) {
                     Log.e(TAG, "Date parsing error: " + e.getMessage());
-                    paymentDate = new Date(); // Fallback to current date
+                    paymentDate = new Date();
                 }
 
                 // Parse order items
@@ -182,25 +182,35 @@ public class TransactionActivity extends AppCompatActivity {
 
                 for (PaymentData.OrderItemData itemData : itemsData) {
                     OrderItem orderItem = new OrderItem();
+
+                    // Log the raw data from API for debugging
+                    Log.d(TAG, "API Raw Data - MenuItemID: " + itemData.getMenuItemId() +
+                            ", MenuItemName: " + itemData.getMenuItemName());
+
+                    // Set the basic properties
                     orderItem.setId(itemData.getItemId());
                     orderItem.setMenuItemId(itemData.getMenuItemId());
-                    orderItem.setMenuItemName(itemData.getMenuItemName());
                     orderItem.setQuantity(itemData.getQuantity());
                     orderItem.setUnitPrice(itemData.getUnitPrice());
                     orderItem.setTotalPrice(itemData.getTotalPrice());
+
+                    // Explicitly set the menu item name from API
+                    if (itemData.getMenuItemName() != null) {
+                        orderItem.setMenuItemName(itemData.getMenuItemName());
+                        // Log the name being set
+                        Log.d(TAG, "Setting menu name: " + itemData.getMenuItemName());
+                    } else {
+                        // Fallback
+                        orderItem.setMenuItemName("Item #" + itemData.getMenuItemId());
+                        Log.d(TAG, "API missing name, using fallback: Item #" + itemData.getMenuItemId());
+                    }
 
                     if (itemData.getNotes() != null) {
                         orderItem.setNotes(itemData.getNotes());
                     }
 
-                    // Set orderId for the item
                     orderItem.setOrderId(orderId);
 
-                    // We don't have menuItemName in the API response,
-                    // so we'll set a placeholder
-                    orderItem.setMenuItemName("Item #" + orderItem.getMenuItemId());
-
-                    // Set variant ID if not null
                     if (itemData.getVariantId() != null) {
                         orderItem.setVariantId(itemData.getVariantId());
                     }
@@ -208,6 +218,7 @@ public class TransactionActivity extends AppCompatActivity {
                     orderItems.add(orderItem);
                 }
 
+                // Create the transaction with all the data
                 Transaction transaction = new Transaction(
                         paymentId,
                         orderId,
@@ -217,6 +228,12 @@ public class TransactionActivity extends AppCompatActivity {
                         paymentDate,
                         orderItems
                 );
+
+                // Log the transaction and its items for debugging
+                Log.d(TAG, "Created Transaction: " + transaction.getId() + ", Items: " + transaction.getOrderItems().size());
+                for (OrderItem item : transaction.getOrderItems()) {
+                    Log.d(TAG, "  - Item: " + item.getQuantity() + "x " + item.getMenuItemName());
+                }
 
                 transactions.add(transaction);
             }
