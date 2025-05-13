@@ -80,10 +80,7 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
 
         // Find all views from your existing layout
         TextView sessionIdTextView = convertView.findViewById(R.id.session_id_text_view);
-        TextView statusTextView = convertView.findViewById(R.id.status_text_view);
-        TextView cashierNameTextView = convertView.findViewById(R.id.cashier_name_text_view);
         TextView startTimeTextView = convertView.findViewById(R.id.start_time_text_view);
-        TextView endTimeTextView = convertView.findViewById(R.id.end_time_text_view);
         TextView totalTextView = convertView.findViewById(R.id.total_text_view);
 
         // Get total transactions amount for this session
@@ -96,20 +93,9 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         // Set session information
         sessionIdTextView.setText(String.valueOf(session.getId()));
 
-        String status = session.getStatus();
-        statusTextView.setText(status);
-        statusTextView.setTextColor("ACTIVE".equals(status) ?
-                context.getResources().getColor(R.color.colorActive) :
-                context.getResources().getColor(R.color.colorInactive));
-
-        cashierNameTextView.setText(session.getUserName());
-
-        // Format and set dates
+        // Format and set date
         startTimeTextView.setText(session.getStartTime() != null ?
                 dateFormat.format(session.getStartTime()) : "N/A");
-
-        endTimeTextView.setText(session.getEndTime() != null ?
-                dateFormat.format(session.getEndTime()) : "In Progress");
 
         // Set the total amount
         totalTextView.setText(formatCurrency(totalAmount));

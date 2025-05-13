@@ -15,16 +15,17 @@
         android:padding="12dp"
         android:background="#E8F5E9">  <!-- Light green background -->
 
-        <!-- Header Row -->
+        <!-- Header Row - Session ID, Start Time, and Total -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Session ID:"
+                android:text="Session #"
                 android:textStyle="bold"
                 android:layout_marginEnd="4dp" />
 
@@ -32,103 +33,23 @@
                 android:id="@+id/session_id_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="16dp"
+                android:textStyle="bold"
                 tools:text="12345" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="0dp"
-                android:layout_weight="1" />
-
-            <TextView
-                android:id="@+id/status_text_view"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:textStyle="bold"
-                tools:text="ACTIVE"
-                tools:textColor="#4CAF50" />
-        </LinearLayout>
-
-        <!-- Cashier Name Row -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Cashier:"
-                android:textStyle="bold"
-                android:layout_marginEnd="4dp" />
-
-            <TextView
-                android:id="@+id/cashier_name_text_view"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                tools:text="John Doe" />
-        </LinearLayout>
-
-        <!-- Time Rows -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Start Time:"
-                android:textStyle="bold"
-                android:layout_marginEnd="4dp" />
 
             <TextView
                 android:id="@+id/start_time_text_view"
-                android:layout_width="wrap_content"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="center"
                 tools:text="10/05/2023 08:00" />
-        </LinearLayout>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="End Time:"
-                android:textStyle="bold"
-                android:layout_marginEnd="4dp" />
-
-            <TextView
-                android:id="@+id/end_time_text_view"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                tools:text="10/05/2023 16:00" />
-        </LinearLayout>
-
-        <!-- Total Row - Keeping this one -->
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Total:"
-                android:textStyle="bold"
-                android:layout_marginEnd="4dp" />
 
             <TextView
                 android:id="@+id/total_text_view"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:textStyle="bold"
+                android:textColor="@color/colorAmount"
                 tools:text="Rp 250,000" />
         </LinearLayout>
     </LinearLayout>
