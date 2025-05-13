@@ -11,6 +11,7 @@ import android.widget.TextView;
 import com.restaurant.management.R;
 import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.models.Transaction;
+import com.restaurant.management.models.OrderItem;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -115,7 +116,7 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         TextView tvAmount = convertView.findViewById(R.id.tvAmount);
         TextView tvPaymentMethod = convertView.findViewById(R.id.tvPaymentMethod);
         TextView tvPaymentTime = convertView.findViewById(R.id.tvPaymentTime);
-        TextView tvItemCount = convertView.findViewById(R.id.tvItemCount);
+        TextView tvOrderItems = convertView.findViewById(R.id.tvOrderItems);
 
         // Display order info (Order ID and table number)
         tvOrderInfo.setText(String.format(Locale.getDefault(), "Order #%d • Table %s",
@@ -130,10 +131,47 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         // Display payment time
         tvPaymentTime.setText(dateFormat.format(transaction.getPaymentDate()));
 
-        // Display item count
-        tvItemCount.setText(String.format(Locale.getDefault(), "%d items", transaction.getItemCount()));
+        // Format and display order items
+        String orderItemsText = formatOrderItems(transaction.getOrderItems());
+        tvOrderItems.setText(orderItemsText);
 
         return convertView;
+    }
+
+    /**
+     * Format order items as a comma-separated list with quantities
+     * @param orderItems List of order items
+     * @return Formatted string of order items
+     */
+    private String formatOrderItems(List<OrderItem> orderItems) {
+        if (orderItems == null || orderItems.isEmpty()) {
+            return "";
+        }
+
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < orderItems.size(); i++) {
+            OrderItem item = orderItems.get(i);
+
+            // Use the actual menu item name from the API
+            String itemName = item.getMenuItemName();
+
+            sb.append(item.getQuantity()).append("x ");
+            sb.append(itemName);
+
+            if (i < orderItems.size() - 1) {
+                sb.append(", ");
+            }
+        }
+
+        String result = sb.toString();
+
+        // Truncate if longer than 30 characters
+        if (result.length() > 35) {
+            result = result.substring(0, 32) + "...";
+        }
+
+        return result;
     }
     @Override
     public boolean isChildSelectable(int groupPosition, int childPosition) {

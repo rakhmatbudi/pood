@@ -69,6 +69,9 @@ public class PaymentData {
         @SerializedName("menu_item_id")
         private int menuItemId;
 
+        @SerializedName("menu_item_name")
+        private String menuItemName;
+
         @SerializedName("variant_id")
         private Long variantId;
 
@@ -90,6 +93,10 @@ public class PaymentData {
 
         public int getMenuItemId() {
             return menuItemId;
+        }
+
+        public String getMenuItemName() {
+            return menuItemName;
         }
 
         public Long getVariantId() {

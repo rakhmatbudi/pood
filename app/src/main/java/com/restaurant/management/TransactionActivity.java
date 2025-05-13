@@ -184,6 +184,7 @@ public class TransactionActivity extends AppCompatActivity {
                     OrderItem orderItem = new OrderItem();
                     orderItem.setId(itemData.getItemId());
                     orderItem.setMenuItemId(itemData.getMenuItemId());
+                    orderItem.setMenuItemName(itemData.getMenuItemName());
                     orderItem.setQuantity(itemData.getQuantity());
                     orderItem.setUnitPrice(itemData.getUnitPrice());
                     orderItem.setTotalPrice(itemData.getTotalPrice());
