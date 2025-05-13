@@ -14,6 +14,7 @@ import android.widget.ProgressBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -38,8 +39,13 @@ import okhttp3.Callback;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
+import okhttp3.MediaType;
+import okhttp3.RequestBody;
 
+import java.util.concurrent.TimeUnit;
 import java.util.Map;
+import androidx.appcompat.app.AlertDialog;
+import android.os.Handler;
 
 public class OrderListActivity extends AppCompatActivity {
     private static final String TAG = "OrderActivity";
@@ -51,12 +57,15 @@ public class OrderListActivity extends AppCompatActivity {
     private TextView noOrdersTextView;
     private EditText searchEditText;
     private Spinner filterSpinner;
+    private FloatingActionButton fabAddOrder; // This is the field declaration
     private SwipeRefreshLayout swipeRefreshLayout;
 
     private List<Order> allOrdersList = new ArrayList<>();
     private List<Order> filteredOrdersList = new ArrayList<>();
     private OkHttpClient client = new OkHttpClient();
     private long currentSessionId = -1;
+
+    private long sessionId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,6 +85,7 @@ public class OrderListActivity extends AppCompatActivity {
         searchEditText = findViewById(R.id.search_edit_text);
         filterSpinner = findViewById(R.id.filter_spinner);
         swipeRefreshLayout = findViewById(R.id.swipe_refresh_layout);
+        fabAddOrder = findViewById(R.id.fab_add_order); // Initialize the FAB
 
         // Get current session ID - either from intent or from active session check
         Bundle extras = getIntent().getExtras();
@@ -109,9 +119,13 @@ public class OrderListActivity extends AppCompatActivity {
         // Set up swipe to refresh
         swipeRefreshLayout.setOnRefreshListener(this::fetchOrders);
 
+        // Set up FAB click listener
+        fabAddOrder.setOnClickListener(v -> navigateToCreateNewOrder());
+
         // Fetch initial data
         fetchOrders();
     }
+
 
     private void checkForActiveSession() {
         Log.d(TAG, "Checking for active session...");
@@ -255,6 +269,187 @@ public class OrderListActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private void showCreateOrderDialog() {
+        // Create a dialog builder
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(R.string.create_new_order);
+
+        // Inflate the dialog layout
+        View dialogView = getLayoutInflater().inflate(R.layout.dialog_create_order, null);
+        builder.setView(dialogView);
+
+        // Initialize dialog components
+        final EditText tableNumberEditText = dialogView.findViewById(R.id.table_number_edit_text);
+        final EditText customerNameEditText = dialogView.findViewById(R.id.customer_name_edit_text);
+
+        // Add buttons
+        builder.setPositiveButton(R.string.create, null); // Set listener later to prevent dialog from dismissing on validation error
+        builder.setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss());
+
+        // Create and show the dialog
+        AlertDialog dialog = builder.create();
+        dialog.show();
+
+        // Set positive button click listener (this way we can prevent dialog from closing on validation errors)
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            // Validate inputs
+            String tableNumber = tableNumberEditText.getText().toString().trim();
+            if (tableNumber.isEmpty()) {
+                tableNumberEditText.setError(getString(R.string.table_number_required));
+                return; // Don't dismiss dialog
+            }
+
+            // Get customer name (optional)
+            String customerName = customerNameEditText.getText().toString().trim();
+
+            // Call method to create order
+            createNewOrder(tableNumber, customerName);
+
+            // Dismiss the dialog
+            dialog.dismiss();
+        });
+    }
+
+    private void navigateToCreateNewOrder() {
+        // Show the Create Order Dialog instead of starting a new activity
+        showCreateOrderDialog();
+    }
+
+    private long getCurrentServerId() {
+        // Option 1: Get from SharedPreferences
+        long serverId = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE)
+                .getLong("current_server_id", -1);
+
+        // Option 2: Use a default value if not found in preferences
+        if (serverId == -1) {
+            serverId = 2; // Default server ID
+        }
+
+        return serverId;
+    }
+
+    private long getCustomerIdFromName(String customerName) {
+        // Just return a hardcoded value for now
+        return 2; // Use whatever customer ID is appropriate for your app
+    }
+
+    private void createNewOrder(String tableNumber, String customerName) {
+        // Show loading indicator
+        progressBar.setVisibility(View.VISIBLE);
+
+        try {
+            // Create JSON request body
+            JSONObject requestBody = new JSONObject();
+            requestBody.put("table_number", tableNumber);
+            requestBody.put("server_id", 2); // Hardcoded for simplicity, consider fetching this dynamically too
+
+            // Use the current session ID instead of hardcoding
+            requestBody.put("cashier_session_id", currentSessionId);
+
+            // Only add customer_id if customer name is provided
+            if (!customerName.isEmpty()) {
+                requestBody.put("customer_id", 2); // Hardcoded for simplicity
+            }
+            // Note: If customerName is empty, we don't add the customer_id field at all
+
+            // Log the request payload
+            String requestPayload = requestBody.toString();
+            Log.d("OrderListActivity", "Request payload: " + requestPayload);
+
+            // Create request
+            String apiUrl = "https://api.pood.lol/orders"; // Try without trailing slash
+            Log.d("OrderListActivity", "Calling API URL: " + apiUrl);
+
+            // Get and log auth token
+            String authToken = getAuthToken();
+            Log.d("OrderListActivity", "Auth token length: " + authToken.length());
+
+            // Create MediaType object
+            MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+
+            // Create RequestBody
+            RequestBody body = RequestBody.create(JSON, requestPayload);
+
+            Request request = new Request.Builder()
+                    .url(apiUrl)
+                    .post(body)
+                    .header("Authorization", "Bearer " + authToken)
+                    .header("Content-Type", "application/json")
+                    .build();
+
+            // Configure timeouts if needed
+            OkHttpClient client = new OkHttpClient.Builder()
+                    .connectTimeout(30, TimeUnit.SECONDS)
+                    .readTimeout(30, TimeUnit.SECONDS)
+                    .writeTimeout(30, TimeUnit.SECONDS)
+                    .build();
+
+            // Execute request
+            client.newCall(request).enqueue(new Callback() {
+                @Override
+                public void onFailure(Call call, IOException e) {
+                    Log.e("OrderListActivity", "Network failure", e);
+                    runOnUiThread(() -> {
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(OrderListActivity.this,
+                                "Network error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    });
+                }
+
+                @Override
+                public void onResponse(Call call, Response response) throws IOException {
+                    final String responseBody = response.body() != null ? response.body().string() : "";
+
+                    runOnUiThread(() -> {
+                        progressBar.setVisibility(View.GONE);
+
+                        if (response.isSuccessful()) {
+                            Log.d("OrderListActivity", "Order created successfully");
+                            Log.d("OrderListActivity", "Response: " + responseBody);
+
+                            Toast.makeText(OrderListActivity.this,
+                                    "Order created successfully", Toast.LENGTH_SHORT).show();
+                            refreshOrdersList();
+                        } else {
+                            Log.e("OrderListActivity", "Error creating order. Status code: " + response.code());
+                            Log.e("OrderListActivity", "Response body: " + responseBody);
+
+                            String errorMsg = "Error creating order (Code: " + response.code() + ")";
+                            Toast.makeText(OrderListActivity.this, errorMsg, Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }
+            });
+
+        } catch (JSONException e) {
+            Log.e("OrderListActivity", "JSON exception", e);
+            progressBar.setVisibility(View.GONE);
+            Toast.makeText(this, "Error creating request: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /**
+     * Loads the list of orders from the API.
+     * This method refreshes the order list displayed in the RecyclerView.
+     */
+    private void loadOrders() {
+        // Show a toast for now - replace with actual implementation later
+        Toast.makeText(this, "Refreshing orders list...", Toast.LENGTH_SHORT).show();
+
+        // If you're using this method after creating an order successfully,
+        // you can simply call a method to refresh your UI with existing code
+        refreshOrdersList();
+    }
+
+    /**
+     * Refresh the orders list in the UI.
+     * This method should call your existing code to load and display orders.
+     */
+    private void refreshOrdersList() {
+        // Call fetchOrders to actually refresh the data from the API
+        fetchOrders();
     }
 
     private void processOrdersResponse(JSONObject jsonResponse) throws JSONException {

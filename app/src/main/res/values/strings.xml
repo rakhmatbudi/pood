@@ -119,6 +119,14 @@
     <string name="add_item_button">ADD ITEM</string>
     <string name="add_item">Add Item</string>
     <string name="payment">PAYMENT</string>
+    <string name="add_new_order">Add New Order</string>
+    <string name="create_new_order">Create New Order</string>
+    <string name="table_number">Table Number</string>
+    <string name="table_number_required">Table number is required</string>
+    <string name="customer_name_optional">Customer Name (Optional)</string>
+    <string name="create">Create</string>
+    <string name="error_creating_order">Error creating order</string>
+    <string name="order_created_successfully">Order created successfully</string>
 
     <!-- Toasts -->
     <string name="navigation_error">Navigation error: %1$s</string>
