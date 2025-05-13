@@ -29,4 +29,5 @@
     <color name="colorActive">#4CAF50</color>
     <color name="colorInactive">#9E9E9E</color>
     <color name="colorAmount">#1976D2</color>
+    <color name="session_header_background">#E8F5E9</color>
 </resources>

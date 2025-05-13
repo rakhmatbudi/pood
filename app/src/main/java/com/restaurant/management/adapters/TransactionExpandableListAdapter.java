@@ -84,8 +84,6 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         TextView cashierNameTextView = convertView.findViewById(R.id.cashier_name_text_view);
         TextView startTimeTextView = convertView.findViewById(R.id.start_time_text_view);
         TextView endTimeTextView = convertView.findViewById(R.id.end_time_text_view);
-        TextView startAmountTextView = convertView.findViewById(R.id.start_amount_text_view);
-        TextView endAmountTextView = convertView.findViewById(R.id.end_amount_text_view);
         TextView totalTextView = convertView.findViewById(R.id.total_text_view);
 
         // Get total transactions amount for this session
@@ -113,16 +111,11 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         endTimeTextView.setText(session.getEndTime() != null ?
                 dateFormat.format(session.getEndTime()) : "In Progress");
 
-        // Format and set amounts
-        startAmountTextView.setText(formatCurrency(session.getStartAmount()));
-        endAmountTextView.setText(formatCurrency(session.getEndAmount()));
-
-        // Calculate and set the total (in case we want to use the API total amount)
+        // Set the total amount
         totalTextView.setText(formatCurrency(totalAmount));
 
         return convertView;
     }
-
     @Override
     public View getChildView(int groupPosition, int childPosition, boolean isLastChild, View convertView, ViewGroup parent) {
         Transaction transaction = (Transaction) getChild(groupPosition, childPosition);

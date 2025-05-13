@@ -92,8 +92,6 @@ public class CashierSessionAdapter extends RecyclerView.Adapter<CashierSessionAd
             cashierNameTextView = itemView.findViewById(R.id.cashier_name_text_view);
             startTimeTextView = itemView.findViewById(R.id.start_time_text_view);
             endTimeTextView = itemView.findViewById(R.id.end_time_text_view);
-            startAmountTextView = itemView.findViewById(R.id.start_amount_text_view);
-            endAmountTextView = itemView.findViewById(R.id.end_amount_text_view);
             totalTextView = itemView.findViewById(R.id.total_text_view);
             statusTextView = itemView.findViewById(R.id.status_text_view);
         }
