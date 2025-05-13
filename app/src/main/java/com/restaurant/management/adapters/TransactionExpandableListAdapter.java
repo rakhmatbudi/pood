@@ -27,6 +27,8 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
     private List<CashierSession> sessionList;
     private Map<CashierSession, List<Transaction>> transactionMap;
     private SimpleDateFormat dateFormat;
+    private SimpleDateFormat timeFormat;
+    private SimpleDateFormat timeOnlyFormat; // Add a new format for time only
 
     public TransactionExpandableListAdapter(Context context,
                                             List<CashierSession> sessionList,
@@ -35,6 +37,8 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         this.sessionList = sessionList;
         this.transactionMap = transactionMap;
         this.dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
+        this.timeFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
+        this.timeOnlyFormat = new SimpleDateFormat("HH:mm", Locale.getDefault()); // Format for time only
     }
 
     @Override
@@ -96,9 +100,9 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         // Set session information
         sessionIdTextView.setText(String.valueOf(session.getId()));
 
-        // Format and set date
+        // Format and set date in dd/MM/yyyy HH:mm format
         startTimeTextView.setText(session.getStartTime() != null ?
-                dateFormat.format(session.getStartTime()) : "N/A");
+                timeFormat.format(session.getStartTime()) : "N/A");
 
         // Set the total amount
         totalTextView.setText(formatCurrency(totalAmount));
@@ -120,25 +124,17 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         TextView tvPaymentTime = convertView.findViewById(R.id.tvPaymentTime);
         TextView tvOrderItems = convertView.findViewById(R.id.tvOrderItems);
 
-        // Display order info (Order ID and table number)
         tvOrderInfo.setText(String.format(Locale.getDefault(), "Order #%d • Table %s",
                 transaction.getOrderId(), transaction.getTableNumber()));
-
-        // Display amount
         tvAmount.setText(formatCurrency(transaction.getAmount()));
-
-        // Display payment method
         tvPaymentMethod.setText(transaction.getPaymentMethod());
 
-        // Display payment time
-        tvPaymentTime.setText(dateFormat.format(transaction.getPaymentDate()));
+        // Use the time-only format for payment time
+        tvPaymentTime.setText(timeOnlyFormat.format(transaction.getPaymentDate()));
 
         // Format and display order items
         String formattedItems = formatOrderItems(transaction.getOrderItems());
         tvOrderItems.setText(formattedItems);
-
-        // Debug log the order items
-        Log.d("TransactionAdapter", "Setting order items text: " + formattedItems);
 
         return convertView;
     }
@@ -180,8 +176,8 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         Log.d("TransactionAdapter", "Final formatted string: " + result);
 
         // Truncate if longer than 30 characters
-        if (result.length() > 30) {
-            result = result.substring(0, 27) + "...";
+        if (result.length() > 40) {
+            result = result.substring(0, 37) + "...";
         }
 
         return result;
