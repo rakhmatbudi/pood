@@ -145,16 +145,37 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 }
             });
 
+            // Fixed implementation for endSessionButton click listener
+            // Updated implementation for endSessionButton click listener using class-level activeSessionId
+            // Emergency fallback implementation using hardcoded values
+            // Updated implementation for endSessionButton click listener
             endSessionButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    Toast.makeText(DashboardActivity.this,
-                            getString(R.string.end_session_clicked),
-                            Toast.LENGTH_SHORT).show();
+                    try {
+                        Log.d(TAG, getString(R.string.navigating_to_end_session));
 
-                    // Here you would add code to end the session via API
-                    // After ending session, check session status again
-                    checkActiveCashierSession();
+                        // Check if we have a session ID before navigating
+                        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+                        long sessionId = sharedPreferences.getLong(getString(R.string.pref_active_session_id), -1);
+
+                        if (sessionId == -1) {
+                            Toast.makeText(DashboardActivity.this,
+                                    R.string.error_no_active_session,
+                                    Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+
+                        // Navigate to ReconciliationActivity
+                        Intent intent = new Intent(DashboardActivity.this, ReconciliationActivity.class);
+                        startActivity(intent);
+
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error navigating to ReconciliationActivity", e);
+                        Toast.makeText(DashboardActivity.this,
+                                getString(R.string.navigation_error, e.getMessage()),
+                                Toast.LENGTH_LONG).show();
+                    }
                 }
             });
 
@@ -172,6 +193,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         // Check for active session when activity resumes
         checkActiveCashierSession();
     }
+
 
     /**
      * Checks if there's an active cashier session by calling the API

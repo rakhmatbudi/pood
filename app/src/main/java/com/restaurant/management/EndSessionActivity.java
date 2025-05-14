@@ -69,6 +69,22 @@ public class EndSessionActivity extends AppCompatActivity {
             sessionId = getIntent().getIntExtra("sessionId", -1);
             userId = getIntent().getIntExtra("userId", -1);
 
+            // Add this before the validation check
+            Log.d(TAG, "Received in intent - sessionId: " + getIntent().getIntExtra("sessionId", -1) +
+                    ", userId: " + getIntent().getIntExtra("userId", -1));
+
+            // Log all extras for debugging
+            Bundle extras = getIntent().getExtras();
+            if (extras != null) {
+                for (String key : extras.keySet()) {
+                    Object value = extras.get(key);
+                    Log.d(TAG, "Extra: " + key + " = " + value +
+                            (value != null ? " (type: " + value.getClass().getName() + ")" : ""));
+                }
+            } else {
+                Log.d(TAG, "No extras found in intent");
+            }
+
             if (sessionId == -1 || userId == -1) {
                 Toast.makeText(this, "Invalid session or user information", Toast.LENGTH_SHORT).show();
                 finish();
@@ -333,6 +349,7 @@ public class EndSessionActivity extends AppCompatActivity {
         return true;
     }
 
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
@@ -340,4 +357,6 @@ public class EndSessionActivity extends AppCompatActivity {
             executorService.shutdown();
         }
     }
+
+
 }

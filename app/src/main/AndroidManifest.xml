@@ -60,7 +60,6 @@
                 android:value=".OrderActivity" />
         </activity>
 
-        <!-- Add PaymentActivity here -->
         <activity
             android:name=".PaymentActivity"
             android:label="@string/payment"
@@ -78,6 +77,11 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".DashboardActivity" />
         </activity>
+
+        <activity
+            android:name=".ReconciliationActivity"
+            android:label="@string/title_activity_reconciliation"
+            android:parentActivityName=".DashboardActivity" />
 
     </application>
 
