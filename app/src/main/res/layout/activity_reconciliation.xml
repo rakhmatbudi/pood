@@ -30,25 +30,14 @@
             android:layout_height="wrap_content"
             android:padding="16dp">
 
-            <TextView
-                android:id="@+id/tvSessionInfo"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Session Details"
-                android:textSize="18sp"
-                android:textStyle="bold"
-                app:layout_constraintStart_toStartOf="parent"
-                app:layout_constraintTop_toTopOf="parent" />
-
             <!-- Session Summary Card -->
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardSessionSummary"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
                 app:cardCornerRadius="4dp"
                 app:cardElevation="2dp"
-                app:layout_constraintTop_toBottomOf="@id/tvSessionInfo">
+                app:layout_constraintTop_toTopOf="parent">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -69,6 +58,69 @@
                         android:layout_height="1dp"
                         android:background="@android:color/darker_gray"
                         android:layout_marginBottom="8dp"/>
+
+                    <!-- Session ID -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Session ID:" />
+
+                        <TextView
+                            android:id="@+id/tvSessionId"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="0" />
+                    </LinearLayout>
+
+                    <!-- Opened By -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Opened By:" />
+
+                        <TextView
+                            android:id="@+id/tvOpenedBy"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="User" />
+                    </LinearLayout>
+
+                    <!-- Open Time -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Open Time:" />
+
+                        <TextView
+                            android:id="@+id/tvOpenTime"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textStyle="bold"
+                            android:text="00:00:00" />
+                    </LinearLayout>
 
                     <LinearLayout
                         android:layout_width="match_parent"

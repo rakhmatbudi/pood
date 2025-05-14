@@ -46,7 +46,9 @@ public class ReconciliationActivity extends AppCompatActivity {
 
     // UI Components
     private Toolbar toolbar;
-    private TextView tvSessionInfo;
+    private TextView tvSessionId;
+    private TextView tvOpenedBy;
+    private TextView tvOpenTime;
     private TextView tvOpeningAmount;
     private TextView tvTotalSales;
     private TextView tvTotalOrders;
@@ -79,7 +81,7 @@ public class ReconciliationActivity extends AppCompatActivity {
     private PaymentReconciliation mobileReconciliation;
 
     // Format for currency values
-    private DecimalFormat currencyFormat = new DecimalFormat("#,##0.00");
+    private final DecimalFormat currencyFormat = new DecimalFormat("#,##0.00");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -146,23 +148,30 @@ public class ReconciliationActivity extends AppCompatActivity {
 
     private void initViews() {
         try {
-            tvSessionInfo = findViewById(R.id.tvSessionInfo);
+            // Session Summary views
+            tvSessionId = findViewById(R.id.tvSessionId);
+            tvOpenedBy = findViewById(R.id.tvOpenedBy);
+            tvOpenTime = findViewById(R.id.tvOpenTime);
             tvOpeningAmount = findViewById(R.id.tvOpeningAmount);
             tvTotalSales = findViewById(R.id.tvTotalSales);
             tvTotalOrders = findViewById(R.id.tvTotalOrders);
 
+            // Cash reconciliation views
             tvCashSystemTotal = findViewById(R.id.tvCashSystemTotal);
             etCashCount = findViewById(R.id.etCashCount);
             tvCashDifference = findViewById(R.id.tvCashDifference);
 
+            // Card reconciliation views
             tvCardSystemTotal = findViewById(R.id.tvCardSystemTotal);
             etCardCount = findViewById(R.id.etCardCount);
             tvCardDifference = findViewById(R.id.tvCardDifference);
 
+            // Mobile money reconciliation views
             tvMobileSystemTotal = findViewById(R.id.tvMobileSystemTotal);
             etMobileCount = findViewById(R.id.etMobileCount);
             tvMobileDifference = findViewById(R.id.tvMobileDifference);
 
+            // Notes and button
             etNotes = findViewById(R.id.etNotes);
             btnEndSession = findViewById(R.id.btnEndSession);
             progressBar = findViewById(R.id.progressBar);
@@ -333,6 +342,8 @@ public class ReconciliationActivity extends AppCompatActivity {
                         final double openingAmount = data.optDouble("opening_amount", 0.0);
                         final double totalSales = data.optDouble("total_sales", 0.0);
                         final int totalOrders = data.optInt("total_orders", 0);
+                        final String openedBy = data.optString("cashier_name", cashierName);
+                        final String openTime = data.optString("opened_at", "");
 
                         // Get payment totals
                         final double cashTotal = data.optDouble("cash_total", 0.0);
@@ -343,7 +354,7 @@ public class ReconciliationActivity extends AppCompatActivity {
                             @Override
                             public void run() {
                                 // Create session summary
-                                sessionSummary = new SessionSummary(sessionId, cashierName, openingAmount);
+                                sessionSummary = new SessionSummary(sessionId, openedBy, openingAmount);
                                 sessionSummary.setTotalSales(totalSales);
                                 sessionSummary.setTotalOrders(totalOrders);
 
@@ -357,7 +368,7 @@ public class ReconciliationActivity extends AppCompatActivity {
                                 sessionSummary.addPaymentReconciliation(mobileReconciliation);
 
                                 // Update UI
-                                updateUI();
+                                updateUI(openedBy, openTime);
 
                                 progressBar.setVisibility(View.GONE);
                             }
@@ -382,14 +393,14 @@ public class ReconciliationActivity extends AppCompatActivity {
         });
     }
 
-    private void updateUI() {
+    private void updateUI(String openedBy, String openTime) {
         try {
             // Format date for display
-            SimpleDateFormat dateFormat = new SimpleDateFormat(getString(R.string.date_format), Locale.getDefault());
-            String dateString = dateFormat.format(new Date());
-
-            // Update session info
-            tvSessionInfo.setText(String.format("Session #%d - %s - %s", sessionId, cashierName, dateString));
+            String formattedOpenTime = openTime;
+            if (openTime == null || openTime.isEmpty()) {
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+                formattedOpenTime = dateFormat.format(new Date());
+            }
 
             // Format currency values - use currency prefix if available
             String prefix = "";
@@ -399,7 +410,10 @@ public class ReconciliationActivity extends AppCompatActivity {
                 // Currency prefix not defined, use empty string
             }
 
-            // Update summary values
+            // Update session summary details
+            tvSessionId.setText(String.valueOf(sessionId));
+            tvOpenedBy.setText(openedBy);
+            tvOpenTime.setText(formattedOpenTime);
             tvOpeningAmount.setText(prefix + currencyFormat.format(sessionSummary.getOpeningAmount()));
             tvTotalSales.setText(prefix + currencyFormat.format(sessionSummary.getTotalSales()));
             tvTotalOrders.setText(String.valueOf(sessionSummary.getTotalOrders()));
