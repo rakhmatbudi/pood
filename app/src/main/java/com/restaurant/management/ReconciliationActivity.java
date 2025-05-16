@@ -49,6 +49,8 @@ import okhttp3.Response;
 import android.view.Gravity;
 import java.util.HashSet;
 import java.util.Set;
+import androidx.appcompat.app.AlertDialog;
+import android.content.DialogInterface;
 
 public class ReconciliationActivity extends AppCompatActivity {
 
@@ -127,7 +129,8 @@ public class ReconciliationActivity extends AppCompatActivity {
             btnEndSession.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
-                    validateAndEndSession();
+                    checkForActiveOrders();
+                    //validateAndEndSession();
                 }
             });
         } catch (Exception e) {
@@ -708,27 +711,160 @@ public class ReconciliationActivity extends AppCompatActivity {
         }
 
         // Get notes
+        String notes = "";
         if (etNotes.getText() != null) {
-            sessionSummary.setNotes(etNotes.getText().toString());
+            notes = etNotes.getText().toString();
         }
 
         // Show progress
         progressBar.setVisibility(View.VISIBLE);
 
-        // Create JSON for API request
-        JSONObject requestJson = new JSONObject();
+        // Create payload for API request
         try {
-            requestJson.put("session_id", sessionId);
+            // Create the main JSON object
+            JSONObject requestJson = new JSONObject();
+
+            // Calculate total amounts
+            double totalClosingAmount = 0.0;
+            double totalExpectedAmount = 0.0;
+
+            // Create payment_mode_amounts and expected_payment_mode_amounts objects
+            JSONObject paymentModeAmounts = new JSONObject();
+            JSONObject expectedPaymentModeAmounts = new JSONObject();
 
             // Add all payment reconciliations
             for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
-                requestJson.put(reconciliation.getCode() + "_counted", reconciliation.getActualAmount());
+                // Get the actual (counted) amount
+                double actualAmount = reconciliation.getActualAmount();
+                // Get the system amount
+                double systemAmount = reconciliation.getSystemAmount();
+
+                // Add to payment_mode_amounts
+                paymentModeAmounts.put(reconciliation.getName(), actualAmount);
+
+                // Add to expected_payment_mode_amounts
+                expectedPaymentModeAmounts.put(reconciliation.getName(), systemAmount);
+
+                // Add to totals
+                totalClosingAmount += actualAmount;
+                totalExpectedAmount += systemAmount;
             }
 
-            // Add notes
-            requestJson.put("notes", sessionSummary.getNotes());
+            // Add totals to request
+            requestJson.put("closing_amount", totalClosingAmount);
+            requestJson.put("expected_amount", totalExpectedAmount);
 
-            // End session API call
+            // Add payment mode JSONObjects
+            requestJson.put("payment_mode_amounts", paymentModeAmounts);
+            requestJson.put("expected_payment_mode_amounts", expectedPaymentModeAmounts);
+
+            // Add notes
+            requestJson.put("notes", notes);
+
+            // Log the request for debugging
+            Log.d(TAG, "Created request payload: " + requestJson.toString());
+
+            // End session API call with PUT method
+            endSession(requestJson);
+
+        } catch (JSONException e) {
+            Log.e(TAG, "Error creating JSON request", e);
+            progressBar.setVisibility(View.GONE);
+            Toast.makeText(this, getString(R.string.error_creating_request), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void checkForActiveOrders() {
+        // Show confirmation dialog asking if all orders are closed
+        new AlertDialog.Builder(ReconciliationActivity.this)
+                .setTitle("Confirm Session Closing")
+                .setMessage("Make sure all orders have been closed before ending the session. Are you sure you want to proceed?")
+                .setPositiveButton("Yes, Close Session", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        proceedWithSessionClosing();
+                    }
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void proceedWithSessionClosing() {
+        // Original validateAndEndSession logic
+        boolean allFieldsFilled = true;
+
+        // Check if all payment reconciliations have physical counts
+        for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
+            View itemView = paymentModeViews.get(reconciliation.getCode());
+            if (itemView != null) {
+                TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
+                if (etPhysicalCount.getText() == null || etPhysicalCount.getText().toString().isEmpty()) {
+                    allFieldsFilled = false;
+                    break;
+                }
+            }
+        }
+
+        if (!allFieldsFilled) {
+            Toast.makeText(this, getString(R.string.enter_all_amounts), Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        // Get notes
+        String notes = "";
+        if (etNotes.getText() != null) {
+            notes = etNotes.getText().toString();
+        }
+
+        // Show progress
+        progressBar.setVisibility(View.VISIBLE);
+
+        // Create payload for API request
+        try {
+            // Create the main JSON object
+            JSONObject requestJson = new JSONObject();
+
+            // Calculate total amounts
+            double totalClosingAmount = 0.0;
+            double totalExpectedAmount = 0.0;
+
+            // Create payment_mode_amounts and expected_payment_mode_amounts objects
+            JSONObject paymentModeAmounts = new JSONObject();
+            JSONObject expectedPaymentModeAmounts = new JSONObject();
+
+            // Add all payment reconciliations
+            for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
+                // Get the actual (counted) amount
+                double actualAmount = reconciliation.getActualAmount();
+                // Get the system amount
+                double systemAmount = reconciliation.getSystemAmount();
+
+                // Add to payment_mode_amounts
+                paymentModeAmounts.put(reconciliation.getName(), actualAmount);
+
+                // Add to expected_payment_mode_amounts
+                expectedPaymentModeAmounts.put(reconciliation.getName(), systemAmount);
+
+                // Add to totals
+                totalClosingAmount += actualAmount;
+                totalExpectedAmount += systemAmount;
+            }
+
+            // Add totals to request
+            requestJson.put("closing_amount", totalClosingAmount);
+            requestJson.put("expected_amount", totalExpectedAmount);
+
+            // Add payment mode JSONObjects
+            requestJson.put("payment_mode_amounts", paymentModeAmounts);
+            requestJson.put("expected_payment_mode_amounts", expectedPaymentModeAmounts);
+
+            // Add notes
+            requestJson.put("notes", notes);
+
+            // Log the request for debugging
+            Log.d(TAG, "Created request payload: " + requestJson.toString());
+
+            // End session API call with PUT method
             endSession(requestJson);
 
         } catch (JSONException e) {
@@ -739,35 +875,25 @@ public class ReconciliationActivity extends AppCompatActivity {
     }
 
     private void endSession(JSONObject requestJson) {
-        // Construct the URL for ending the session
-        String url = API_URL_BASE + "/cashier-sessions/" + sessionId + "/end";
+        // Use the correct endpoint with PUT method
+        String url = API_URL_BASE + "/cashier-sessions/" + sessionId + "/close";
 
-        // Try to create the RequestBody using reflection to handle different OkHttp versions
-        RequestBody body;
+        Log.d(TAG, "Sending close session request to: " + url);
+        Log.d(TAG, "Request payload: " + requestJson.toString());
 
-        try {
-            // Try newer OkHttp version method signature
-            body = RequestBody.create(JSON, requestJson.toString());
-        } catch (NoSuchMethodError e1) {
-            try {
-                // Try older OkHttp version method signature
-                body = RequestBody.create(requestJson.toString(), JSON);
-            } catch (Exception e2) {
-                // Ultimate fallback for any other case
-                Log.w(TAG, "Both RequestBody creation methods failed, using null MediaType", e2);
-                body = RequestBody.create(null, requestJson.toString());
-            }
-        }
+        // Create the RequestBody
+        RequestBody body = RequestBody.create(JSON, requestJson.toString());
 
+        // Create PUT request
         Request request = new Request.Builder()
                 .url(url)
-                .post(body)
+                .put(body)  // Use PUT instead of POST
                 .build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to end session", e);
+                Log.e(TAG, "Failed to close session", e);
                 final String errorMessage = e.getMessage();
                 runOnUiThread(new Runnable() {
                     @Override
@@ -782,12 +908,41 @@ public class ReconciliationActivity extends AppCompatActivity {
 
             @Override
             public void onResponse(Call call, Response response) throws IOException {
+                String responseBody = "No response body";
                 try {
+                    // Get response code and body for logging
+                    int responseCode = response.code();
+                    responseBody = response.body() != null ? response.body().string() : "Empty response body";
+
+                    // Log response details
+                    Log.d(TAG, "Response code: " + responseCode);
+                    Log.d(TAG, "Response body: " + responseBody);
+
                     if (!response.isSuccessful()) {
-                        throw new IOException(getString(R.string.unexpected_response_code) + response);
+                        final int finalResponseCode = responseCode;
+                        final String finalResponseBody = responseBody;
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                progressBar.setVisibility(View.GONE);
+                                String errorMessage = "Response code: " + finalResponseCode + "\n" + finalResponseBody;
+                                Toast.makeText(ReconciliationActivity.this,
+                                        "Server error: " + errorMessage,
+                                        Toast.LENGTH_LONG).show();
+
+                                // Create an alert dialog with more details
+                                new AlertDialog.Builder(ReconciliationActivity.this)
+                                        .setTitle("API Error")
+                                        .setMessage("Status code: " + finalResponseCode + "\n\nResponse: " + finalResponseBody)
+                                        .setPositiveButton("OK", null)
+                                        .show();
+                            }
+                        });
+                        return;
                     }
 
-                    String responseBody = response.body().string();
+                    // Try to parse the JSON response
                     JSONObject jsonObject = new JSONObject(responseBody);
 
                     if ("success".equals(jsonObject.optString("status"))) {
@@ -813,18 +968,37 @@ public class ReconciliationActivity extends AppCompatActivity {
                             }
                         });
                     } else {
-                        throw new IOException(getString(R.string.error_end_session, jsonObject.optString("message", "Unknown error")));
+                        // API returned success:false with an error message
+                        final String errorMessage = jsonObject.optString("message", "Unknown error");
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                progressBar.setVisibility(View.GONE);
+                                Toast.makeText(ReconciliationActivity.this,
+                                        "API Error: " + errorMessage,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        });
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing response", e);
+                    Log.e(TAG, "Error processing response: " + responseBody, e);
                     final String errorMessage = e.getMessage();
+                    final String finalResponseBody = responseBody;
+
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
                             progressBar.setVisibility(View.GONE);
                             Toast.makeText(ReconciliationActivity.this,
-                                    getString(R.string.error_end_session, errorMessage),
+                                    "Processing error: " + errorMessage,
                                     Toast.LENGTH_LONG).show();
+
+                            // Create an alert dialog with more details
+                            new AlertDialog.Builder(ReconciliationActivity.this)
+                                    .setTitle("Processing Error")
+                                    .setMessage("Error: " + errorMessage + "\n\nResponse: " + finalResponseBody)
+                                    .setPositiveButton("OK", null)
+                                    .show();
                         }
                     });
                 }

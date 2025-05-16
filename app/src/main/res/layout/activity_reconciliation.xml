@@ -70,14 +70,14 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Session ID:" />
+                            android:text="@string/session_id_label" />
 
                         <TextView
                             android:id="@+id/tvSessionId"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
-                            android:text="0" />
+                            android:text="@string/default_zero" />
                     </LinearLayout>
 
                     <!-- Opened By -->
@@ -91,14 +91,14 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Opened By:" />
+                            android:text="@string/opened_by_label" />
 
                         <TextView
                             android:id="@+id/tvOpenedBy"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
-                            android:text="User" />
+                            android:text="@string/default_user" />
                     </LinearLayout>
 
                     <!-- Open Time -->
@@ -112,14 +112,14 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:text="Open Time:" />
+                            android:text="@string/open_time_label" />
 
                         <TextView
                             android:id="@+id/tvOpenTime"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
-                            android:text="00:00:00" />
+                            android:text="@string/default_time" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -139,7 +139,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
-                            android:text="0.00" />
+                            android:text="@string/default_amount" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -159,7 +159,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
-                            android:text="0.00" />
+                            android:text="@string/default_amount" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -178,7 +178,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textStyle="bold"
-                            android:text="0" />
+                            android:text="@string/default_zero" />
                     </LinearLayout>
                 </LinearLayout>
             </androidx.cardview.widget.CardView>

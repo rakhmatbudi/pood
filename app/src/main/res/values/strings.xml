@@ -242,4 +242,13 @@
     <string name="no_payment_methods_available">No payment methods available</string>
     <string name="transaction_details_format">Transactions: %1$d (Total: %2$s)</string>
     <string name="failed_to_fetch_transactions">Failed to fetch transactions for %1$s: %2$s</string>
+    <string name="session_id_label">Session ID:</string>
+    <string name="opened_by_label">Opened By:</string>
+    <string name="open_time_label">Open Time:</string>
+
+    <!-- Default values -->
+    <string name="default_zero">0</string>
+    <string name="default_user">User</string>
+    <string name="default_time">00:00:00</string>
+    <string name="default_amount">0.00</string>
 </resources>
