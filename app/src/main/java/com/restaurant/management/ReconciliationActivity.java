@@ -47,7 +47,8 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import android.view.Gravity;
-import android.view.ViewGroup;
+import java.util.HashSet;
+import java.util.Set;
 
 public class ReconciliationActivity extends AppCompatActivity {
 
@@ -79,6 +80,11 @@ public class ReconciliationActivity extends AppCompatActivity {
 
     // Format for currency values
     private DecimalFormat currencyFormat = new DecimalFormat("#,##0.00");
+
+    // Add this field to track when all payment methods are loaded
+    private int pendingPaymentMethodRequests = 0;
+    private double totalSalesAmount = 0.0;
+    private Set<String> uniqueOrderIds = new HashSet<>(); // To track unique order IDs
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -266,6 +272,9 @@ public class ReconciliationActivity extends AppCompatActivity {
                         Toast.makeText(ReconciliationActivity.this,
                                 "Failed to fetch transactions: " + errorMessage,
                                 Toast.LENGTH_SHORT).show();
+
+                        // Mark this request as complete even though it failed
+                        processCompletedPaymentRequest(0.0, new HashSet<String>());
                     }
                 });
             }
@@ -285,14 +294,22 @@ public class ReconciliationActivity extends AppCompatActivity {
 
                         if (data != null) {
                             double totalAmount = 0.0;
+                            Set<String> orderIds = new HashSet<>();
 
-                            // Calculate total amount from all transactions
+                            // Calculate total amount from all transactions and collect order IDs
                             for (int i = 0; i < data.length(); i++) {
                                 JSONObject transaction = data.getJSONObject(i);
                                 totalAmount += transaction.optDouble("amount", 0.0);
+
+                                // Get the order ID if available (may need to adjust field name)
+                                String orderId = transaction.optString("order_id", "");
+                                if (!orderId.isEmpty()) {
+                                    orderIds.add(orderId);
+                                }
                             }
 
                             final double finalTotalAmount = totalAmount;
+                            final Set<String> finalOrderIds = orderIds;
 
                             // Find the payment reconciliation by ID
                             for (final PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
@@ -315,22 +332,107 @@ public class ReconciliationActivity extends AppCompatActivity {
                                                     etPhysicalCount.setText(String.valueOf(finalTotalAmount));
                                                 }
                                             }
+
+                                            // Process this completed payment request
+                                            processCompletedPaymentRequest(finalTotalAmount, finalOrderIds);
                                         }
                                     });
                                     break;
                                 }
                             }
+                        } else {
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    // Process with zero amount if no data
+                                    processCompletedPaymentRequest(0.0, new HashSet<String>());
+                                }
+                            });
                         }
                     } else {
                         Log.w(TAG, "Failed to get transactions: " +
                                 jsonObject.optString("message", "Unknown error"));
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                // Process with zero amount if error
+                                processCompletedPaymentRequest(0.0, new HashSet<String>());
+                            }
+                        });
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing transaction data for payment mode " + paymentModeId, e);
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            // Process with zero amount if exception
+                            processCompletedPaymentRequest(0.0, new HashSet<String>());
+                        }
+                    });
                 }
             }
         });
     }
+
+    // Method to track completed payment requests and update total sales
+    private synchronized void processCompletedPaymentRequest(double amount, Set<String> orderIds) {
+        // Add this amount to our running total
+        totalSalesAmount += amount;
+
+        // Add all order IDs to our set of unique orders
+        uniqueOrderIds.addAll(orderIds);
+
+        // Decrement the counter for pending requests
+        pendingPaymentMethodRequests--;
+
+        // If all requests are complete, update the total sales display
+        if (pendingPaymentMethodRequests <= 0) {
+            updateTotalSalesAndOrders(totalSalesAmount, uniqueOrderIds.size());
+        }
+    }
+
+    private void updateTotalSalesAndOrders(double totalAmount, int orderCount) {
+        // Update the session summary object
+        sessionSummary.setTotalSales(totalAmount);
+        sessionSummary.setTotalOrders(orderCount);
+
+        // Format currency
+        String prefix = "";
+        try {
+            prefix = getString(R.string.currency_prefix) + " ";
+        } catch (Exception e) {
+            // Currency prefix not defined, use empty string
+        }
+
+        // Update the total sales display
+        tvTotalSales.setText(prefix + currencyFormat.format(totalAmount));
+
+        // Update the total orders display
+        tvTotalOrders.setText(String.valueOf(orderCount));
+
+        Log.i(TAG, "Total sales updated to: " + totalAmount);
+        Log.i(TAG, "Total orders updated to: " + orderCount);
+    }
+
+    // Method to update the total sales display
+    private void updateTotalSales(double totalAmount) {
+        // Update the session summary object
+        sessionSummary.setTotalSales(totalAmount);
+
+        // Format currency
+        String prefix = "";
+        try {
+            prefix = getString(R.string.currency_prefix) + " ";
+        } catch (Exception e) {
+            // Currency prefix not defined, use empty string
+        }
+
+        // Update the total sales display
+        tvTotalSales.setText(prefix + currencyFormat.format(totalAmount));
+
+        Log.i(TAG, "Total sales updated to: " + totalAmount);
+    }
+
 
 
     private void loadSessionData() {
@@ -470,6 +572,10 @@ public class ReconciliationActivity extends AppCompatActivity {
         paymentModesContainer.removeAllViews();
         paymentModeViews.clear();
 
+        // Reset total sales tracking
+        totalSalesAmount = 0.0;
+        uniqueOrderIds.clear(); // Clear the set of order IDs
+
         // If no payment methods, display a message and return
         if (paymentMethods.isEmpty()) {
             TextView emptyMessage = new TextView(this);
@@ -480,6 +586,9 @@ public class ReconciliationActivity extends AppCompatActivity {
             paymentModesContainer.addView(emptyMessage);
             return;
         }
+
+        // Set the number of pending requests to the number of payment methods
+        pendingPaymentMethodRequests = paymentMethods.size();
 
         // Get LayoutInflater
         LayoutInflater inflater = LayoutInflater.from(this);

@@ -231,7 +231,7 @@
     <string name="card_label">Card</string>
     <string name="mobile_money_label">Mobile Money</string>
     <string name="system_total_label">System Total:</string>
-    <string name="physical_count_label">Physical Count:</string>
+    <string name="actual_amount">Actual Amount:</string>
     <string name="difference_label">Difference:</string>
     <string name="enter_amount_hint">Enter amount</string>
     <string name="additional_notes_hint">Additional notes (optional)</string>
