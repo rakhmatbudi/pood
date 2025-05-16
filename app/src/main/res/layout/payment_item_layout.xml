@@ -3,21 +3,16 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="12dp"
-    android:background="#F5F5F5"
-    android:layout_marginTop="8dp"
-    android:layout_marginBottom="8dp">
+    android:layout_marginTop="8dp">
 
     <!-- Title for the payment mode -->
     <TextView
         android:id="@+id/tvPaymentModeTitle"
-        android:layout_width="match_parent"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="Payment Mode"
-        android:textSize="18sp"
-        android:textColor="#333333"
-        android:textStyle="bold"
-        android:layout_marginBottom="8dp"/>
+        android:textSize="16sp"
+        android:textStyle="bold"/>
 
     <!-- System Total Row -->
     <LinearLayout

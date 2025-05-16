@@ -1,14 +1,16 @@
 package com.restaurant.management;
 
-import android.content.Intent;
+import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
 import android.util.Log;
+import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -17,17 +19,24 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.PaymentReconciliation;
 import com.restaurant.management.models.SessionSummary;
 
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -37,10 +46,13 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
+import android.view.Gravity;
+
 public class ReconciliationActivity extends AppCompatActivity {
 
     private static final String TAG = "ReconciliationActivity";
     private static final String API_URL_BASE = "https://api.pood.lol";
+    private static final String PAYMENT_MODES_API = API_URL_BASE + "/payment-modes";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     private OkHttpClient client = new OkHttpClient();
 
@@ -52,22 +64,7 @@ public class ReconciliationActivity extends AppCompatActivity {
     private TextView tvOpeningAmount;
     private TextView tvTotalSales;
     private TextView tvTotalOrders;
-
-    // Cash
-    private TextView tvCashSystemTotal;
-    private TextInputEditText etCashCount;
-    private TextView tvCashDifference;
-
-    // Card
-    private TextView tvCardSystemTotal;
-    private TextInputEditText etCardCount;
-    private TextView tvCardDifference;
-
-    // Mobile
-    private TextView tvMobileSystemTotal;
-    private TextInputEditText etMobileCount;
-    private TextView tvMobileDifference;
-
+    private LinearLayout paymentModesContainer;
     private TextInputEditText etNotes;
     private Button btnEndSession;
     private ProgressBar progressBar;
@@ -76,12 +73,11 @@ public class ReconciliationActivity extends AppCompatActivity {
     private long sessionId;
     private String cashierName;
     private SessionSummary sessionSummary;
-    private PaymentReconciliation cashReconciliation;
-    private PaymentReconciliation cardReconciliation;
-    private PaymentReconciliation mobileReconciliation;
+    private List<PaymentMethod> paymentMethods = new ArrayList<>();
+    private Map<String, View> paymentModeViews = new HashMap<>();
 
     // Format for currency values
-    private final DecimalFormat currencyFormat = new DecimalFormat("#,##0.00");
+    private DecimalFormat currencyFormat = new DecimalFormat("#,##0.00");
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,7 +90,7 @@ public class ReconciliationActivity extends AppCompatActivity {
             setSupportActionBar(toolbar);
             if (getSupportActionBar() != null) {
                 getSupportActionBar().setDisplayHomeAsUpEnabled(true);
-                getSupportActionBar().setTitle(R.string.end_session);
+                getSupportActionBar().setTitle(R.string.title_activity_reconciliation);
             }
 
             // Initialize views
@@ -111,17 +107,14 @@ public class ReconciliationActivity extends AppCompatActivity {
                 return;
             }
 
-            // Create default reconciliation objects
-            // (prevent NPE if data loading fails but user interacts with UI)
-            cashReconciliation = new PaymentReconciliation(getString(R.string.cash_label), 0.0);
-            cardReconciliation = new PaymentReconciliation(getString(R.string.card_label), 0.0);
-            mobileReconciliation = new PaymentReconciliation(getString(R.string.mobile_money_label), 0.0);
+            // Create session summary
+            sessionSummary = new SessionSummary(sessionId, cashierName, 0.0);
 
-            // Load session data
-            loadSessionData();
+            // Show progress while loading
+            progressBar.setVisibility(View.VISIBLE);
 
-            // Setup input listeners
-            setupInputListeners();
+            // First fetch payment modes, then session data
+            fetchPaymentModes();
 
             // Setup end session button
             btnEndSession.setOnClickListener(new View.OnClickListener() {
@@ -156,20 +149,8 @@ public class ReconciliationActivity extends AppCompatActivity {
             tvTotalSales = findViewById(R.id.tvTotalSales);
             tvTotalOrders = findViewById(R.id.tvTotalOrders);
 
-            // Cash reconciliation views
-            tvCashSystemTotal = findViewById(R.id.tvCashSystemTotal);
-            etCashCount = findViewById(R.id.etCashCount);
-            tvCashDifference = findViewById(R.id.tvCashDifference);
-
-            // Card reconciliation views
-            tvCardSystemTotal = findViewById(R.id.tvCardSystemTotal);
-            etCardCount = findViewById(R.id.etCardCount);
-            tvCardDifference = findViewById(R.id.tvCardDifference);
-
-            // Mobile money reconciliation views
-            tvMobileSystemTotal = findViewById(R.id.tvMobileSystemTotal);
-            etMobileCount = findViewById(R.id.etMobileCount);
-            tvMobileDifference = findViewById(R.id.tvMobileDifference);
+            // Payment Modes container
+            paymentModesContainer = findViewById(R.id.paymentModesContainer);
 
             // Notes and button
             etNotes = findViewById(R.id.etNotes);
@@ -181,125 +162,72 @@ public class ReconciliationActivity extends AppCompatActivity {
         }
     }
 
-    private void setupInputListeners() {
-        etCashCount.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+    private void fetchPaymentModes() {
+        Request request = new Request.Builder()
+                .url(PAYMENT_MODES_API)
+                .build();
 
+        client.newCall(request).enqueue(new Callback() {
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                updateCashDifference();
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to fetch payment modes", e);
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(ReconciliationActivity.this,
+                                "Failed to fetch payment modes: " + e.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                        // Continue with session data WITHOUT adding default payment methods
+                        loadSessionData();
+                    }
+                });
             }
-        });
-
-        etCardCount.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
 
             @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    if (!response.isSuccessful()) {
+                        throw new IOException(getString(R.string.unexpected_response_code) + response);
+                    }
 
-            @Override
-            public void afterTextChanged(Editable s) {
-                updateCardDifference();
-            }
-        });
+                    String responseBody = response.body().string();
+                    JSONObject jsonObject = new JSONObject(responseBody);
 
-        etMobileCount.addTextChangedListener(new TextWatcher() {
-            @Override
-            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+                    if ("success".equals(jsonObject.optString("status"))) {
+                        JSONArray data = jsonObject.optJSONArray("data");
+                        if (data != null) {
+                            for (int i = 0; i < data.length(); i++) {
+                                JSONObject methodJson = data.getJSONObject(i);
+                                String id = methodJson.optString("id");
+                                String name = methodJson.optString("description");
+                                String code = methodJson.optString("id");
 
-            @Override
-            public void onTextChanged(CharSequence s, int start, int before, int count) {}
-
-            @Override
-            public void afterTextChanged(Editable s) {
-                updateMobileDifference();
+                                PaymentMethod method = new PaymentMethod(id, name, code);
+                                paymentMethods.add(method);
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to get payment modes: " + jsonObject.optString("message"));
+                        // Do NOT call setupDefaultPaymentMethods() here
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing payment modes response", e);
+                    // Do NOT call setupDefaultPaymentMethods() here
+                } finally {
+                    // If payment methods is empty, do NOT fill it with defaults
+                    loadSessionData();
+                }
             }
         });
     }
 
-    private void updateCashDifference() {
-        try {
-            double actualAmount = 0.0;
-            if (etCashCount.getText() != null && !etCashCount.getText().toString().isEmpty()) {
-                actualAmount = Double.parseDouble(etCashCount.getText().toString());
-            }
-
-            if (cashReconciliation != null) {
-                cashReconciliation.setActualAmount(actualAmount);
-                tvCashDifference.setText(currencyFormat.format(cashReconciliation.getDifference()));
-
-                // Set text color based on difference
-                if (cashReconciliation.getDifference() < 0) {
-                    tvCashDifference.setTextColor(getResources().getColor(R.color.red));
-                } else if (cashReconciliation.getDifference() > 0) {
-                    tvCashDifference.setTextColor(getResources().getColor(R.color.green));
-                } else {
-                    tvCashDifference.setTextColor(getResources().getColor(R.color.black));
-                }
-            }
-        } catch (NumberFormatException e) {
-            Log.e(TAG, "Error parsing cash amount", e);
-        }
-    }
-
-    private void updateCardDifference() {
-        try {
-            double actualAmount = 0.0;
-            if (etCardCount.getText() != null && !etCardCount.getText().toString().isEmpty()) {
-                actualAmount = Double.parseDouble(etCardCount.getText().toString());
-            }
-
-            if (cardReconciliation != null) {
-                cardReconciliation.setActualAmount(actualAmount);
-                tvCardDifference.setText(currencyFormat.format(cardReconciliation.getDifference()));
-
-                // Set text color based on difference
-                if (cardReconciliation.getDifference() < 0) {
-                    tvCardDifference.setTextColor(getResources().getColor(R.color.red));
-                } else if (cardReconciliation.getDifference() > 0) {
-                    tvCardDifference.setTextColor(getResources().getColor(R.color.green));
-                } else {
-                    tvCardDifference.setTextColor(getResources().getColor(R.color.black));
-                }
-            }
-        } catch (NumberFormatException e) {
-            Log.e(TAG, "Error parsing card amount", e);
-        }
-    }
-
-    private void updateMobileDifference() {
-        try {
-            double actualAmount = 0.0;
-            if (etMobileCount.getText() != null && !etMobileCount.getText().toString().isEmpty()) {
-                actualAmount = Double.parseDouble(etMobileCount.getText().toString());
-            }
-
-            if (mobileReconciliation != null) {
-                mobileReconciliation.setActualAmount(actualAmount);
-                tvMobileDifference.setText(currencyFormat.format(mobileReconciliation.getDifference()));
-
-                // Set text color based on difference
-                if (mobileReconciliation.getDifference() < 0) {
-                    tvMobileDifference.setTextColor(getResources().getColor(R.color.red));
-                } else if (mobileReconciliation.getDifference() > 0) {
-                    tvMobileDifference.setTextColor(getResources().getColor(R.color.green));
-                } else {
-                    tvMobileDifference.setTextColor(getResources().getColor(R.color.black));
-                }
-            }
-        } catch (NumberFormatException e) {
-            Log.e(TAG, "Error parsing mobile amount", e);
-        }
+    private void setupDefaultPaymentMethods() {
+        // This method is now empty - we no longer add default payment methods
+        // Instead, we'll handle the case when no payment methods are available
+        Log.d(TAG, "No payment methods available from API");
     }
 
     private void loadSessionData() {
-        progressBar.setVisibility(View.VISIBLE);
-
         // Construct the URL for getting session details
         String url = API_URL_BASE + "/cashier-sessions/" + sessionId;
 
@@ -345,30 +273,37 @@ public class ReconciliationActivity extends AppCompatActivity {
                         final String openedBy = data.optString("cashier_name", cashierName);
                         final String openTime = data.optString("opened_at", "");
 
-                        // Get payment totals
-                        final double cashTotal = data.optDouble("cash_total", 0.0);
-                        final double cardTotal = data.optDouble("card_total", 0.0);
-                        final double mobileTotal = data.optDouble("mobile_money_total", 0.0);
+                        // Create a map of payment totals by code
+                        final Map<String, Double> paymentTotals = new HashMap<>();
+
+                        // Add standard payment types that might be in the API
+                        paymentTotals.put("cash", data.optDouble("cash_total", 0.0));
+                        paymentTotals.put("card", data.optDouble("card_total", 0.0));
+                        paymentTotals.put("mobile", data.optDouble("mobile_money_total", 0.0));
+
+                        // Try to get payment totals from API response if any exist
+                        if (data.has("payment_totals")) {
+                            JSONObject totals = data.getJSONObject("payment_totals");
+                            Iterator<String> keys = totals.keys();
+                            while (keys.hasNext()) {
+                                String key = keys.next();
+                                paymentTotals.put(key, totals.optDouble(key, 0.0));
+                            }
+                        }
 
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                // Create session summary
-                                sessionSummary = new SessionSummary(sessionId, openedBy, openingAmount);
+                                // Update session summary
+                                sessionSummary.setOpeningAmount(openingAmount);
                                 sessionSummary.setTotalSales(totalSales);
                                 sessionSummary.setTotalOrders(totalOrders);
 
-                                // Create payment reconciliations
-                                cashReconciliation = new PaymentReconciliation(getString(R.string.cash_label), cashTotal);
-                                cardReconciliation = new PaymentReconciliation(getString(R.string.card_label), cardTotal);
-                                mobileReconciliation = new PaymentReconciliation(getString(R.string.mobile_money_label), mobileTotal);
+                                // Update session summary UI
+                                updateSessionSummaryUI(openedBy, openTime);
 
-                                sessionSummary.addPaymentReconciliation(cashReconciliation);
-                                sessionSummary.addPaymentReconciliation(cardReconciliation);
-                                sessionSummary.addPaymentReconciliation(mobileReconciliation);
-
-                                // Update UI
-                                updateUI(openedBy, openTime);
+                                // Create payment mode UI
+                                createPaymentModesUI(paymentTotals);
 
                                 progressBar.setVisibility(View.GONE);
                             }
@@ -393,7 +328,7 @@ public class ReconciliationActivity extends AppCompatActivity {
         });
     }
 
-    private void updateUI(String openedBy, String openTime) {
+    private void updateSessionSummaryUI(String openedBy, String openTime) {
         try {
             // Format date for display
             String formattedOpenTime = openTime;
@@ -418,37 +353,144 @@ public class ReconciliationActivity extends AppCompatActivity {
             tvTotalSales.setText(prefix + currencyFormat.format(sessionSummary.getTotalSales()));
             tvTotalOrders.setText(String.valueOf(sessionSummary.getTotalOrders()));
 
-            // Update payment reconciliation values
-            tvCashSystemTotal.setText(prefix + currencyFormat.format(cashReconciliation.getSystemAmount()));
-            tvCardSystemTotal.setText(prefix + currencyFormat.format(cardReconciliation.getSystemAmount()));
-            tvMobileSystemTotal.setText(prefix + currencyFormat.format(mobileReconciliation.getSystemAmount()));
-
-            // Pre-populate the physical count fields with system amounts for easier reconciliation
-            etCashCount.setText(String.valueOf(cashReconciliation.getSystemAmount()));
-            etCardCount.setText(String.valueOf(cardReconciliation.getSystemAmount()));
-            etMobileCount.setText(String.valueOf(mobileReconciliation.getSystemAmount()));
-
-            // Update differences
-            updateCashDifference();
-            updateCardDifference();
-            updateMobileDifference();
         } catch (Exception e) {
-            Log.e(TAG, "Error updating UI", e);
+            Log.e(TAG, "Error updating Session Summary UI", e);
             Toast.makeText(this, "Error updating display: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
+    private void createPaymentModesUI(Map<String, Double> paymentTotals) {
+        // Clear container first
+        paymentModesContainer.removeAllViews();
+        paymentModeViews.clear();
+
+        // If no payment methods, display a message and return
+        if (paymentMethods.isEmpty()) {
+            TextView emptyMessage = new TextView(this);
+            emptyMessage.setText(getString(R.string.no_payment_methods_available));
+            emptyMessage.setTextSize(16);
+            emptyMessage.setPadding(16, 16, 16, 16);
+            emptyMessage.setGravity(Gravity.CENTER);
+            paymentModesContainer.addView(emptyMessage);
+            return;
+        }
+
+        // Get LayoutInflater
+        LayoutInflater inflater = LayoutInflater.from(this);
+
+        // For each payment method, create a UI element
+        for (final PaymentMethod method : paymentMethods) {
+            Log.d(TAG, "Creating payment mode UI for: " + method.getName());
+
+            // Get system amount for this payment method (or 0 if not found)
+            Double systemAmount = paymentTotals.get(method.getCode());
+            if (systemAmount == null) {
+                systemAmount = 0.0;
+            }
+
+            // Create reconciliation object
+            final PaymentReconciliation reconciliation = new PaymentReconciliation(method, systemAmount);
+            sessionSummary.addPaymentReconciliation(reconciliation);
+
+            // Inflate the payment mode item layout
+            View itemView = inflater.inflate(R.layout.item_payment_mode, paymentModesContainer, false);
+
+            // Get UI elements
+            TextView tvTitle = itemView.findViewById(R.id.tvPaymentModeTitle);
+            TextView tvSystemTotal = itemView.findViewById(R.id.tvPaymentModeSystemTotal);
+            final TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
+            final TextView tvDifference = itemView.findViewById(R.id.tvPaymentModeDifference);
+
+            // Set title
+            tvTitle.setText(method.getName());
+
+            // Format currency
+            String prefix = "";
+            try {
+                prefix = getString(R.string.currency_prefix) + " ";
+            } catch (Exception e) {
+                // Currency prefix not defined, use empty string
+            }
+
+            // Set initial values
+            tvSystemTotal.setText(prefix + currencyFormat.format(reconciliation.getSystemAmount()));
+            etPhysicalCount.setText(String.valueOf(reconciliation.getSystemAmount()));  // Pre-fill with system amount
+            tvDifference.setText(prefix + currencyFormat.format(0.00));  // Initially difference is 0
+
+            // Setup TextWatcher for physical count
+            etPhysicalCount.addTextChangedListener(new TextWatcher() {
+                @Override
+                public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                @Override
+                public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+                @Override
+                public void afterTextChanged(Editable s) {
+                    try {
+                        double actualAmount = 0.0;
+                        if (s != null && !s.toString().isEmpty()) {
+                            actualAmount = Double.parseDouble(s.toString());
+                        }
+
+                        // Update reconciliation object
+                        reconciliation.setActualAmount(actualAmount);
+
+                        // Format with currency prefix
+                        String prefix = "";
+                        try {
+                            prefix = getString(R.string.currency_prefix) + " ";
+                        } catch (Exception e) {
+                            // Ignore if not found
+                        }
+
+                        // Update difference display
+                        tvDifference.setText(prefix + currencyFormat.format(reconciliation.getDifference()));
+
+                        // Set text color based on difference
+                        if (reconciliation.getDifference() < 0) {
+                            tvDifference.setTextColor(getResources().getColor(R.color.red));
+                        } else if (reconciliation.getDifference() > 0) {
+                            tvDifference.setTextColor(getResources().getColor(R.color.green));
+                        } else {
+                            tvDifference.setTextColor(getResources().getColor(R.color.black));
+                        }
+                    } catch (NumberFormatException e) {
+                        Log.e(TAG, "Error parsing amount for " + reconciliation.getName(), e);
+                    }
+                }
+            });
+
+            // Store view for later reference
+            paymentModeViews.put(method.getCode(), itemView);
+
+            // Add view to container
+            paymentModesContainer.addView(itemView);
+        }
+    }
+
     private void validateAndEndSession() {
-        // Check if all fields are filled
-        if (etCashCount.getText() == null || etCashCount.getText().toString().isEmpty() ||
-                etCardCount.getText() == null || etCardCount.getText().toString().isEmpty() ||
-                etMobileCount.getText() == null || etMobileCount.getText().toString().isEmpty()) {
+        boolean allFieldsFilled = true;
+
+        // Check if all payment reconciliations have physical counts
+        for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
+            View itemView = paymentModeViews.get(reconciliation.getCode());
+            if (itemView != null) {
+                TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
+                if (etPhysicalCount.getText() == null || etPhysicalCount.getText().toString().isEmpty()) {
+                    allFieldsFilled = false;
+                    break;
+                }
+            }
+        }
+
+        if (!allFieldsFilled) {
             Toast.makeText(this, getString(R.string.enter_all_amounts), Toast.LENGTH_SHORT).show();
             return;
         }
 
         // Get notes
-        if (sessionSummary != null && etNotes.getText() != null) {
+        if (etNotes.getText() != null) {
             sessionSummary.setNotes(etNotes.getText().toString());
         }
 
@@ -459,10 +501,14 @@ public class ReconciliationActivity extends AppCompatActivity {
         JSONObject requestJson = new JSONObject();
         try {
             requestJson.put("session_id", sessionId);
-            requestJson.put("cash_counted", cashReconciliation.getActualAmount());
-            requestJson.put("card_counted", cardReconciliation.getActualAmount());
-            requestJson.put("mobile_money_counted", mobileReconciliation.getActualAmount());
-            requestJson.put("notes", sessionSummary != null ? sessionSummary.getNotes() : "");
+
+            // Add all payment reconciliations
+            for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
+                requestJson.put(reconciliation.getCode() + "_counted", reconciliation.getActualAmount());
+            }
+
+            // Add notes
+            requestJson.put("notes", sessionSummary.getNotes());
 
             // End session API call
             endSession(requestJson);
@@ -482,11 +528,11 @@ public class ReconciliationActivity extends AppCompatActivity {
         RequestBody body;
 
         try {
-            // Try newer OkHttp version method signature (MediaType first, String second)
+            // Try newer OkHttp version method signature
             body = RequestBody.create(JSON, requestJson.toString());
         } catch (NoSuchMethodError e1) {
             try {
-                // Try older OkHttp version method signature (String first, MediaType second)
+                // Try older OkHttp version method signature
                 body = RequestBody.create(requestJson.toString(), JSON);
             } catch (Exception e2) {
                 // Ultimate fallback for any other case

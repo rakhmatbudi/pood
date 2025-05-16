@@ -1,24 +1,39 @@
 package com.restaurant.management.models;
 
+/**
+ * Extends PaymentMethod with reconciliation-specific functionality
+ */
 public class PaymentReconciliation {
-    private String paymentType;
+    private PaymentMethod paymentMethod;
     private double systemAmount;
     private double actualAmount;
     private double difference;
 
-    public PaymentReconciliation(String paymentType, double systemAmount) {
-        this.paymentType = paymentType;
+    public PaymentReconciliation(PaymentMethod paymentMethod, double systemAmount) {
+        this.paymentMethod = paymentMethod;
         this.systemAmount = systemAmount;
         this.actualAmount = 0.0;
-        this.difference = 0.0;
+        this.difference = -systemAmount; // Initially the difference is negative (shortage)
     }
 
-    public String getPaymentType() {
-        return paymentType;
+    public PaymentMethod getPaymentMethod() {
+        return paymentMethod;
     }
 
-    public void setPaymentType(String paymentType) {
-        this.paymentType = paymentType;
+    public void setPaymentMethod(PaymentMethod paymentMethod) {
+        this.paymentMethod = paymentMethod;
+    }
+
+    public String getName() {
+        return paymentMethod.getName();
+    }
+
+    public String getCode() {
+        return paymentMethod.getCode();
+    }
+
+    public String getId() {
+        return paymentMethod.getId();
     }
 
     public double getSystemAmount() {
@@ -27,6 +42,7 @@ public class PaymentReconciliation {
 
     public void setSystemAmount(double systemAmount) {
         this.systemAmount = systemAmount;
+        calculateDifference();
     }
 
     public double getActualAmount() {

@@ -1,7 +1,9 @@
 package com.restaurant.management.models;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class SessionSummary {
     private long sessionId;
@@ -10,6 +12,7 @@ public class SessionSummary {
     private double totalSales;
     private int totalOrders;
     private List<PaymentReconciliation> paymentReconciliations;
+    private Map<String, PaymentReconciliation> reconciliationByCode;
     private String notes;
 
     public SessionSummary(long sessionId, String cashierName, double openingAmount) {
@@ -19,6 +22,7 @@ public class SessionSummary {
         this.totalSales = 0.0;
         this.totalOrders = 0;
         this.paymentReconciliations = new ArrayList<>();
+        this.reconciliationByCode = new HashMap<>();
         this.notes = "";
     }
 
@@ -66,12 +70,13 @@ public class SessionSummary {
         return paymentReconciliations;
     }
 
-    public void setPaymentReconciliations(List<PaymentReconciliation> paymentReconciliations) {
-        this.paymentReconciliations = paymentReconciliations;
+    public void addPaymentReconciliation(PaymentReconciliation reconciliation) {
+        this.paymentReconciliations.add(reconciliation);
+        this.reconciliationByCode.put(reconciliation.getCode(), reconciliation);
     }
 
-    public void addPaymentReconciliation(PaymentReconciliation paymentReconciliation) {
-        this.paymentReconciliations.add(paymentReconciliation);
+    public PaymentReconciliation getReconciliationByCode(String code) {
+        return reconciliationByCode.get(code);
     }
 
     public String getNotes() {

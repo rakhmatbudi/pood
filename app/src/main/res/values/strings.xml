@@ -222,6 +222,7 @@
     <string name="navigating_to_end_session">Opening end session screen...</string>
 
     <!-- Reconciliation Activity -->
+    <string name="payment_methods">Payment Methods</string>
     <string name="title_activity_reconciliation">Session Reconciliation</string>
     <string name="opening_amount_label">Opening Amount:</string>
     <string name="total_sales_label">Total Sales:</string>
@@ -238,4 +239,5 @@
     <string name="session_ended_successfully">Session ended successfully</string>
     <string name="failed_end_session">Failed to end session: %1$s</string>
     <string name="error_end_session">Error ending session: %1$s</string>
+    <string name="no_payment_methods_available">No payment methods available</string>
 </resources>
