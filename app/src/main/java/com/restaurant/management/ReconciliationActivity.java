@@ -47,6 +47,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 import android.view.Gravity;
+import android.view.ViewGroup;
 
 public class ReconciliationActivity extends AppCompatActivity {
 
@@ -162,6 +163,31 @@ public class ReconciliationActivity extends AppCompatActivity {
         }
     }
 
+    private void updateSystemTotal(String paymentModeId, double systemAmount) {
+        View itemView = paymentModeViews.get(paymentModeId);
+        if (itemView == null) {
+            Log.w(TAG, "View for payment mode " + paymentModeId + " not found");
+            return;
+        }
+
+        TextView tvSystemTotal = itemView.findViewById(R.id.tvPaymentModeSystemTotal);
+        if (tvSystemTotal == null) {
+            Log.w(TAG, "System total view not found for payment mode " + paymentModeId);
+            return;
+        }
+
+        // Format currency
+        String prefix = "";
+        try {
+            prefix = getString(R.string.currency_prefix) + " ";
+        } catch (Exception e) {
+            // Currency prefix not defined, use empty string
+        }
+
+        // Update the system total display
+        tvSystemTotal.setText(prefix + currencyFormat.format(systemAmount));
+    }
+
     private void fetchPaymentModes() {
         Request request = new Request.Builder()
                 .url(PAYMENT_MODES_API)
@@ -221,11 +247,91 @@ public class ReconciliationActivity extends AppCompatActivity {
         });
     }
 
-    private void setupDefaultPaymentMethods() {
-        // This method is now empty - we no longer add default payment methods
-        // Instead, we'll handle the case when no payment methods are available
-        Log.d(TAG, "No payment methods available from API");
+    private void fetchPaymentMethodTransactions(long sessionId, String paymentModeId) {
+        String url = API_URL_BASE + "/payments/session/" + sessionId + "/mode/" + paymentModeId;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to fetch transactions for payment mode " + paymentModeId, e);
+
+                final String errorMessage = e.getMessage();
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(ReconciliationActivity.this,
+                                "Failed to fetch transactions: " + errorMessage,
+                                Toast.LENGTH_SHORT).show();
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    if (!response.isSuccessful()) {
+                        throw new IOException(getString(R.string.unexpected_response_code) + response);
+                    }
+
+                    String responseBody = response.body().string();
+                    JSONObject jsonObject = new JSONObject(responseBody);
+
+                    if ("success".equals(jsonObject.optString("status"))) {
+                        JSONArray data = jsonObject.optJSONArray("data");
+
+                        if (data != null) {
+                            double totalAmount = 0.0;
+
+                            // Calculate total amount from all transactions
+                            for (int i = 0; i < data.length(); i++) {
+                                JSONObject transaction = data.getJSONObject(i);
+                                totalAmount += transaction.optDouble("amount", 0.0);
+                            }
+
+                            final double finalTotalAmount = totalAmount;
+
+                            // Find the payment reconciliation by ID
+                            for (final PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
+                                if (reconciliation.getCode().equals(paymentModeId)) {
+                                    // Update the system amount in the reconciliation object
+                                    reconciliation.setSystemAmount(finalTotalAmount);
+
+                                    runOnUiThread(new Runnable() {
+                                        @Override
+                                        public void run() {
+                                            // Update the UI to reflect the new system amount
+                                            updateSystemTotal(paymentModeId, finalTotalAmount);
+
+                                            // Also update the physical count field and difference
+                                            View itemView = paymentModeViews.get(paymentModeId);
+                                            if (itemView != null) {
+                                                TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
+                                                if (etPhysicalCount != null) {
+                                                    // Update the physical count to match the new system amount
+                                                    etPhysicalCount.setText(String.valueOf(finalTotalAmount));
+                                                }
+                                            }
+                                        }
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        Log.w(TAG, "Failed to get transactions: " +
+                                jsonObject.optString("message", "Unknown error"));
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing transaction data for payment mode " + paymentModeId, e);
+                }
+            }
+        });
     }
+
 
     private void loadSessionData() {
         // Construct the URL for getting session details
@@ -466,6 +572,9 @@ public class ReconciliationActivity extends AppCompatActivity {
 
             // Add view to container
             paymentModesContainer.addView(itemView);
+
+            // Fetch transaction details for this payment method
+            fetchPaymentMethodTransactions(sessionId, method.getId());
         }
     }
 

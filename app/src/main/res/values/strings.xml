@@ -240,4 +240,6 @@
     <string name="failed_end_session">Failed to end session: %1$s</string>
     <string name="error_end_session">Error ending session: %1$s</string>
     <string name="no_payment_methods_available">No payment methods available</string>
+    <string name="transaction_details_format">Transactions: %1$d (Total: %2$s)</string>
+    <string name="failed_to_fetch_transactions">Failed to fetch transactions for %1$s: %2$s</string>
 </resources>
