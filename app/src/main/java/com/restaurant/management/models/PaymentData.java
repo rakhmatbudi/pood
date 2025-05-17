@@ -14,6 +14,9 @@ public class PaymentData {
     @SerializedName("order_table_number")
     private String orderTableNumber;
 
+    @SerializedName("customer_name")
+    private String customerName;
+
     @SerializedName("payment_amount")
     private double paymentAmount;
 
@@ -38,6 +41,10 @@ public class PaymentData {
 
     public int getOrderId() {
         return orderId;
+    }
+
+    public String getCustomerName() {
+        return customerName;
     }
 
     public String getOrderTableNumber() {

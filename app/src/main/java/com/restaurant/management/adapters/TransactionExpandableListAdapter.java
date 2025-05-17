@@ -109,6 +109,7 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
 
         return convertView;
     }
+
     @Override
     public View getChildView(int groupPosition, int childPosition, boolean isLastChild, View convertView, ViewGroup parent) {
         Transaction transaction = (Transaction) getChild(groupPosition, childPosition);
@@ -124,8 +125,17 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         TextView tvPaymentTime = convertView.findViewById(R.id.tvPaymentTime);
         TextView tvOrderItems = convertView.findViewById(R.id.tvOrderItems);
 
-        tvOrderInfo.setText(String.format(Locale.getDefault(), "Order #%d • Table %s",
-                transaction.getOrderId(), transaction.getTableNumber()));
+        // Update this line to include customer name if available
+        String orderInfo;
+        if (transaction.getCustomerName() != null && !transaction.getCustomerName().isEmpty()) {
+            orderInfo = String.format(Locale.getDefault(), "#%d • Tbl %s • %s",
+                    transaction.getOrderId(), transaction.getTableNumber(), transaction.getCustomerName());
+        } else {
+            orderInfo = String.format(Locale.getDefault(), "#%d • Tbl %s",
+                    transaction.getOrderId(), transaction.getTableNumber());
+        }
+        tvOrderInfo.setText(orderInfo);
+
         tvAmount.setText(formatCurrency(transaction.getAmount()));
         tvPaymentMethod.setText(transaction.getPaymentMethod());
 

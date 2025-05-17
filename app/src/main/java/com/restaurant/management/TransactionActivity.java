@@ -172,6 +172,7 @@ public class TransactionActivity extends AppCompatActivity {
 
             // Parse the session start time (opened_at)
 
+
             if (sessionData.getCashierSessionOpenedAt() != null) {
                 Date startTime = sessionData.getCashierSessionOpenedAt();
                 session.setStartTime(startTime);
@@ -243,6 +244,8 @@ public class TransactionActivity extends AppCompatActivity {
                         }
                     }
 
+                    String customerName = payment.getCustomerName();
+
                     // Create the transaction with all the data
                     Transaction transaction = new Transaction(
                             paymentId,
@@ -251,7 +254,8 @@ public class TransactionActivity extends AppCompatActivity {
                             amount,
                             paymentModeText,
                             paymentDate,
-                            orderItems
+                            orderItems,
+                            customerName
                     );
 
                     transactions.add(transaction);

@@ -26,7 +26,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:textSize="16sp"
+                android:textSize="14sp"
                 android:textStyle="bold"
                 tools:text="Order #456 • Table 8" />
 
@@ -48,9 +48,7 @@
                 android:id="@+id/tvAmount"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/colorAmount"
-                android:textSize="16sp"
-                android:textStyle="bold"
+                android:textSize="14sp"
                 tools:text="Rp 150,000" />
         </LinearLayout>
 

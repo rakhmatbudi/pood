@@ -14,6 +14,7 @@ public class Transaction {
     private String paymentMethod;
     private Date paymentDate;
     private List<OrderItem> orderItems;
+    private String customerName;
 
     /**
      * Constructor for Transaction
@@ -27,7 +28,8 @@ public class Transaction {
      * @param orderItems The list of order items included in this transaction
      */
     public Transaction(int id, int orderId, String tableNumber, double amount,
-                       String paymentMethod, Date paymentDate, List<OrderItem> orderItems) {
+                       String paymentMethod, Date paymentDate, List<OrderItem> orderItems,
+                       String customerName) {
         this.id = id;
         this.orderId = orderId;
         this.tableNumber = tableNumber;
@@ -35,6 +37,7 @@ public class Transaction {
         this.paymentMethod = paymentMethod;
         this.paymentDate = paymentDate;
         this.orderItems = orderItems;
+        this.customerName = customerName;
     }
 
     /**
@@ -62,6 +65,15 @@ public class Transaction {
      */
     public String getTableNumber() {
         return tableNumber;
+    }
+
+    /**
+     * Get the customer name
+     *
+     * @return The customer name, may be null if not provided
+     */
+    public String getCustomerName() {
+        return customerName;
     }
 
     /**
@@ -127,6 +139,7 @@ public class Transaction {
                 ", tableNumber='" + tableNumber + '\'' +
                 ", amount=" + amount +
                 ", paymentMethod='" + paymentMethod + '\'' +
+                ", customerName='" + customerName + '\'' +
                 ", paymentDate=" + paymentDate +
                 ", itemCount=" + getItemCount() +
                 '}';
