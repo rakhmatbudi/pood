@@ -37,4 +37,13 @@ public class ApiClient {
         }
         return retrofit;
     }
+
+    /**
+     * Creates an implementation of the API service interface
+     *
+     * @return ApiService implementation for making API calls
+     */
+    public static ApiService getApiService() {
+        return getClient().create(ApiService.class);
+    }
 }

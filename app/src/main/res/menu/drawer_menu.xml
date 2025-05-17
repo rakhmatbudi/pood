@@ -4,19 +4,24 @@
     <group android:checkableBehavior="single">
         <item
             android:id="@+id/nav_dashboard"
-            android:icon="@android:drawable/ic_menu_today"
+            android:icon="@drawable/ic_dashboard"
             android:title="@string/dashboard" />
     </group>
 
     <item
         android:id="@+id/nav_orders"
-        android:icon="@android:drawable/ic_menu_sort_by_size"
+        android:icon="@drawable/ic_orders"
         android:title="@string/orders" />
 
     <item
         android:id="@+id/nav_transactions"
-        android:icon="@android:drawable/ic_menu_recent_history"
+        android:icon="@drawable/ic_transactions"
         android:title="@string/transactions" />
+
+    <item
+        android:id="@+id/nav_products"
+        android:icon="@drawable/ic_products"
+        android:title="@string/product_list" />
 
     <item android:title="@string/account">
         <menu>

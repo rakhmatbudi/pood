@@ -2,6 +2,7 @@ package com.restaurant.management.network;
 
 import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.models.SessionPaymentsResponse;
+import com.restaurant.management.models.ProductResponse;
 
 import java.util.List;
 import retrofit2.Call;
@@ -36,4 +37,11 @@ public interface ApiService {
 
     @GET("payments/grouped/sessions/details")
     Call<SessionPaymentsResponse> getSessionPayments();
+
+    /**
+     * Get all menu items (products)
+     * @return Call object with ApiResponse containing products data
+     */
+    @GET("menu-items") // or whatever your endpoint is
+    Call<ProductResponse> getProducts();
 }
