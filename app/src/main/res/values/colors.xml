@@ -13,6 +13,7 @@
     <color name="teal_200">#FF03DAC5</color>
     <color name="teal_700">#FF018786</color>
     <color name="blue">#0000FF</color>
+    <color name="price_color">@android:color/holo_green_dark</color>
 
     <color name="official1">#6E0058</color>
     <color name="status_default">#757575</color>

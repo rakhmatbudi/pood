@@ -255,4 +255,7 @@
     <string name="other">Other</string>
     <string name="product_list">Products</string>
     <string name="no_products">No products available</string>
+    <string name="product_name">Product Name</string>
+    <string name="category">Category</string>
+    <string name="price">Price (Rp)</string>
 </resources>

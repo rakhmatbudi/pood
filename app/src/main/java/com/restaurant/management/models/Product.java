@@ -1,17 +1,36 @@
 package com.restaurant.management.models;
-// Product.java
-public class Product {
-    private int id;
-    private String name;
-    private String description;
-    private String price;
-    private int category_id;
-    private boolean is_active;
-    private String image_path;
-    private String created_at;
-    private String updated_at;
 
-    // Getters and setters
+import com.google.gson.annotations.SerializedName;
+
+public class Product {
+    @SerializedName("id")
+    private int id;
+
+    @SerializedName("name")
+    private String name;
+
+    @SerializedName("description")
+    private String description;
+
+    @SerializedName("price")
+    private String price;
+
+    @SerializedName("is_active")
+    private boolean isActive;
+
+    @SerializedName("image_path")
+    private String imagePath;
+
+    @SerializedName("category_id")
+    private int categoryId;
+
+    @SerializedName("category_name")
+    private String categoryName;
+
+    @SerializedName("category_description")
+    private String categoryDescription;
+
+    // Getters and Setters
     public int getId() {
         return id;
     }
@@ -44,43 +63,43 @@ public class Product {
         this.price = price;
     }
 
-    public int getCategory_id() {
-        return category_id;
+    public boolean isActive() {
+        return isActive;
     }
 
-    public void setCategory_id(int category_id) {
-        this.category_id = category_id;
+    public void setActive(boolean active) {
+        isActive = active;
     }
 
-    public boolean isIs_active() {
-        return is_active;
+    public String getImagePath() {
+        return imagePath;
     }
 
-    public void setIs_active(boolean is_active) {
-        this.is_active = is_active;
+    public void setImagePath(String imagePath) {
+        this.imagePath = imagePath;
     }
 
-    public String getImage_path() {
-        return image_path;
+    public int getCategoryId() {
+        return categoryId;
     }
 
-    public void setImage_path(String image_path) {
-        this.image_path = image_path;
+    public void setCategoryId(int categoryId) {
+        this.categoryId = categoryId;
     }
 
-    public String getCreated_at() {
-        return created_at;
+    public String getCategoryName() {
+        return categoryName;
     }
 
-    public void setCreated_at(String created_at) {
-        this.created_at = created_at;
+    public void setCategoryName(String categoryName) {
+        this.categoryName = categoryName;
     }
 
-    public String getUpdated_at() {
-        return updated_at;
+    public String getCategoryDescription() {
+        return categoryDescription;
     }
 
-    public void setUpdated_at(String updated_at) {
-        this.updated_at = updated_at;
+    public void setCategoryDescription(String categoryDescription) {
+        this.categoryDescription = categoryDescription;
     }
 }

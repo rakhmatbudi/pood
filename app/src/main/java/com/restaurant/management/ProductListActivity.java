@@ -21,11 +21,12 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.navigation.NavigationView;
-import com.restaurant.management.adapters.ProductAdapter; // Added this import
+import com.restaurant.management.adapters.ProductAdapter;
 import com.restaurant.management.models.Product;
 import com.restaurant.management.models.ProductResponse;
 import com.restaurant.management.network.ApiClient;
 import com.restaurant.management.network.ApiService;
+import com.restaurant.management.utils.TableItemDecoration;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +43,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     private ProgressBar progressBar;
     private List<Product> productList = new ArrayList<>();
     private ApiService apiService;
+    private TextView emptyView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,20 +61,58 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             getSupportActionBar().setTitle("Products");
         }
 
-        // Initialize RecyclerView
-        recyclerView = findViewById(R.id.recyclerViewProducts);
-        recyclerView.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new ProductAdapter(this, productList, this);
-        recyclerView.setAdapter(adapter);
+        // Initialize drawer if available
+        initializeDrawer(toolbar);
 
         // Initialize ProgressBar
         progressBar = findViewById(R.id.progressBar);
 
+        // Initialize RecyclerView
+        recyclerView = findViewById(R.id.recyclerViewProducts);
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
+
+        // Add table row spacing
+        int dividerSpace = getResources().getDimensionPixelSize(R.dimen.table_row_spacing);
+        recyclerView.addItemDecoration(new TableItemDecoration(dividerSpace));
+
+        adapter = new ProductAdapter(this, productList, this);
+        recyclerView.setAdapter(adapter);
+
         // Initialize API service
         apiService = ApiClient.getClient().create(ApiService.class);
 
+        // Create empty view
+        createEmptyView();
+
         // Load products
         loadProducts();
+    }
+
+    private void initializeDrawer(Toolbar toolbar) {
+        drawerLayout = findViewById(R.id.drawer_layout);
+        if (drawerLayout != null) {
+            ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
+                    this, drawerLayout, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
+            drawerLayout.addDrawerListener(toggle);
+            toggle.syncState();
+
+            NavigationView navigationView = findViewById(R.id.nav_view);
+            if (navigationView != null) {
+                navigationView.setNavigationItemSelectedListener(this);
+            }
+        }
+    }
+
+    private void createEmptyView() {
+        emptyView = new TextView(this);
+        emptyView.setText("No products available");
+        emptyView.setTextSize(18);
+        emptyView.setGravity(Gravity.CENTER);
+        emptyView.setPadding(16, 100, 16, 16);
+        emptyView.setVisibility(View.GONE);
+
+        ViewGroup parent = (ViewGroup) recyclerView.getParent();
+        parent.addView(emptyView);
     }
 
     @Override
@@ -87,11 +127,16 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
 
     @Override
     public void onBackPressed() {
-        // Navigate back to Dashboard
-        Intent intent = new Intent(this, DashboardActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); // Clear back stack
-        startActivity(intent);
-        finish();
+        // Close drawer if open
+        if (drawerLayout != null && drawerLayout.isDrawerOpen(GravityCompat.START)) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+        } else {
+            // Navigate back to Dashboard
+            Intent intent = new Intent(this, DashboardActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP); // Clear back stack
+            startActivity(intent);
+            finish();
+        }
     }
 
     private void loadProducts() {
@@ -121,21 +166,17 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
                         }
 
                         adapter.updateList(productList);
+
+                        // Show empty view if the list is empty
+                        if (productList.isEmpty()) {
+                            showEmptyView(true);
+                        } else {
+                            showEmptyView(false);
+                        }
                     } else {
                         Log.e("ProductListActivity", "API returned success=false or null data");
                         showError("Error: API returned invalid data");
-                    }
-
-                    // Show a message if the list is empty
-                    if (productList.isEmpty()) {
-                        TextView emptyView = new TextView(ProductListActivity.this);
-                        emptyView.setText("No products available");
-                        emptyView.setTextSize(18);
-                        emptyView.setGravity(Gravity.CENTER);
-                        emptyView.setPadding(16, 100, 16, 16);
-
-                        ViewGroup parent = (ViewGroup) recyclerView.getParent();
-                        parent.addView(emptyView);
+                        showEmptyView(true);
                     }
                 } else {
                     String errorMsg = "API Error: " + response.code();
@@ -148,12 +189,14 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
                     }
                     Log.e("ProductListActivity", errorMsg);
                     showError(errorMsg);
+                    showEmptyView(true);
                 }
             }
 
             @Override
             public void onFailure(Call<ProductResponse> call, Throwable t) {
                 showLoading(false);
+                showEmptyView(true);
                 Log.e("ProductListActivity", "API call failed", t);
                 showError("Network Error: " + t.getMessage());
             }
@@ -164,12 +207,20 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         Log.d("ProductListActivity", "ShowLoading: " + show);
         progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
         recyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
+        emptyView.setVisibility(View.GONE); // Always hide empty view when loading
 
         // Add explicit logging to debug visibility states
         Log.d("ProductListActivity", "ProgressBar visibility: " +
                 (progressBar.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
         Log.d("ProductListActivity", "RecyclerView visibility: " +
                 (recyclerView.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
+        Log.d("ProductListActivity", "EmptyView visibility: " +
+                (emptyView.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
+    }
+
+    private void showEmptyView(boolean show) {
+        recyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
+        emptyView.setVisibility(show ? View.VISIBLE : View.GONE);
     }
 
     private void showError(String message) {
@@ -199,7 +250,9 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         } else if (id == R.id.nav_products) {
             Log.d("ProductListActivity", "Products selected");
             // We are already here
-            drawerLayout.closeDrawer(GravityCompat.START);
+            if (drawerLayout != null) {
+                drawerLayout.closeDrawer(GravityCompat.START);
+            }
             return true;
         } else if (id == R.id.nav_transactions) {
             Log.d("ProductListActivity", "Transactions selected");
@@ -214,9 +267,9 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             // finish();
         }
 
-        drawerLayout.closeDrawer(GravityCompat.START);
+        if (drawerLayout != null) {
+            drawerLayout.closeDrawer(GravityCompat.START);
+        }
         return true;
     }
-
-
 }

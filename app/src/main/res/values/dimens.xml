@@ -11,4 +11,16 @@
     <dimen name="activity_horizontal_margin">16dp</dimen>
     <dimen name="activity_vertical_margin">16dp</dimen>
     <dimen name="button_text_size">14sp</dimen>
+
+    <!-- Add this to your dimens.xml file -->
+    <dimen name="table_row_spacing">1dp</dimen>
+
+    <!-- Navigation drawer width (if needed) -->
+    <dimen name="nav_drawer_width">280dp</dimen>
+    <dimen name="product_name_text_size">14sp</dimen>
+    <dimen name="product_category_text_size">14sp</dimen>
+    <dimen name="product_price_text_size">14sp</dimen>
+    <dimen name="text_size_medium">14sp</dimen>
+    <dimen name="default_padding">12dp</dimen>
+    <dimen name="item_margin_bottom">1dp</dimen>
 </resources>
