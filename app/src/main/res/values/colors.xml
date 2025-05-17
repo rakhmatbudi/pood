@@ -29,4 +29,6 @@
     <color name="colorInactive">#9E9E9E</color>
     <color name="colorAmount">#1976D2</color>
     <color name="session_header_background">#E8F5E9</color>
+
+     <color name="splash_bg_color">#6A1B4D</color> <!-- Burgundy/purple color -->
 </resources>

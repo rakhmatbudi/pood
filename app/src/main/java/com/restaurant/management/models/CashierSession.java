@@ -30,6 +30,9 @@ public class CashierSession {
     @SerializedName("end_time")
     private Date endTime;
 
+    @SerializedName("opened_at")
+    private Date openedAt;
+
     @SerializedName("status")
     private String status;
 
@@ -39,7 +42,7 @@ public class CashierSession {
 
     // Constructor with all fields
     public CashierSession(int id, int userId, String userName, double startAmount, double endAmount,
-                          Date startTime, Date endTime, String status) {
+                          Date startTime, Date endTime, Date openedAt, String status) {
         this.id = id;
         this.userId = userId;
         this.userName = userName;
@@ -47,6 +50,7 @@ public class CashierSession {
         this.endAmount = endAmount;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.openedAt = openedAt;
         this.status = status;
     }
 
@@ -107,6 +111,14 @@ public class CashierSession {
         this.endTime = endTime;
     }
 
+    public Date getOpenedAt() {
+        return openedAt;
+    }
+
+    public void setOpenedAt(Date openedAt) {
+        this.openedAt = openedAt;
+    }
+
     public String getStatus() {
         return status;
     }
@@ -133,6 +145,7 @@ public class CashierSession {
                 ", endAmount=" + endAmount +
                 ", startTime=" + startTime +
                 ", endTime=" + endTime +
+                ", openedAt=" + openedAt +
                 ", status='" + status + '\'' +
                 '}';
     }

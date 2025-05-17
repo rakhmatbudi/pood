@@ -95,10 +95,6 @@ public class TransactionActivity extends AppCompatActivity {
                 formatCurrency(transaction.getAmount()));
 
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
-
-        // Intent intent = new Intent(this, OrderActivity.class);
-        // intent.putExtra("order_id", transaction.getOrderId());
-        // startActivity(intent);
     }
 
     private void fetchTransactions() {
@@ -111,7 +107,7 @@ public class TransactionActivity extends AppCompatActivity {
                 if (response.isSuccessful() && response.body() != null) {
                     SessionPaymentsResponse data = response.body();
                     if ("success".equals(data.getStatus())) {
-                        parseTransactions(data);
+                        parseSessionsAndTransactions(data);
                         setupExpandableListView();
                     } else {
                         handleError("API returned non-success status");
@@ -130,7 +126,7 @@ public class TransactionActivity extends AppCompatActivity {
         });
     }
 
-    private void parseTransactions(SessionPaymentsResponse response) {
+    private void parseSessionsAndTransactions(SessionPaymentsResponse response) {
         List<SessionWithPayments> sessionsData = response.getData();
 
         if (sessionsData == null || sessionsData.isEmpty()) {
@@ -138,20 +134,50 @@ public class TransactionActivity extends AppCompatActivity {
             return;
         }
 
-        SimpleDateFormat apiDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", Locale.US);
+        // Clear existing data
+        sessionList.clear();
+        transactionMap.clear();
+
+        SimpleDateFormat apiDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
         apiDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
         for (SessionWithPayments sessionData : sessionsData) {
-            int sessionId = sessionData.getCashierSessionId();
+            // Extract data using the correct field names based on API response
+            int sessionId = sessionData.getCashierSessionId(); // or sessionData.id based on your model
 
             // Create a new CashierSession object
             CashierSession session = new CashierSession();
             session.setId(sessionId);
-            session.setUserName("Cashier #" + sessionId);
-            session.setStartAmount(0);
-            session.setEndAmount(0);
-            session.setStartTime(new Date());
-            session.setStatus("ACTIVE");
+
+            // Use the actual cashier name from the API
+            //session.setUserName(sessionData.getCashierName());
+
+            // Use the actual opening amount from the API
+            //double openingAmount = 0;
+            //try {
+            //    openingAmount = Double.parseDouble(sessionData.getOpeningAmount());
+            //} catch (NumberFormatException e) {
+            //    Log.e(TAG, "Error parsing opening amount: " + e.getMessage());
+            //}
+            //session.setStartAmount(openingAmount);
+
+            // Use the actual closing amount from the API
+            //double closingAmount = 0;
+            //try {
+            //    closingAmount = Double.parseDouble(sessionData.getClosingAmount());
+            //} catch (NumberFormatException e) {
+            //    Log.e(TAG, "Error parsing closing amount: " + e.getMessage());
+            //}
+            //session.setEndAmount(closingAmount);
+
+            // Parse the session start time (opened_at)
+
+            if (sessionData.getCashierSessionOpenedAt() != null) {
+                Date startTime = sessionData.getCashierSessionOpenedAt();
+                session.setStartTime(startTime);
+                Log.d(TAG, "Parsed session opened time: " + startTime);
+            }
+
 
             sessionList.add(session);
 
@@ -159,103 +185,82 @@ public class TransactionActivity extends AppCompatActivity {
             List<PaymentData> payments = sessionData.getPayments();
             List<Transaction> transactions = new ArrayList<>();
 
-            for (PaymentData payment : payments) {
-                int paymentId = payment.getPaymentId();
-                int orderId = payment.getOrderId();
-                String tableNumber = payment.getOrderTableNumber();
-                double amount = payment.getPaymentAmount();
-                int paymentMode = payment.getPaymentMode();
-                String paymentModeText = getPaymentModeText(paymentMode);
+            if (payments != null) {
+                SimpleDateFormat paymentDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", Locale.US);
+                paymentDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-                Date paymentDate = null;
-                try {
-                    String dateStr = payment.getPaymentDate();
-                    paymentDate = apiDateFormat.parse(dateStr);
-                } catch (ParseException e) {
-                    Log.e(TAG, "Date parsing error: " + e.getMessage());
-                    paymentDate = new Date();
-                }
+                for (PaymentData payment : payments) {
+                    int paymentId = payment.getPaymentId();
+                    int orderId = payment.getOrderId();
+                    String tableNumber = payment.getOrderTableNumber();
+                    double amount = payment.getPaymentAmount();
+                    int paymentMode = payment.getPaymentMode();
+                    String paymentModeText = getPaymentModeText(paymentMode);
 
-                // Parse order items
-                List<PaymentData.OrderItemData> itemsData = payment.getOrderItems();
-                List<OrderItem> orderItems = new ArrayList<>();
-
-                for (PaymentData.OrderItemData itemData : itemsData) {
-                    OrderItem orderItem = new OrderItem();
-
-                    // Log the raw data from API for debugging
-                    Log.d(TAG, "API Raw Data - MenuItemID: " + itemData.getMenuItemId() +
-                            ", MenuItemName: " + itemData.getMenuItemName());
-
-                    // Set the basic properties
-                    orderItem.setId(itemData.getItemId());
-                    orderItem.setMenuItemId(itemData.getMenuItemId());
-                    orderItem.setQuantity(itemData.getQuantity());
-                    orderItem.setUnitPrice(itemData.getUnitPrice());
-                    orderItem.setTotalPrice(itemData.getTotalPrice());
-
-                    // Explicitly set the menu item name from API
-                    if (itemData.getMenuItemName() != null) {
-                        orderItem.setMenuItemName(itemData.getMenuItemName());
-                        // Log the name being set
-                        Log.d(TAG, "Setting menu name: " + itemData.getMenuItemName());
-                    } else {
-                        // Fallback
-                        orderItem.setMenuItemName("Item #" + itemData.getMenuItemId());
-                        Log.d(TAG, "API missing name, using fallback: Item #" + itemData.getMenuItemId());
+                    Date paymentDate = null;
+                    try {
+                        String dateStr = payment.getPaymentDate();
+                        paymentDate = paymentDateFormat.parse(dateStr);
+                    } catch (ParseException e) {
+                        Log.e(TAG, "Date parsing error: " + e.getMessage());
+                        paymentDate = new Date();
                     }
 
-                    if (itemData.getNotes() != null) {
-                        orderItem.setNotes(itemData.getNotes());
+                    // Parse order items
+                    List<PaymentData.OrderItemData> itemsData = payment.getOrderItems();
+                    List<OrderItem> orderItems = new ArrayList<>();
+
+                    if (itemsData != null) {
+                        for (PaymentData.OrderItemData itemData : itemsData) {
+                            OrderItem orderItem = new OrderItem();
+
+                            // Set the basic properties
+                            orderItem.setId(itemData.getItemId());
+                            orderItem.setMenuItemId(itemData.getMenuItemId());
+                            orderItem.setQuantity(itemData.getQuantity());
+                            orderItem.setUnitPrice(itemData.getUnitPrice());
+                            orderItem.setTotalPrice(itemData.getTotalPrice());
+
+                            // Explicitly set the menu item name from API
+                            if (itemData.getMenuItemName() != null) {
+                                orderItem.setMenuItemName(itemData.getMenuItemName());
+                            } else {
+                                // Fallback
+                                orderItem.setMenuItemName("Item #" + itemData.getMenuItemId());
+                            }
+
+                            if (itemData.getNotes() != null) {
+                                orderItem.setNotes(itemData.getNotes());
+                            }
+
+                            orderItem.setOrderId(orderId);
+
+                            if (itemData.getVariantId() != null) {
+                                orderItem.setVariantId(itemData.getVariantId());
+                            }
+
+                            orderItems.add(orderItem);
+                        }
                     }
 
-                    orderItem.setOrderId(orderId);
+                    // Create the transaction with all the data
+                    Transaction transaction = new Transaction(
+                            paymentId,
+                            orderId,
+                            tableNumber,
+                            amount,
+                            paymentModeText,
+                            paymentDate,
+                            orderItems
+                    );
 
-                    if (itemData.getVariantId() != null) {
-                        orderItem.setVariantId(itemData.getVariantId());
-                    }
-
-                    orderItems.add(orderItem);
+                    transactions.add(transaction);
                 }
-
-                // Create the transaction with all the data
-                Transaction transaction = new Transaction(
-                        paymentId,
-                        orderId,
-                        tableNumber,
-                        amount,
-                        paymentModeText,
-                        paymentDate,
-                        orderItems
-                );
-
-                // Log the transaction and its items for debugging
-                Log.d(TAG, "Created Transaction: " + transaction.getId() + ", Items: " + transaction.getOrderItems().size());
-                for (OrderItem item : transaction.getOrderItems()) {
-                    Log.d(TAG, "  - Item: " + item.getQuantity() + "x " + item.getMenuItemName());
-                }
-
-                transactions.add(transaction);
             }
 
             // Add transactions list to map
             transactionMap.put(session, transactions);
-
-            // Update session total amount based on transactions
-            updateSessionTotals(session, transactions);
         }
-    }
-
-    private void updateSessionTotals(CashierSession session, List<Transaction> transactions) {
-        // Calculate total revenue for this session
-        double totalRevenue = 0;
-        for (Transaction transaction : transactions) {
-            totalRevenue += transaction.getAmount();
-        }
-
-        // Update the session's end amount to reflect the total revenue
-        // (This is just for display purposes, as we don't have the actual values from the API)
-        session.setEndAmount(session.getStartAmount() + totalRevenue);
     }
 
     private String getPaymentModeText(int paymentMode) {
