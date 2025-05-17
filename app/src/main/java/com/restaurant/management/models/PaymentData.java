@@ -20,6 +20,9 @@ public class PaymentData {
     @SerializedName("payment_mode")
     private int paymentMode;
 
+    @SerializedName("payment_mode_name")
+    private String paymentModeName;
+
     @SerializedName("payment_date")
     private String paymentDate;
 
@@ -47,6 +50,10 @@ public class PaymentData {
 
     public int getPaymentMode() {
         return paymentMode;
+    }
+
+    public String getPaymentModeName() {
+        return paymentModeName;
     }
 
     public String getPaymentDate() {

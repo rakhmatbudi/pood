@@ -195,7 +195,7 @@ public class TransactionActivity extends AppCompatActivity {
                     String tableNumber = payment.getOrderTableNumber();
                     double amount = payment.getPaymentAmount();
                     int paymentMode = payment.getPaymentMode();
-                    String paymentModeText = getPaymentModeText(paymentMode);
+                    String paymentModeText = payment.getPaymentModeName();
 
                     Date paymentDate = null;
                     try {
@@ -260,19 +260,6 @@ public class TransactionActivity extends AppCompatActivity {
 
             // Add transactions list to map
             transactionMap.put(session, transactions);
-        }
-    }
-
-    private String getPaymentModeText(int paymentMode) {
-        switch (paymentMode) {
-            case 1:
-                return "Cash";
-            case 2:
-                return "Card";
-            case 3:
-                return "Digital Wallet";
-            default:
-                return "Unknown";
         }
     }
 
