@@ -25,12 +25,18 @@
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
+        <!-- Add the filter layout here -->
+        <include
+            android:id="@+id/filterSection"
+            layout="@layout/filter_layout" />
+
         <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/recyclerViewProducts"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false"
             android:padding="8dp"
+            android:layout_below="@id/filterSection"
             android:visibility="gone" />
 
         <ProgressBar

@@ -2,14 +2,18 @@ package com.restaurant.management;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
+import android.view.KeyEvent;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.widget.ArrayAdapter;
+import android.widget.AutoCompleteTextView;
 import android.widget.ProgressBar;
+import android.widget.TextView;
 import android.widget.Toast;
 import android.util.Log;
-import android.view.ViewGroup;
-import android.widget.TextView;
-import android.view.Gravity;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.ActionBarDrawerToggle;
@@ -21,15 +25,19 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.navigation.NavigationView;
+import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.adapters.ProductAdapter;
 import com.restaurant.management.models.Product;
 import com.restaurant.management.models.ProductResponse;
 import com.restaurant.management.network.ApiClient;
 import com.restaurant.management.network.ApiService;
+import com.restaurant.management.utils.ProductFilter;
 import com.restaurant.management.utils.TableItemDecoration;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.TreeSet;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -42,8 +50,14 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     private ProductAdapter adapter;
     private ProgressBar progressBar;
     private List<Product> productList = new ArrayList<>();
+    private List<Product> filteredProductList = new ArrayList<>();
     private ApiService apiService;
     private TextView emptyView;
+
+    // Filter components
+    private TextInputEditText searchEditText;
+    private AutoCompleteTextView categoryAutoComplete;
+    private ProductFilter productFilter;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,6 +80,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
 
         // Initialize ProgressBar
         progressBar = findViewById(R.id.progressBar);
+        emptyView = findViewById(R.id.emptyView);
 
         // Initialize RecyclerView
         recyclerView = findViewById(R.id.recyclerViewProducts);
@@ -75,14 +90,18 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         int dividerSpace = getResources().getDimensionPixelSize(R.dimen.table_row_spacing);
         recyclerView.addItemDecoration(new TableItemDecoration(dividerSpace));
 
-        adapter = new ProductAdapter(this, productList, this);
+        adapter = new ProductAdapter(this, filteredProductList, this);
         recyclerView.setAdapter(adapter);
+
+        // Initialize filter components
+        searchEditText = findViewById(R.id.searchEditText);
+        categoryAutoComplete = findViewById(R.id.categoryAutoComplete);
+
+        // Initialize filter mechanics
+        initializeFilterListeners();
 
         // Initialize API service
         apiService = ApiClient.getClient().create(ApiService.class);
-
-        // Create empty view
-        createEmptyView();
 
         // Load products
         loadProducts();
@@ -103,16 +122,88 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         }
     }
 
-    private void createEmptyView() {
-        emptyView = new TextView(this);
-        emptyView.setText("No products available");
-        emptyView.setTextSize(18);
-        emptyView.setGravity(Gravity.CENTER);
-        emptyView.setPadding(16, 100, 16, 16);
-        emptyView.setVisibility(View.GONE);
+    private void initializeFilterListeners() {
+        // Setup search text listener
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+                // Not used
+            }
 
-        ViewGroup parent = (ViewGroup) recyclerView.getParent();
-        parent.addView(emptyView);
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Filter products as text changes
+                applyFilter();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                // Not used
+            }
+        });
+
+        // Handle search action from keyboard
+        searchEditText.setOnEditorActionListener((v, actionId, event) -> {
+            if (actionId == EditorInfo.IME_ACTION_SEARCH ||
+                    (event != null && event.getKeyCode() == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN)) {
+                applyFilter();
+                return true;
+            }
+            return false;
+        });
+
+        // Setup category dropdown selection listener
+        categoryAutoComplete.setOnItemClickListener((parent, view, position, id) -> {
+            String selectedCategory = (String) parent.getItemAtPosition(position);
+            if (productFilter != null) {
+                productFilter.setSelectedCategory(selectedCategory);
+                applyFilter();
+            }
+        });
+    }
+
+    private void setupCategoryDropdown(Set<String> categories) {
+        // Create sorted list of categories with "All" at the top
+        List<String> categoryList = new ArrayList<>();
+        categoryList.add("All");
+
+        // Add categories in sorted order
+        TreeSet<String> sortedCategories = new TreeSet<>(categories);
+        categoryList.addAll(sortedCategories);
+
+        // Create and set adapter
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                this,
+                R.layout.dropdown_item,
+                categoryList);
+
+        categoryAutoComplete.setAdapter(adapter);
+
+        // Set "All" as default selection
+        categoryAutoComplete.setText("All", false);
+    }
+
+    private void applyFilter() {
+        if (productFilter == null || productList.isEmpty()) {
+            return;
+        }
+
+        // Update filter parameters
+        productFilter.setSearchQuery(searchEditText.getText().toString());
+
+        // Apply filters
+        filteredProductList = productFilter.filter();
+
+        // Update adapter
+        adapter.updateList(filteredProductList);
+
+        // Show empty view if no results
+        if (filteredProductList.isEmpty()) {
+            showEmptyView(true);
+            emptyView.setText("No products match your filters");
+        } else {
+            showEmptyView(false);
+        }
     }
 
     @Override
@@ -157,19 +248,20 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
                         productList = productResponse.getData();
                         Log.d("ProductListActivity", "Response data size: " + productList.size());
 
-                        // Log the first few products to verify data
-                        int logCount = Math.min(productList.size(), 3);
-                        for (int i = 0; i < logCount; i++) {
-                            Product product = productList.get(i);
-                            Log.d("ProductListActivity", "Product " + i + ": " + product.getName() +
-                                    ", Price: " + product.getPrice());
-                        }
+                        // Initialize filter with full product list
+                        productFilter = new ProductFilter(productList);
 
-                        adapter.updateList(productList);
+                        // Extract and populate category dropdown
+                        Set<String> categories = ProductFilter.extractCategories(productList);
+                        setupCategoryDropdown(categories);
+
+                        // Apply initial filter (show all)
+                        applyFilter();
 
                         // Show empty view if the list is empty
                         if (productList.isEmpty()) {
                             showEmptyView(true);
+                            emptyView.setText(R.string.no_products);
                         } else {
                             showEmptyView(false);
                         }
@@ -177,6 +269,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
                         Log.e("ProductListActivity", "API returned success=false or null data");
                         showError("Error: API returned invalid data");
                         showEmptyView(true);
+                        emptyView.setText(R.string.no_products);
                     }
                 } else {
                     String errorMsg = "API Error: " + response.code();
@@ -190,6 +283,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
                     Log.e("ProductListActivity", errorMsg);
                     showError(errorMsg);
                     showEmptyView(true);
+                    emptyView.setText(R.string.no_products);
                 }
             }
 
@@ -197,6 +291,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             public void onFailure(Call<ProductResponse> call, Throwable t) {
                 showLoading(false);
                 showEmptyView(true);
+                emptyView.setText(R.string.no_products);
                 Log.e("ProductListActivity", "API call failed", t);
                 showError("Network Error: " + t.getMessage());
             }
