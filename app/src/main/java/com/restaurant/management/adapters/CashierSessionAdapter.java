@@ -62,7 +62,7 @@ public class CashierSessionAdapter extends RecyclerView.Adapter<CashierSessionAd
         // Change status text color based on status
         int statusColor;
         if ("ACTIVE".equalsIgnoreCase(session.getStatus())) {
-            statusColor = holder.itemView.getContext().getResources().getColor(R.color.green);
+            statusColor = holder.itemView.getContext().getResources().getColor(R.color.color_sub_header);
         } else if ("CLOSED".equalsIgnoreCase(session.getStatus())) {
             statusColor = holder.itemView.getContext().getResources().getColor(R.color.blue);
         } else {

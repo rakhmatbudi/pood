@@ -13,7 +13,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="12dp"
-        android:background="#E8F5E9">  <!-- Light green background -->
+        android:background="@color/color_sub_header">  <!-- Light green background -->
 
         <!-- Header Row - Session ID, Start Time, and Total -->
         <LinearLayout

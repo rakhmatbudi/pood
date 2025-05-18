@@ -40,7 +40,7 @@ public class SessionAdapter extends RecyclerView.Adapter<SessionAdapter.SessionV
         // Set closed time or show "Active" for ongoing sessions
         if ("Active".equals(session.getStatus())) {
             holder.closedAtTextView.setText("Status: Active");
-            holder.closedAtTextView.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.green));
+            holder.closedAtTextView.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.color_sub_header));
         } else {
             holder.closedAtTextView.setText(String.format("Closed: %s", session.getClosedAt()));
             holder.closedAtTextView.setTextColor(ContextCompat.getColor(holder.itemView.getContext(), R.color.black));

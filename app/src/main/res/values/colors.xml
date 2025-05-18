@@ -3,6 +3,7 @@
     <!-- Main Theme -->
     <color name="colorPrimary">#6E0058</color>
     <color name="colorPrimaryDark">#3A0926</color>
+    <color name="color_sub_header">#ffebfb</color>
 
     <color name="colorPrimary_v1">#3F51B5</color>
     <color name="colorPrimaryDark_v1">#303F9F</color>
