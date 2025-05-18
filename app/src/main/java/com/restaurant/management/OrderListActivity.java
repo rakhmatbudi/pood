@@ -66,7 +66,10 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         // Initialize toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
-        getSupportActionBar().setTitle(getString(R.string.orders_list_title));
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setTitle(getString(R.string.orders_list_title));
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        }
 
         // Get session ID from intent
         sessionId = getIntent().getLongExtra("session_id", -1);
@@ -126,6 +129,12 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         super.onResume();
         // Refresh orders list when coming back to this activity
         fetchOrders();
+    }
+
+    @Override
+    public boolean onSupportNavigateUp() {
+        onBackPressed();
+        return true;
     }
 
     private void fetchOrders() {
@@ -323,27 +332,6 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         intent.putExtra("order_id", order.getId());
         intent.putExtra("session_id", sessionId);
         startActivity(intent);
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.menu_order_list, menu);
-        return true;
-    }
-
-    @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-
-        if (id == R.id.action_refresh) {
-            fetchOrders();
-            return true;
-        } else if (id == R.id.action_new_order) {
-            showNewOrderDialog();
-            return true;
-        }
-
-        return super.onOptionsItemSelected(item);
     }
 
     private void showNewOrderDialog() {
