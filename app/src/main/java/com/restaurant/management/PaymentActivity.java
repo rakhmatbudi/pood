@@ -1,5 +1,3 @@
-// Updated PaymentActivity.java with correct API response handling
-
 package com.restaurant.management;
 
 import android.content.Intent;
@@ -58,7 +56,7 @@ public class PaymentActivity extends AppCompatActivity {
     private long orderId;
     private String orderNumber;
     private String tableNumber;
-    private double totalAmount;
+    private double finalAmount; // Only using final amount
     private long sessionId;
     private double amountPaid;
     private String selectedPaymentMethod = "cash"; // Default payment method
@@ -72,6 +70,7 @@ public class PaymentActivity extends AppCompatActivity {
         setContentView(R.layout.activity_payment);
 
         Log.d(TAG, "PaymentActivity onCreate started");
+        Log.d(TAG, "Intent extras: " + (getIntent().getExtras() != null ? getIntent().getExtras().toString() : "null"));
 
         // Initialize toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
@@ -99,30 +98,151 @@ public class PaymentActivity extends AppCompatActivity {
         }
 
         // Get data from intent
-        orderId = getIntent().getLongExtra("order_id", -1);
-        orderNumber = getIntent().getStringExtra("order_number");
-        tableNumber = getIntent().getStringExtra("table_number");
-        totalAmount = getIntent().getDoubleExtra("total_amount", 0.0);
-        sessionId = getIntent().getLongExtra("session_id", -1);
-
-        Log.d(TAG, "Order data - ID: " + orderId + ", Number: " + orderNumber +
-                ", Table: " + tableNumber + ", Total: " + totalAmount);
-
-        if (orderId == -1 || orderNumber == null || tableNumber == null || totalAmount <= 0) {
+        Intent intent = getIntent();
+        if (intent == null) {
+            Log.e(TAG, "Intent is null");
             Toast.makeText(this, R.string.invalid_order_data, Toast.LENGTH_SHORT).show();
-            Log.e(TAG, "Invalid order data, finishing activity");
             finish();
             return;
         }
 
-        // Initialize UI with order data
+        orderId = intent.getLongExtra("order_id", -1);
+        orderNumber = intent.getStringExtra("order_number");
+        tableNumber = intent.getStringExtra("table_number");
+        finalAmount = intent.getDoubleExtra("final_amount", 0.0);
+        sessionId = intent.getLongExtra("session_id", -1);
+
+        // Log all received data for debugging
+        Log.d(TAG, "Received from intent: order_id=" + orderId +
+                ", order_number=" + orderNumber +
+                ", table_number=" + tableNumber +
+                ", final_amount=" + finalAmount +
+                ", session_id=" + sessionId);
+
+        // Check if we have all required data
+        if (orderId == -1 || orderNumber == null || tableNumber == null || finalAmount <= 0) {
+            // If we at least have the orderId, try to fetch the order details from API
+            if (orderId != -1) {
+                Log.d(TAG, "Missing essential order data, will try to fetch from API");
+                fetchOrderDetails(orderId);
+            } else {
+                // Cannot proceed without at least the order ID
+                Toast.makeText(this, R.string.invalid_order_data, Toast.LENGTH_SHORT).show();
+                Log.e(TAG, "Invalid order data, finishing activity. orderId: " + orderId +
+                        ", orderNumber: " + orderNumber + ", tableNumber: " + tableNumber +
+                        ", finalAmount: " + finalAmount);
+                finish();
+            }
+            return;
+        }
+
+        // We have all required data, proceed to setup UI
         setupUI();
-
-        // Set up listeners
         setupListeners();
-
-        // Fetch payment methods from API
         fetchPaymentMethods();
+    }
+
+    private void fetchOrderDetails(long orderId) {
+        // Show loading state
+        setLoadingState(true);
+        Log.d(TAG, "Fetching order details for order ID: " + orderId);
+
+        // Build the URL for the order
+        String orderApiUrl = BASE_API_URL + orderId;
+        Log.d(TAG, "Fetching order from: " + orderApiUrl);
+
+        // Get the auth token
+        String authToken = getAuthToken();
+
+        // Create request with token
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(orderApiUrl);
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        // Execute the request
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Order details API request failed", e);
+                runOnUiThread(() -> {
+                    setLoadingState(false);
+                    Toast.makeText(PaymentActivity.this,
+                            R.string.order_fetch_failed,
+                            Toast.LENGTH_SHORT).show();
+                    finish();
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "Order details response code: " + response.code());
+                    Log.d(TAG, "Order details response: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject jsonResponse = new JSONObject(responseBody);
+
+                        // Check if status is success
+                        String status = jsonResponse.optString("status", "");
+                        if (!"success".equals(status)) {
+                            throw new JSONException("API returned non-success status: " + status);
+                        }
+
+                        // Parse order data
+                        JSONObject orderData = jsonResponse.getJSONObject("data");
+
+                        // Get required fields
+                        // Convert string amounts to double
+                        String finalAmountStr = orderData.optString("final_amount", "0");
+                        finalAmount = Double.parseDouble(finalAmountStr.replace(",", ""));
+                        tableNumber = orderData.optString("table_number", "");
+                        orderNumber = String.valueOf(orderData.optLong("id", -1)); // Use ID as order number if not provided
+
+                        Log.d(TAG, "Parsed order data - Number: " + orderNumber +
+                                ", Table: " + tableNumber + ", Final Amount: " + finalAmount);
+
+                        // Check if we now have the required data
+                        if (orderNumber == null || tableNumber == null || finalAmount <= 0) {
+                            throw new JSONException("Incomplete order data from API");
+                        }
+
+                        // Update UI with the fetched data
+                        runOnUiThread(() -> {
+                            Log.d(TAG, "API call successful, setting up UI");
+                            setupUI();
+                            setupListeners();
+                            fetchPaymentMethods();
+                        });
+                    } else {
+                        // API error response
+                        Log.e(TAG, "API returned error: " + response.code());
+                        runOnUiThread(() -> {
+                            setLoadingState(false);
+                            Toast.makeText(PaymentActivity.this,
+                                    R.string.order_fetch_failed,
+                                    Toast.LENGTH_SHORT).show();
+                            finish();
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing order details response", e);
+                    runOnUiThread(() -> {
+                        setLoadingState(false);
+                        Toast.makeText(PaymentActivity.this,
+                                R.string.order_fetch_failed,
+                                Toast.LENGTH_SHORT).show();
+                        finish();
+                    });
+                }
+            }
+        });
     }
 
     private void setupUI() {
@@ -130,12 +250,12 @@ public class PaymentActivity extends AppCompatActivity {
         orderNumberTextView.setText(getString(R.string.order_number_format, orderNumber));
         tableNumberTextView.setText(getString(R.string.table_number_format, tableNumber));
 
-        // Format and display total
-        String formattedTotal = formatPriceWithCurrency(totalAmount);
+        // Format and display total - using finalAmount
+        String formattedTotal = formatPriceWithCurrency(finalAmount);
         orderTotalTextView.setText(getString(R.string.order_total_format, formattedTotal));
 
-        // Set initial amount paid to match total
-        amountPaidEditText.setText(String.valueOf(Math.round(totalAmount)));
+        // Set initial amount paid to match final amount
+        amountPaidEditText.setText(String.valueOf(Math.round(finalAmount)));
 
         // Initial change calculation (zero if exact amount)
         updateChangeDisplay();
@@ -169,7 +289,7 @@ public class PaymentActivity extends AppCompatActivity {
                                 Log.d(TAG, "Enabled amount input for cash payment");
                             } else {
                                 // Non-cash payments typically match total exactly
-                                amountPaidEditText.setText(String.valueOf(Math.round(totalAmount)));
+                                amountPaidEditText.setText(String.valueOf(Math.round(finalAmount))); // Use finalAmount
                                 amountPaidEditText.setEnabled(false);
                                 Log.d(TAG, "Disabled amount input for non-cash payment");
                             }
@@ -408,15 +528,15 @@ public class PaymentActivity extends AppCompatActivity {
             // Parse amount paid
             amountPaid = Double.parseDouble(amountText);
 
-            // Calculate change
-            double change = amountPaid - totalAmount;
+            // Calculate change based on API-provided finalAmount
+            double change = amountPaid - finalAmount;
 
             // Update change display
             String formattedChange = formatPriceWithCurrency(Math.max(0, change));
             changeTextView.setText(getString(R.string.change_format, formattedChange));
 
             // Validate if payment is sufficient
-            if (amountPaid < totalAmount && "cash".equalsIgnoreCase(selectedPaymentMethod)) {
+            if (amountPaid < finalAmount && "cash".equalsIgnoreCase(selectedPaymentMethod)) {
                 changeTextView.setTextColor(getResources().getColor(R.color.colorError));
                 processPaymentButton.setEnabled(false);
             } else {
@@ -433,7 +553,7 @@ public class PaymentActivity extends AppCompatActivity {
 
     private void validateAndProcessPayment() {
         // Validate payment
-        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaid < totalAmount) {
+        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaid < finalAmount) {
             Toast.makeText(this, R.string.insufficient_payment, Toast.LENGTH_SHORT).show();
             return;
         }
@@ -453,7 +573,7 @@ public class PaymentActivity extends AppCompatActivity {
             // Create request body with the correct format
             JSONObject paymentData = new JSONObject();
             paymentData.put("order_id", orderId);
-            paymentData.put("amount", totalAmount);
+            paymentData.put("amount", finalAmount); // Use finalAmount from API
             paymentData.put("payment_mode", Integer.parseInt(selectedPaymentMethodId)); // Use ID as payment_mode
             paymentData.put("transaction_id", null); // Optional: Set to null as mentioned in the required format
 

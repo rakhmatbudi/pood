@@ -1,6 +1,7 @@
 package com.restaurant.management.adapters;
 
 import android.content.Context;
+import android.text.format.DateUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -8,84 +9,154 @@ import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.cardview.widget.CardView;
-import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.R;
 import com.restaurant.management.models.Order;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.TimeZone;
 
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHolder> {
-
-    private List<Order> ordersList;
+    private List<Order> orders;
     private OnOrderClickListener listener;
     private Context context;
+    private SimpleDateFormat apiDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
+    private SimpleDateFormat displayDateFormat = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.US);
 
-    // Interface for click events
     public interface OnOrderClickListener {
-        void onOrderClick(Order order, int position);
+        void onOrderClick(Order order);
     }
 
-    // Constructor with List<Order> parameter
-    public OrderAdapter(List<Order> ordersList) {
-        this.ordersList = ordersList;
-    }
-
-    // Set click listener
-    public void setOnOrderClickListener(OnOrderClickListener listener) {
+    public OrderAdapter(List<Order> orders, OnOrderClickListener listener, Context context) {
+        this.orders = orders;
         this.listener = listener;
+        this.context = context;
+
+        // Set timezone for parsing API dates (UTC)
+        apiDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        // Local timezone for display
+        displayDateFormat.setTimeZone(TimeZone.getDefault());
     }
 
     @NonNull
     @Override
     public OrderViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        context = parent.getContext();
-        View view = LayoutInflater.from(context)
-                .inflate(R.layout.item_order_activity, parent, false);
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_order, parent, false);
         return new OrderViewHolder(view);
     }
 
     @Override
     public void onBindViewHolder(@NonNull OrderViewHolder holder, int position) {
-        Order order = ordersList.get(position);
+        Order order = orders.get(position);
         holder.bind(order);
     }
 
     @Override
     public int getItemCount() {
-        return ordersList != null ? ordersList.size() : 0;
+        return orders.size();
     }
 
-    // ViewHolder class
-    class OrderViewHolder extends RecyclerView.ViewHolder {
-        CardView orderCard;
+    public void updateOrders(List<Order> newOrders) {
+        this.orders = newOrders;
+        notifyDataSetChanged();
+    }
 
-        TextView timeTextView;
-        TextView tableNumberTextView;
-        TextView customerNameTextView;
-        TextView itemsTextView;
-        TextView totalTextView;
-        TextView statusTextView;
+    class OrderViewHolder extends RecyclerView.ViewHolder {
+        private CardView cardView;
+        private TextView orderNumberTextView;
+        private TextView tableNumberTextView;
+        private TextView orderStatusTextView;
+        private TextView orderTotalTextView;
+        private TextView timeTextView;
+        private TextView customerTextView;
 
         OrderViewHolder(@NonNull View itemView) {
             super(itemView);
-            // Initialize views matching your item_order.xml
-            orderCard = itemView.findViewById(R.id.order_card);
-            timeTextView = itemView.findViewById(R.id.time_text_view);
+            cardView = itemView.findViewById(R.id.order_card);
+            orderNumberTextView = itemView.findViewById(R.id.order_number_text_view);
             tableNumberTextView = itemView.findViewById(R.id.table_number_text_view);
-            customerNameTextView = itemView.findViewById(R.id.customer_name_text_view);
-            itemsTextView = itemView.findViewById(R.id.items_text_view);
-            totalTextView = itemView.findViewById(R.id.total_text_view);
-            statusTextView = itemView.findViewById(R.id.status_text_view);
+            orderStatusTextView = itemView.findViewById(R.id.order_status_text_view);
+            orderTotalTextView = itemView.findViewById(R.id.order_total_text_view);
+            timeTextView = itemView.findViewById(R.id.time_text_view);
+            customerTextView = itemView.findViewById(R.id.customer_text_view);
 
-            // Set click listener for the whole item
-            itemView.setOnClickListener(v -> {
+            cardView.setOnClickListener(v -> {
                 int position = getAdapterPosition();
-                if (position != RecyclerView.NO_POSITION && listener != null) {
-                    listener.onOrderClick(ordersList.get(position), position);
+                if (position != RecyclerView.NO_POSITION) {
+                    listener.onOrderClick(orders.get(position));
                 }
             });
+        }
+
+        void bind(Order order) {
+            // Set order details in views
+            orderNumberTextView.setText(context.getString(R.string.order_number_format,
+                    order.getOrderNumber()));
+
+            tableNumberTextView.setText(context.getString(R.string.table_number_format,
+                    order.getTableNumber()));
+
+            // Format status for display (capitalize first letter)
+            String statusText = order.getFormattedStatus();
+            orderStatusTextView.setText(context.getString(R.string.order_status_format, statusText));
+
+            // Format and set total amount
+            String formattedTotal = formatPriceWithCurrency(order.getTotalAmount());
+            orderTotalTextView.setText(context.getString(R.string.order_total_format, formattedTotal));
+
+            // Format and set time
+            String formattedTime = formatAPIDate(order.getCreatedAt());
+            timeTextView.setText(formattedTime);
+
+            // Set customer name if available
+            if (order.getCustomerName() != null && !order.getCustomerName().isEmpty()) {
+                customerTextView.setText(context.getString(R.string.customer_name_format,
+                        order.getCustomerName()));
+                customerTextView.setVisibility(View.VISIBLE);
+            } else {
+                customerTextView.setVisibility(View.GONE);
+            }
+
+            // Set card background color based on status
+            int bgColor;
+            String status = order.getStatus().toLowerCase();
+
+            if ("closed".equals(status)) {
+                bgColor = context.getResources().getColor(R.color.colorClosedOrder);
+            } else if ("pending".equals(status) || "open".equals(status)) {
+                bgColor = context.getResources().getColor(R.color.colorPendingOrder);
+            } else {
+                bgColor = context.getResources().getColor(R.color.colorCardBackground);
+            }
+
+            cardView.setCardBackgroundColor(bgColor);
+        }
+
+        private String formatAPIDate(String apiDateStr) {
+            if (apiDateStr == null || apiDateStr.isEmpty()) {
+                return "N/A";
+            }
+
+            try {
+                // Parse the API date (UTC)
+                Date date = apiDateFormat.parse(apiDateStr);
+
+                // Get time ago string for relative time
+                CharSequence timeAgo = DateUtils.getRelativeTimeSpanString(
+                        date.getTime(),
+                        System.currentTimeMillis(),
+                        DateUtils.MINUTE_IN_MILLIS);
+
+                return timeAgo.toString();
+            } catch (ParseException e) {
+                return apiDateStr; // Return original if parsing fails
+            }
         }
 
         private String formatPriceWithCurrency(double price) {
@@ -108,83 +179,9 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             // Get currency prefix from strings.xml
             String currencyPrefix = context.getString(R.string.currency_prefix);
 
-            // Format according to the pattern in strings.xml (allows for different currency placement)
-            return context.getString(R.string.currency_format_pattern, currencyPrefix, formattedPrice.toString());
-        }
-
-        void bind(Order order) {
-            // Bind data from the Order model to the views
-            timeTextView.setText(order.getCreatedAt());
-            tableNumberTextView.setText("Table: " + order.getTableNumber());
-
-            // Handle customer name (which might be empty in your case)
-            String customerName = order.getCustomerName();
-            if (customerName == null || customerName.isEmpty()) {
-                customerNameTextView.setVisibility(View.GONE);
-            } else {
-                customerNameTextView.setVisibility(View.VISIBLE);
-                customerNameTextView.setText(customerName);
-            }
-
-            // Set items text - MODIFIED to display quantity and menu items in a single line
-            List<String> items = order.getItems();
-            if (items != null && !items.isEmpty()) {
-                // Format is typically "1x Menu Item Name (notes)"
-                // We want to keep "1x Menu Item Name" but remove the notes and put all items on one line
-                StringBuilder itemsText = new StringBuilder();
-                for (int i = 0; i < items.size(); i++) {
-                    if (i > 0) {
-                        itemsText.append(", ");
-                    }
-
-                    String itemString = items.get(i);
-                    // Remove notes if present
-                    int notesIndex = itemString.indexOf(" (");
-                    if (notesIndex > 0) {
-                        // Remove the notes part
-                        itemsText.append(itemString.substring(0, notesIndex));
-                    } else {
-                        // No notes, keep the full string
-                        itemsText.append(itemString);
-                    }
-                }
-                itemsTextView.setText(itemsText.toString());
-            } else {
-                itemsTextView.setText("No items");
-            }
-
-            // Set total with custom formatting (Rp. prefix, format as xxx.xxx.xxx with no decimal)
-            String formattedTotal = formatPriceWithCurrency(order.getTotal());
-            totalTextView.setText(formattedTotal);
-
-            // Set status
-            statusTextView.setText(order.getFormattedStatus());
-
-            // Set status text color based on status
-            int colorResId;
-            String status = order.getStatus().toLowerCase();
-            switch (status) {
-                case "pending":
-                    colorResId = R.color.status_pending;
-                    break;
-                case "processing":
-                    colorResId = R.color.status_processing;
-                    break;
-                case "ready":
-                    colorResId = R.color.status_ready;
-                    break;
-                case "completed":
-                    colorResId = R.color.status_completed;
-                    break;
-                case "cancelled":
-                    colorResId = R.color.status_cancelled;
-                    break;
-                default:
-                    colorResId = R.color.status_default;
-                    break;
-            }
-
-            statusTextView.setTextColor(ContextCompat.getColor(context, colorResId));
+            // Format according to the pattern in strings.xml
+            return context.getString(R.string.currency_format_pattern,
+                    currencyPrefix, formattedPrice.toString());
         }
     }
 }

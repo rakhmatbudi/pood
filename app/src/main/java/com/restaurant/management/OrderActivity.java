@@ -163,23 +163,32 @@ public class OrderActivity extends AppCompatActivity {
             return;
         }
 
-        if (order.getTotal() <= 0) {
+        if (order.getTotalAmount() <= 0) {
             Toast.makeText(this, R.string.zero_amount_error, Toast.LENGTH_SHORT).show();
             return;
         }
 
-        if (!order.isOpen()) {
+        if ("closed".equalsIgnoreCase(order.getStatus())) {
             Toast.makeText(this, R.string.order_already_closed, Toast.LENGTH_SHORT).show();
             return;
         }
 
         // Navigate to payment screen
-        Intent intent = new Intent(OrderActivity.this, PaymentActivity.class);
+        Intent intent = new Intent(this, PaymentActivity.class);
         intent.putExtra("order_id", order.getId());
         intent.putExtra("order_number", order.getOrderNumber());
         intent.putExtra("table_number", order.getTableNumber());
-        intent.putExtra("total_amount", order.getTotal());
-        intent.putExtra("session_id", order.getCashierSessionId());
+        intent.putExtra("final_amount", order.getFinalAmount()); // This will work now
+        intent.putExtra("session_id", order.getSessionId());
+
+        // Log the values being sent for debugging
+        Log.d(TAG, "Sending to PaymentActivity - " +
+                "order_id: " + order.getId() +
+                ", order_number: " + order.getOrderNumber() +
+                ", table_number: " + order.getTableNumber() +
+                ", final_amount: " + order.getFinalAmount() +
+                ", session_id: " + order.getSessionId());
+
         startActivityForResult(intent, PAYMENT_REQUEST_CODE);
     }
 
@@ -266,20 +275,38 @@ public class OrderActivity extends AppCompatActivity {
         // Parse total amount
         String totalAmountStr = orderJson.optString("total_amount", "0.0").replace(",", "");
         try {
-            order.setTotal(Double.parseDouble(totalAmountStr));
+            order.setTotalAmount(Double.parseDouble(totalAmountStr));
         } catch (NumberFormatException e) {
             Log.e(TAG, "Error parsing total: " + totalAmountStr, e);
-            order.setTotal(0.0);
+            order.setTotalAmount(0.0);
+        }
+
+        // Parse final amount (with tax and service charge)
+        String finalAmountStr = orderJson.optString("final_amount", "0.0").replace(",", "");
+        try {
+            order.setFinalAmount(Double.parseDouble(finalAmountStr));
+            Log.d(TAG, "Successfully parsed final amount: " + order.getFinalAmount());
+        } catch (NumberFormatException e) {
+            Log.e(TAG, "Error parsing final amount: " + finalAmountStr, e);
+            // If final amount parsing fails, calculate it from total amount
+            double serviceCharge = orderJson.optDouble("service_charge", 0.0);
+            double taxAmount = orderJson.optDouble("tax_amount", 0.0);
+            double discountAmount = orderJson.optDouble("discount_amount", 0.0);
+            double finalAmount = order.getTotalAmount() + serviceCharge + taxAmount - discountAmount;
+            order.setFinalAmount(finalAmount);
+            Log.d(TAG, "Calculated final amount: " + order.getFinalAmount() +
+                    " (from total: " + order.getTotalAmount() +
+                    ", service: " + serviceCharge +
+                    ", tax: " + taxAmount +
+                    ", discount: " + discountAmount + ")");
         }
 
         // Map status values
         String apiStatus = orderJson.optString("status", "").toLowerCase();
         order.setStatus("open".equals(apiStatus) ? "pending" : apiStatus);
-        order.setOpen(orderJson.optBoolean("is_open", false));
 
-        // Store timestamps
+        // Set timestamps
         order.setCreatedAt(orderJson.optString("created_at", ""));
-        // We don't store updated_at in the Order object
 
         // Customer information handling - only set a value if customer_name or customer_id is not null
         if (!orderJson.isNull("customer_name")) {
@@ -298,14 +325,13 @@ public class OrderActivity extends AppCompatActivity {
             order.setCustomerName(null);  // Explicitly set to null
         }
 
-        // Store IDs
-        order.setCashierSessionId(orderJson.optLong("cashier_session_id", -1));
+        // Set server ID
         order.setServerId(orderJson.optLong("server_id", -1));
 
-        // Process order items
-        List<String> displayItems = new ArrayList<>();
+        // Set session ID
+        order.setSessionId(orderJson.optLong("cashier_session_id", -1));
 
-        // Extract order items
+        // Process order items
         List<OrderItem> orderItems = new ArrayList<>();
         if (orderJson.has("order_items") && !orderJson.isNull("order_items")) {
             JSONArray itemsArray = orderJson.getJSONArray("order_items");
@@ -314,24 +340,11 @@ public class OrderActivity extends AppCompatActivity {
                 JSONObject itemJson = itemsArray.getJSONObject(i);
                 OrderItem item = parseOrderItem(itemJson);
                 orderItems.add(item);
-
-                // Add to display items
-                String itemDisplay = item.getQuantity() + "x " + item.getMenuItemName();
-
-                // Only add notes if not null or empty
-                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
-                    itemDisplay += " (" + item.getNotes() + ")";
-                }
-
-                displayItems.add(itemDisplay);
             }
         }
 
-        // Set items for display
-        order.setItems(displayItems);
-
         // Store the order items in the order object
-        order.setOrderItems(orderItems);
+        order.setItems(orderItems);
 
         return order;
     }
@@ -385,11 +398,12 @@ public class OrderActivity extends AppCompatActivity {
             customerNameTextView.setVisibility(View.GONE);
         }
 
-        // Use the formatted status from your Order model
-        orderStatusTextView.setText(getString(R.string.order_status_format, order.getFormattedStatus()));
+        // Display status
+        String formattedStatus = order.getFormattedStatus();
+        orderStatusTextView.setText(getString(R.string.order_status_format, formattedStatus));
 
         // Format the total price
-        String formattedTotal = formatPriceWithCurrency(order.getTotal());
+        String formattedTotal = formatPriceWithCurrency(order.getTotalAmount());
         orderTotalTextView.setText(getString(R.string.order_total_format, formattedTotal));
 
         // Format and display dates
@@ -402,10 +416,10 @@ public class OrderActivity extends AppCompatActivity {
 
         // Show server ID and session ID
         orderServerTextView.setText("Server: #" + order.getServerId());
-        orderSessionTextView.setText("Session: #" + order.getCashierSessionId());
+        orderSessionTextView.setText("Session: #" + order.getSessionId());
 
         // Set up recycler view for order items
-        List<OrderItem> orderItems = order.getOrderItems();
+        List<OrderItem> orderItems = order.getItems();
         if (orderItems != null && !orderItems.isEmpty()) {
             OrderItemAdapter adapter = new OrderItemAdapter(orderItems);
             orderItemsRecyclerView.setAdapter(adapter);
@@ -413,8 +427,8 @@ public class OrderActivity extends AppCompatActivity {
     }
 
     private void updateActionButtons() {
-        // Only enable buttons if order is open
-        boolean isOrderOpen = order.isOpen();
+        // Only enable buttons if order is "pending" or "open" (not closed)
+        boolean isOrderOpen = !"closed".equalsIgnoreCase(order.getStatus());
 
         addItemButton.setEnabled(isOrderOpen);
         addItemButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);

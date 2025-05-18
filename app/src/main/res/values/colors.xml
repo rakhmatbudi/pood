@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="colorPrimary">#4CAF50</color>
-    <color name="colorPrimaryDark">#388E3C</color>
-    <color name="colorAccent">#FF5722</color>
+    <color name="colorPrimary">#3F51B5</color>
+    <color name="colorPrimaryDark">#303F9F</color>
+    <color name="colorAccent">#FF4081</color>
     <color name="white">#FFFFFFFF</color>
     <color name="green">#4CAF50</color>
     <color name="red">#F44336</color>
@@ -31,5 +31,15 @@
     <color name="colorAmount">#1976D2</color>
     <color name="session_header_background">#E8F5E9</color>
 
-     <color name="splash_bg_color">#6A1B4D</color> <!-- Burgundy/purple color -->
+    <color name="splash_bg_color">#6A1B4D</color> <!-- Burgundy/purple color -->
+
+    <!-- Order adapter colors -->
+    <color name="colorClosedOrder">#FFDEDEDE</color>
+    <color name="colorPendingOrder">#FFF0F7FF</color>
+    <color name="colorCardBackground">#FFFFFFFF</color>
+
+    <!-- Custom text colors for order status -->
+    <color name="colorPending">#FF3F51B5</color>
+    <color name="colorClosed">#FF4CAF50</color>
+    <color name="colorCancelled">#FFF44336</color>
 </resources>

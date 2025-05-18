@@ -1,43 +1,26 @@
 package com.restaurant.management.models;
 
+// Import necessary packages
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Order {
+public class Order implements Serializable {
     private long id;
     private String orderNumber;
     private String tableNumber;
-    private String customerName;
-    private double total;
+    private double totalAmount;
+    private double finalAmount;
     private String status;
-    private String createdAt;
-    private List<String> items = new ArrayList<>();
-    private boolean isOpen;
-    private long cashierSessionId;
-    private long serverId;
+    private long sessionId;
+    private List<OrderItem> items;
+    private String createdAt; // Add this field
+    private String customerName; // Add this field
+    private long serverId; // Add this field
 
-    // New field for the order items from the API
-    private List<OrderItem> orderItems = new ArrayList<>();
-
-    // Default constructor
+    // Constructor
     public Order() {
-    }
-
-    // Full constructor
-    public Order(long id, String orderNumber, String tableNumber, String customerName,
-                 double total, String status, String createdAt, List<String> items,
-                 boolean isOpen, long cashierSessionId, long serverId) {
-        this.id = id;
-        this.orderNumber = orderNumber;
-        this.tableNumber = tableNumber;
-        this.customerName = customerName;
-        this.total = total;
-        this.status = status;
-        this.createdAt = createdAt;
-        this.items = items;
-        this.isOpen = isOpen;
-        this.cashierSessionId = cashierSessionId;
-        this.serverId = serverId;
+        items = new ArrayList<>();
     }
 
     // Getters and setters
@@ -65,20 +48,20 @@ public class Order {
         this.tableNumber = tableNumber;
     }
 
-    public String getCustomerName() {
-        return customerName;
+    public double getTotalAmount() {
+        return totalAmount;
     }
 
-    public void setCustomerName(String customerName) {
-        this.customerName = customerName;
+    public void setTotalAmount(double totalAmount) {
+        this.totalAmount = totalAmount;
     }
 
-    public double getTotal() {
-        return total;
+    public double getFinalAmount() {
+        return finalAmount;
     }
 
-    public void setTotal(double total) {
-        this.total = total;
+    public void setFinalAmount(double finalAmount) {
+        this.finalAmount = finalAmount;
     }
 
     public String getStatus() {
@@ -89,6 +72,27 @@ public class Order {
         this.status = status;
     }
 
+    public long getSessionId() {
+        return sessionId;
+    }
+
+    public void setSessionId(long sessionId) {
+        this.sessionId = sessionId;
+    }
+
+    public List<OrderItem> getItems() {
+        return items;
+    }
+
+    public void setItems(List<OrderItem> items) {
+        this.items = items;
+    }
+
+    public void addItem(OrderItem item) {
+        this.items.add(item);
+    }
+
+    // Add missing methods
     public String getCreatedAt() {
         return createdAt;
     }
@@ -97,28 +101,12 @@ public class Order {
         this.createdAt = createdAt;
     }
 
-    public List<String> getItems() {
-        return items;
+    public String getCustomerName() {
+        return customerName;
     }
 
-    public void setItems(List<String> items) {
-        this.items = items;
-    }
-
-    public boolean isOpen() {
-        return isOpen;
-    }
-
-    public void setOpen(boolean open) {
-        isOpen = open;
-    }
-
-    public long getCashierSessionId() {
-        return cashierSessionId;
-    }
-
-    public void setCashierSessionId(long cashierSessionId) {
-        this.cashierSessionId = cashierSessionId;
+    public void setCustomerName(String customerName) {
+        this.customerName = customerName;
     }
 
     public long getServerId() {
@@ -129,57 +117,18 @@ public class Order {
         this.serverId = serverId;
     }
 
-    // New getter and setter for orderItems
-    public List<OrderItem> getOrderItems() {
-        return orderItems;
-    }
+    // Additional helper methods
 
-    public void setOrderItems(List<OrderItem> orderItems) {
-        this.orderItems = orderItems;
-    }
-
-    // Helper method to add an order item
-    public void addOrderItem(OrderItem item) {
-        if (this.orderItems == null) {
-            this.orderItems = new ArrayList<>();
-        }
-        this.orderItems.add(item);
-    }
-
-    // Helper method to get a formatted summary of items
-    public String getItemsSummary() {
-        StringBuilder builder = new StringBuilder();
-
-        if (items != null && !items.isEmpty()) {
-            for (int i = 0; i < items.size(); i++) {
-                String item = items.get(i);
-
-                // Remove any "(null)" occurrences from the item string
-                item = item.replace(" (null)", "");
-
-                builder.append(item);
-
-                // Add line break if not the last item
-                if (i < items.size() - 1) {
-                    builder.append("\n");
-                }
-            }
-        }
-
-        return builder.toString();
-    }
-
-    // Helper method to get a formatted total
-    public String getFormattedTotal() {
-        return String.format("$%.2f", total);
-    }
-
-    // Helper method to get a formatted status with proper capitalization
+    // Formatted status for display (capitalize first letter)
     public String getFormattedStatus() {
         if (status == null || status.isEmpty()) {
             return "Unknown";
         }
+        return status.substring(0, 1).toUpperCase() + status.substring(1);
+    }
 
-        return status.substring(0, 1).toUpperCase() + status.substring(1).toLowerCase();
+    // Check if order is open (not closed)
+    public boolean isOpen() {
+        return !"closed".equalsIgnoreCase(status);
     }
 }

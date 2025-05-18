@@ -269,4 +269,17 @@
     <string name="tax_description">Description</string>
     <string name="tax_amount">Amount (%)</string>
     <string name="label_setup">Setup</string>
+
+    <!-- Order list strings -->
+    <string name="orders_list_title">Orders</string>
+    <string name="search_orders_hint">Search by table or order number</string>
+    <string name="no_orders_match_filter">No orders match your search</string>
+    <string name="invalid_session">Invalid session</string>
+    <string name="refresh">Refresh</string>
+    <string name="new_order">New Order</string>
+    <string name="create_order">Create Order</string>
+    <string name="required_field">This field is required</string>
+    <string name="order_creation_failed">Failed to create order</string>
+    <string name="creating_order">Creating order...</string>
+    <string name="order_fetch_failed">Failed to fetch order details</string>
 </resources>
