@@ -296,9 +296,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                     openSessionButton.setVisibility(View.GONE);
                                     endSessionButton.setVisibility(View.VISIBLE);
 
-                                    Toast.makeText(DashboardActivity.this,
-                                            getString(R.string.session_opened_by_with_amount, cashierName, openingAmount),
-                                            Toast.LENGTH_SHORT).show();
                                 } catch (JSONException e) {
                                     Log.e(TAG, "Error parsing session data", e);
                                 }
