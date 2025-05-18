@@ -16,6 +16,7 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+
 import com.restaurant.management.adapters.ProductItemAdapter;
 import com.restaurant.management.models.ProductItem;
 
@@ -26,6 +27,7 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -219,6 +221,10 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
                 items.add(item);
             }
+
+            // Sort the items alphabetically by name
+            Collections.sort(items, (item1, item2) ->
+                    item1.getName().compareToIgnoreCase(item2.getName()));
         }
 
         return items;
