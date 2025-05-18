@@ -70,5 +70,27 @@
             android:textSize="12sp"
             android:textStyle="italic"
             android:text="5 minutes ago" />
+
+        <!-- Add this inside your card layout, after the existing elements -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#E0E0E0"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="8dp"/>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/items"
+            android:textStyle="bold"
+            android:textSize="14sp"/>
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/order_items_recycler_view"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:nestedScrollingEnabled="false"/>
     </LinearLayout>
 </androidx.cardview.widget.CardView>

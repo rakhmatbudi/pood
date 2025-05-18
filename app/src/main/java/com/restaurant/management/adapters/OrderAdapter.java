@@ -10,9 +10,12 @@ import android.widget.TextView;
 import androidx.annotation.NonNull;
 import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.restaurant.management.R;
 import com.restaurant.management.models.Order;
+import com.restaurant.management.adapters.OrderItemCompactAdapter;
+import com.restaurant.management.models.OrderItem;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -55,6 +58,22 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
     public void onBindViewHolder(@NonNull OrderViewHolder holder, int position) {
         Order order = orders.get(position);
         holder.bind(order);
+
+        // Set up the nested RecyclerView for order items
+        List<OrderItem> orderItems = order.getItems();
+        if (orderItems != null && !orderItems.isEmpty()) {
+            holder.orderItemsRecyclerView.setVisibility(View.VISIBLE);
+
+            // Configure the RecyclerView
+            LinearLayoutManager layoutManager = new LinearLayoutManager(context);
+            holder.orderItemsRecyclerView.setLayoutManager(layoutManager);
+
+            // Create and set the adapter
+            OrderItemCompactAdapter itemsAdapter = new OrderItemCompactAdapter(orderItems, context);
+            holder.orderItemsRecyclerView.setAdapter(itemsAdapter);
+        } else {
+            holder.orderItemsRecyclerView.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -68,6 +87,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
     }
 
     class OrderViewHolder extends RecyclerView.ViewHolder {
+        private RecyclerView orderItemsRecyclerView;
         private CardView cardView;
         private TextView orderNumberTextView;
         private TextView tableNumberTextView;
@@ -85,6 +105,8 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             orderTotalTextView = itemView.findViewById(R.id.order_total_text_view);
             timeTextView = itemView.findViewById(R.id.time_text_view);
             customerTextView = itemView.findViewById(R.id.customer_text_view);
+
+            orderItemsRecyclerView = itemView.findViewById(R.id.order_items_recycler_view);
 
             cardView.setOnClickListener(v -> {
                 int position = getAdapterPosition();

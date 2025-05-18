@@ -256,7 +256,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             // Set final amount same as total amount since it's not in the response
             order.setFinalAmount(order.getTotalAmount());
 
-            // Set timestamp - note the format is different in this API response (just time, no date)
+            // Set timestamp
             String createdAt = orderJson.optString("created_at", "");
             order.setCreatedAt(createdAt);
 
@@ -276,7 +276,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             // Set server ID
             order.setServerId(orderJson.optLong("server_id", -1));
 
-            // Extract order items if needed (not used in the list view but might be useful later)
+            // Extract order items
             if (orderJson.has("order_items")) {
                 JSONArray itemsArray = orderJson.getJSONArray("order_items");
                 List<OrderItem> orderItems = new ArrayList<>();
@@ -303,12 +303,15 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                     }
 
                     item.setStatus(itemJson.optString("status", ""));
+                    item.setKitchenPrinted(itemJson.optBoolean("kitchen_printed", false));
+                    item.setCreatedAt(itemJson.optString("created_at", ""));
+                    item.setUpdatedAt(itemJson.optString("updated_at", ""));
 
                     orderItems.add(item);
                 }
 
-                // Store order items in the order object if needed
-                // order.setOrderItems(orderItems);
+                // Use setItems instead of setOrderItems based on your Order class
+                order.setItems(orderItems);
             }
 
             return order;
