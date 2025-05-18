@@ -92,6 +92,11 @@
             android:label="@string/title_activity_reconciliation"
             android:parentActivityName=".DashboardActivity" />
 
+        <activity
+            android:name=".TaxListActivity"
+            android:label="@string/title_activity_tax_list"
+            android:parentActivityName=".DashboardActivity" />
+
     </application>
 
 </manifest>

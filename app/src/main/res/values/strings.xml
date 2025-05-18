@@ -258,4 +258,15 @@
     <string name="product_name">Product Name</string>
     <string name="category">Category</string>
     <string name="price">Price (Rp)</string>
+
+    <!-- Add this to your res/values/strings.xml file -->
+    <string name="menu_taxes">Taxes</string>
+    <string name="title_activity_tax_list">Tax Rates</string>
+    <string name="loading_taxes">Loading tax rates...</string>
+    <string name="error_loading_taxes">Error loading tax rates</string>
+    <string name="no_taxes_found">No tax rates found</string>
+    <string name="tax_name">Name</string>
+    <string name="tax_description">Description</string>
+    <string name="tax_amount">Amount (%)</string>
+    <string name="label_setup">Setup</string>
 </resources>

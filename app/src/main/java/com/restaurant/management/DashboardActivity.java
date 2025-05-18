@@ -391,6 +391,15 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             Intent intent = new Intent(this, ProductListActivity.class);
 
             startActivity(intent);
+        } else if (id == R.id.nav_taxes) {
+            // Handle the new tax menu item
+            try {
+                Intent intent = new Intent(this, TaxListActivity.class);
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting TaxListActivity", e);
+                Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         } else if (id == R.id.nav_logout) {
             // Clear session data
             SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
