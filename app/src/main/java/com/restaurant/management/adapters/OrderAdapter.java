@@ -124,10 +124,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             tableNumberTextView.setText(context.getString(R.string.table_number_format,
                     order.getTableNumber()));
 
-            // Format status for display (capitalize first letter)
-            String statusText = order.getFormattedStatus();
-            orderStatusTextView.setText(context.getString(R.string.order_status_format, statusText));
-
             // Format and set total amount
             String formattedTotal = formatPriceWithCurrency(order.getTotalAmount());
             orderTotalTextView.setText(context.getString(R.string.order_total_format, formattedTotal));
