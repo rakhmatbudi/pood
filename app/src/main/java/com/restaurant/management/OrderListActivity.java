@@ -25,6 +25,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.adapters.OrderAdapter;
 import com.restaurant.management.models.Order;
+import com.restaurant.management.models.OrderItem;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -144,7 +145,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         emptyView.setVisibility(View.GONE);
 
         // Build the URL with session ID
-        String apiUrl = ORDERS_API_URL;
+        String apiUrl = ORDERS_API_URL + "/open/sessions/" + sessionId;
         Log.d(TAG, "Fetching orders from: " + apiUrl);
 
         // Get the auth token
@@ -210,8 +211,6 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                         swipeRefreshLayout.setRefreshing(false);
                         progressBar.setVisibility(View.GONE);
 
-                        // The visibility updates will be handled by filterOrders() which is now on UI thread
-                        // This code is likely redundant now but included just in case
                         if (filteredOrdersList.isEmpty()) {
                             showEmptyView(getString(R.string.no_orders_found));
                         } else {
@@ -254,18 +253,12 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                 order.setTotalAmount(0.0);
             }
 
-            // Parse final amount if available
-            String finalAmountStr = orderJson.optString("final_amount", "0").replace(",", "");
-            try {
-                order.setFinalAmount(Double.parseDouble(finalAmountStr));
-            } catch (NumberFormatException e) {
-                Log.e(TAG, "Error parsing final amount: " + finalAmountStr, e);
-                // If final amount parsing fails, use total amount
-                order.setFinalAmount(order.getTotalAmount());
-            }
+            // Set final amount same as total amount since it's not in the response
+            order.setFinalAmount(order.getTotalAmount());
 
-            // Set timestamp
-            order.setCreatedAt(orderJson.optString("created_at", ""));
+            // Set timestamp - note the format is different in this API response (just time, no date)
+            String createdAt = orderJson.optString("created_at", "");
+            order.setCreatedAt(createdAt);
 
             // Parse customer info
             if (!orderJson.isNull("customer_name")) {
@@ -282,6 +275,41 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
 
             // Set server ID
             order.setServerId(orderJson.optLong("server_id", -1));
+
+            // Extract order items if needed (not used in the list view but might be useful later)
+            if (orderJson.has("order_items")) {
+                JSONArray itemsArray = orderJson.getJSONArray("order_items");
+                List<OrderItem> orderItems = new ArrayList<>();
+
+                for (int i = 0; i < itemsArray.length(); i++) {
+                    JSONObject itemJson = itemsArray.getJSONObject(i);
+                    OrderItem item = new OrderItem();
+
+                    item.setId(itemJson.optLong("id", -1));
+                    item.setOrderId(itemJson.optLong("order_id", -1));
+                    item.setMenuItemId(itemJson.optLong("menu_item_id", -1));
+                    item.setMenuItemName(itemJson.optString("menu_item_name", ""));
+
+                    if (!itemJson.isNull("variant_id")) {
+                        item.setVariantId(itemJson.optLong("variant_id", -1));
+                    }
+
+                    item.setQuantity(itemJson.optInt("quantity", 0));
+                    item.setUnitPrice(itemJson.optDouble("unit_price", 0));
+                    item.setTotalPrice(itemJson.optDouble("total_price", 0));
+
+                    if (!itemJson.isNull("notes")) {
+                        item.setNotes(itemJson.optString("notes", ""));
+                    }
+
+                    item.setStatus(itemJson.optString("status", ""));
+
+                    orderItems.add(item);
+                }
+
+                // Store order items in the order object if needed
+                // order.setOrderItems(orderItems);
+            }
 
             return order;
         } catch (Exception e) {
