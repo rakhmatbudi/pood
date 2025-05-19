@@ -97,6 +97,15 @@
             android:label="@string/title_activity_tax_list"
             android:parentActivityName=".DashboardActivity" />
 
+        <activity
+            android:name=".DiscountListActivity"
+            android:label="@string/title_activity_discount_list"
+            android:parentActivityName=".DashboardActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".DashboardActivity" />
+        </activity>
+
     </application>
 
 </manifest>

@@ -282,4 +282,12 @@
     <string name="order_creation_failed">Failed to create order</string>
     <string name="creating_order">Creating order...</string>
     <string name="order_fetch_failed">Failed to fetch order details</string>
+
+    <string name="menu_discounts">Discounts</string>
+    <string name="title_activity_discount_list">Discounts</string>
+    <string name="no_discounts_found">No discounts found</string>
+    <string name="discount_name">Name: %s</string>
+    <string name="discount_description">Description: %s</string>
+    <string name="discount_amount">Amount: %d%%</string>
+    <string name="add_new_discount">Add New Discount</string>
 </resources>

@@ -140,20 +140,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             } else {
                 customerTextView.setVisibility(View.GONE);
             }
-
-            // Set card background color based on status
-            int bgColor;
-            String status = order.getStatus().toLowerCase();
-
-            if ("closed".equals(status)) {
-                bgColor = context.getResources().getColor(R.color.colorClosedOrder);
-            } else if ("pending".equals(status) || "open".equals(status)) {
-                bgColor = context.getResources().getColor(R.color.colorPendingOrder);
-            } else {
-                bgColor = context.getResources().getColor(R.color.colorCardBackground);
-            }
-
-            cardView.setCardBackgroundColor(bgColor);
         }
 
         private String formatAPIDate(String apiDateStr) {

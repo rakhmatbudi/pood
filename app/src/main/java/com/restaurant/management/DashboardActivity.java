@@ -397,6 +397,10 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 Log.e(TAG, "Error starting TaxListActivity", e);
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
+        } else if (id == R.id.nav_discounts) {
+            // Handle discounts navigation
+            Intent intent = new Intent(this, DiscountListActivity.class);
+            startActivity(intent);
         } else if (id == R.id.nav_logout) {
             // Clear session data
             SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
