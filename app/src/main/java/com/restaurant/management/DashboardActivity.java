@@ -119,7 +119,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
 
             // Set initial UI state
             sessionStatusTextView.setText(getString(R.string.checking_session_status));
-            sessionStatusTextView.setTextColor(getResources().getColor(R.color.black));
+            //sessionStatusTextView.setTextColor(getResources().getColor(R.color.black));
 
             // Check if there's an active cashier session
             checkActiveCashierSession();
@@ -220,7 +220,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                             loadingProgressBar.setVisibility(View.GONE);
                         }
                         sessionStatusTextView.setText(getString(R.string.error_checking_session));
-                        sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
+                        //sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
                         Toast.makeText(DashboardActivity.this,
                                 getString(R.string.failed_to_check_session, e.getMessage()),
                                 Toast.LENGTH_SHORT).show();
@@ -290,7 +290,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                     }
 
                                     sessionStatusTextView.setText(getString(R.string.active_session_cashier, cashierName));
-                                    sessionStatusTextView.setTextColor(getResources().getColor(R.color.green));
+                                    //sessionStatusTextView.setTextColor(getResources().getColor(R.color.green));
 
                                     // Update button visibility
                                     openSessionButton.setVisibility(View.GONE);
@@ -304,7 +304,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                 Log.d(TAG, "No active session found in API response");
 
                                 sessionStatusTextView.setText(getString(R.string.no_active_session));
-                                sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
+                                //sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
 
                                 // Show open session button when no active session
                                 openSessionButton.setVisibility(View.VISIBLE);
@@ -322,7 +322,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                 loadingProgressBar.setVisibility(View.GONE);
                             }
                             sessionStatusTextView.setText(getString(R.string.error_checking_session));
-                            sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
+                            //sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
                             Toast.makeText(DashboardActivity.this,
                                     getString(R.string.error_processing_response, e.getMessage()),
                                     Toast.LENGTH_SHORT).show();

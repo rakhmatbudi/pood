@@ -11,7 +11,7 @@
     <string name="cashier">Cashier</string>
     <string name="account">Account</string>
     <string name="logout">Logout</string>
-    <string name="session_status">Session Status</string>
+    <string name="session_status">Cashier Status:</string>
     <string name="session_active">Session Active</string>
     <string name="cash_denominations">Cash Denominations</string>
     <string name="cash_count">Cash Count</string>
