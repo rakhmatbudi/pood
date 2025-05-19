@@ -290,4 +290,9 @@
     <string name="discount_description">Description: %s</string>
     <string name="discount_amount">Amount: %d%%</string>
     <string name="add_new_discount">Add New Discount</string>
+    <string name="select_discount">Select Discount</string>
+    <string name="no_discount">No Discount</string>
+    <string name="discount_applied">Discount Applied: %s (%d%%)</string>
+    <string name="discounted_total">Total After Discount: %s</string>
+    <string name="error_loading_discounts">Failed to load discounts</string>
 </resources>

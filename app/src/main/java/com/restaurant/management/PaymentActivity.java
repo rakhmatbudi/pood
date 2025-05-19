@@ -10,14 +10,22 @@ import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.AdapterView;
+import android.graphics.Paint;
+import android.text.SpannableString;
+import android.text.Spanned;
+import android.text.style.StrikethroughSpan;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.restaurant.management.models.Discount;
 import com.restaurant.management.models.PaymentMethod;
+import com.restaurant.management.adapters.DiscountSpinnerAdapter;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -41,6 +49,13 @@ public class PaymentActivity extends AppCompatActivity {
     private static final String PAYMENT_MODES_URL = "https://api.pood.lol/payment-modes";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
+    private Spinner discountSpinner;
+    private TextView discountAmountTextView;
+    private TextView discountedTotalTextView;
+    private List<Discount> discountList = new ArrayList<>();
+    private Discount selectedDiscount;
+    private double discountedAmount = 0.0;
+    private static final String DISCOUNTS_API_URL = "https://api.pood.lol/discounts/";
     private TextView orderNumberTextView;
     private TextView tableNumberTextView;
     private TextView orderTotalTextView;
@@ -66,6 +81,7 @@ public class PaymentActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        Log.d(TAG, "=================== PaymentActivity onCreate START ===================");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_payment);
 
@@ -90,6 +106,11 @@ public class PaymentActivity extends AppCompatActivity {
         processPaymentButton = findViewById(R.id.process_payment_button);
         progressBar = findViewById(R.id.progress_bar);
         contentView = findViewById(R.id.content_layout);
+
+        // Initialize the discount views
+        discountSpinner = findViewById(R.id.discount_spinner);
+        discountAmountTextView = findViewById(R.id.discount_amount_text_view);
+        discountedTotalTextView = findViewById(R.id.discounted_total_text_view);
 
         if (contentView == null) {
             Log.e(TAG, "Content view not found! Check your layout ID.");
@@ -119,27 +140,232 @@ public class PaymentActivity extends AppCompatActivity {
                 ", final_amount=" + finalAmount +
                 ", session_id=" + sessionId);
 
-        // Check if we have all required data
-        if (orderId == -1 || orderNumber == null || tableNumber == null || finalAmount <= 0) {
-            // If we at least have the orderId, try to fetch the order details from API
-            if (orderId != -1) {
-                Log.d(TAG, "Missing essential order data, will try to fetch from API");
-                fetchOrderDetails(orderId);
-            } else {
-                // Cannot proceed without at least the order ID
-                Toast.makeText(this, R.string.invalid_order_data, Toast.LENGTH_SHORT).show();
-                Log.e(TAG, "Invalid order data, finishing activity. orderId: " + orderId +
-                        ", orderNumber: " + orderNumber + ", tableNumber: " + tableNumber +
-                        ", finalAmount: " + finalAmount);
-                finish();
+        // Check if we have the minimum required data
+        if (orderId == -1) {
+            // We absolutely need the order ID
+            Log.e(TAG, "CRITICAL ERROR: Missing order ID, finishing activity");
+            Toast.makeText(this, R.string.invalid_order_data, Toast.LENGTH_LONG).show();
+            // Sleep for 2 seconds to ensure the toast is visible before finishing
+            try {
+                Thread.sleep(2000);
+            } catch (InterruptedException e) {
+                // Ignore
             }
+            finish();
+            return;
+        }
+
+        // If we're missing some non-essential data but have the order ID, fetch from API
+        if (orderNumber == null || tableNumber == null || finalAmount <= 0) {
+            Log.d(TAG, "Missing some order data, will try to fetch from API");
+            fetchOrderDetails(orderId);
             return;
         }
 
         // We have all required data, proceed to setup UI
         setupUI();
         setupListeners();
+
+        fetchDiscounts();
         fetchPaymentMethods();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        Log.d(TAG, "=================== PaymentActivity onResume ===================");
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        Log.d(TAG, "=================== PaymentActivity onDestroy ===================");
+    }
+
+    private void fetchDiscounts() {
+        Log.d(TAG, "Fetching available discounts");
+
+        // Get the auth token
+        String authToken = getAuthToken();
+
+        // Create request with token
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(DISCOUNTS_API_URL);
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        // Execute the request
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to fetch discounts", e);
+                runOnUiThread(() -> {
+                    // Set up discount spinner with empty list
+                    setupDiscountSpinner(new ArrayList<>());
+                    Toast.makeText(PaymentActivity.this,
+                            R.string.error_loading_discounts,
+                            Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "Discounts response code: " + response.code());
+                    Log.d(TAG, "Discounts response: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject jsonResponse = new JSONObject(responseBody);
+
+                        // Check if status is success
+                        String status = jsonResponse.optString("status", "");
+                        if (!"success".equals(status)) {
+                            throw new JSONException("API returned non-success status: " + status);
+                        }
+
+                        // Parse discounts
+                        List<Discount> discounts = parseDiscountsFromJson(jsonResponse);
+
+                        runOnUiThread(() -> {
+                            // Set up discount spinner with fetched discounts
+                            setupDiscountSpinner(discounts);
+                        });
+                    } else {
+                        Log.e(TAG, "API returned error: " + response.code());
+                        runOnUiThread(() -> {
+                            setupDiscountSpinner(new ArrayList<>());
+                            Toast.makeText(PaymentActivity.this,
+                                    R.string.error_loading_discounts,
+                                    Toast.LENGTH_SHORT).show();
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing discounts response", e);
+                    runOnUiThread(() -> {
+                        setupDiscountSpinner(new ArrayList<>());
+                        Toast.makeText(PaymentActivity.this,
+                                R.string.error_loading_discounts,
+                                Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }
+        });
+    }
+
+    private List<Discount> parseDiscountsFromJson(JSONObject jsonResponse) throws JSONException {
+        List<Discount> discounts = new ArrayList<>();
+
+        if (jsonResponse.has("data") && !jsonResponse.isNull("data")) {
+            JSONArray discountsArray = jsonResponse.getJSONArray("data");
+
+            for (int i = 0; i < discountsArray.length(); i++) {
+                JSONObject discountJson = discountsArray.getJSONObject(i);
+
+                long id = discountJson.optLong("id", -1);
+                String name = discountJson.optString("name", "");
+                String description = discountJson.optString("description", "");
+                int amount = discountJson.optInt("amount", 0);
+
+                Discount discount = new Discount(id, name, description, amount);
+                discounts.add(discount);
+                Log.d(TAG, "Parsed discount: " + name + " (" + amount + "%)");
+            }
+        }
+
+        return discounts;
+    }
+
+    private void setupDiscountSpinner(List<Discount> discounts) {
+        discountList.clear();
+        discountList.addAll(discounts);
+
+        // Create and set adapter
+        DiscountSpinnerAdapter adapter = new DiscountSpinnerAdapter(this, discountList);
+        discountSpinner.setAdapter(adapter);
+
+        // Set selection listener
+        discountSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedDiscount = (Discount) parent.getItemAtPosition(position);
+                Log.d(TAG, "Selected discount: " + selectedDiscount.getName() +
+                        ", amount: " + selectedDiscount.getAmount() + "%");
+
+                // Calculate and display the discount
+                applyDiscount();
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                selectedDiscount = null;
+                discountAmountTextView.setVisibility(View.GONE);
+                discountedTotalTextView.setVisibility(View.GONE);
+
+                // Reset to original total
+                updateChangeDisplay();
+            }
+        });
+    }
+
+    private void applyDiscount() {
+        if (selectedDiscount == null || selectedDiscount.getId() == -1) {
+            // No discount selected or "No Discount" option selected
+            discountAmountTextView.setVisibility(View.GONE);
+            discountedTotalTextView.setVisibility(View.GONE);
+            discountedAmount = 0.0;
+
+            // Display only the original total without strikethrough
+            String formattedTotal = formatPriceWithCurrency(finalAmount);
+            orderTotalTextView.setText(getString(R.string.order_total_format, formattedTotal));
+            orderTotalTextView.setPaintFlags(orderTotalTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+        } else {
+            // Calculate discount amount
+            double discountPercentage = selectedDiscount.getAmount();
+            discountedAmount = (finalAmount * discountPercentage) / 100.0;
+            double newTotal = finalAmount - discountedAmount;
+
+            // Format and display discount info
+            discountAmountTextView.setVisibility(View.VISIBLE);
+            discountAmountTextView.setText(getString(R.string.discount_applied,
+                    selectedDiscount.getName(), selectedDiscount.getAmount()));
+
+            // Get the label part of the total string
+            String totalLabel = getString(R.string.order_total_format, "").replace("%s", "");
+
+            // Create the prices part
+            String formattedOriginalPrice = formatPriceWithCurrency(finalAmount);
+            String formattedNewPrice = formatPriceWithCurrency(newTotal);
+
+            // Create a spannable string with the label + crossed out original price + new price
+            SpannableString spannableString = new SpannableString(
+                    totalLabel + formattedOriginalPrice + "  " + formattedNewPrice);
+
+            // Apply strikethrough only to the original price part, not the label
+            spannableString.setSpan(new StrikethroughSpan(),
+                    totalLabel.length(),
+                    totalLabel.length() + formattedOriginalPrice.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+
+            // Set the combined text
+            orderTotalTextView.setText(spannableString);
+
+            // Hide the now-redundant discounted total text view
+            discountedTotalTextView.setVisibility(View.GONE);
+
+            // If this is a cash payment, update the amount paid field to match the new total
+            if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaidEditText.isEnabled()) {
+                amountPaidEditText.setText(String.valueOf(Math.round(newTotal)));
+            }
+        }
+
+        // Update the change calculation
+        updateChangeDisplay();
     }
 
     private void fetchOrderDetails(long orderId) {
@@ -172,10 +398,24 @@ public class PaymentActivity extends AppCompatActivity {
                 Log.e(TAG, "Order details API request failed", e);
                 runOnUiThread(() -> {
                     setLoadingState(false);
-                    Toast.makeText(PaymentActivity.this,
-                            R.string.order_fetch_failed,
-                            Toast.LENGTH_SHORT).show();
-                    finish();
+
+                    // Try to continue with just order ID if available
+                    if (orderId > 0) {
+                        Log.d(TAG, "Attempting to continue with just order ID");
+                        orderNumber = String.valueOf(orderId); // Use order ID as order number
+                        tableNumber = "Unknown"; // Default table number
+                        finalAmount = 0.0; // Will be updated once payment process begins
+
+                        setupUI();
+                        setupListeners();
+                        fetchDiscounts();
+                        fetchPaymentMethods();
+                    } else {
+                        Toast.makeText(PaymentActivity.this,
+                                R.string.order_fetch_failed,
+                                Toast.LENGTH_SHORT).show();
+                        finish();
+                    }
                 });
             }
 
@@ -202,22 +442,19 @@ public class PaymentActivity extends AppCompatActivity {
                         // Convert string amounts to double
                         String finalAmountStr = orderData.optString("final_amount", "0");
                         finalAmount = Double.parseDouble(finalAmountStr.replace(",", ""));
-                        tableNumber = orderData.optString("table_number", "");
-                        orderNumber = String.valueOf(orderData.optLong("id", -1)); // Use ID as order number if not provided
+                        tableNumber = orderData.optString("table_number", "Unknown");
+                        orderNumber = String.valueOf(orderData.optLong("id", orderId)); // Use ID as order number if not provided
 
                         Log.d(TAG, "Parsed order data - Number: " + orderNumber +
                                 ", Table: " + tableNumber + ", Final Amount: " + finalAmount);
 
-                        // Check if we now have the required data
-                        if (orderNumber == null || tableNumber == null || finalAmount <= 0) {
-                            throw new JSONException("Incomplete order data from API");
-                        }
-
                         // Update UI with the fetched data
                         runOnUiThread(() -> {
                             Log.d(TAG, "API call successful, setting up UI");
+                            setLoadingState(false);
                             setupUI();
                             setupListeners();
+                            fetchDiscounts();
                             fetchPaymentMethods();
                         });
                     } else {
@@ -225,20 +462,48 @@ public class PaymentActivity extends AppCompatActivity {
                         Log.e(TAG, "API returned error: " + response.code());
                         runOnUiThread(() -> {
                             setLoadingState(false);
-                            Toast.makeText(PaymentActivity.this,
-                                    R.string.order_fetch_failed,
-                                    Toast.LENGTH_SHORT).show();
-                            finish();
+
+                            // Try to continue with just order ID if available
+                            if (orderId > 0) {
+                                Log.d(TAG, "Attempting to continue with just order ID");
+                                orderNumber = String.valueOf(orderId); // Use order ID as order number
+                                tableNumber = "Unknown"; // Default table number
+                                finalAmount = 0.0; // Will be updated once payment process begins
+
+                                setupUI();
+                                setupListeners();
+                                fetchDiscounts();
+                                fetchPaymentMethods();
+                            } else {
+                                Toast.makeText(PaymentActivity.this,
+                                        R.string.order_fetch_failed,
+                                        Toast.LENGTH_SHORT).show();
+                                finish();
+                            }
                         });
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing order details response", e);
                     runOnUiThread(() -> {
                         setLoadingState(false);
-                        Toast.makeText(PaymentActivity.this,
-                                R.string.order_fetch_failed,
-                                Toast.LENGTH_SHORT).show();
-                        finish();
+
+                        // Try to continue with just order ID if available
+                        if (orderId > 0) {
+                            Log.d(TAG, "Attempting to continue with just order ID despite parsing error");
+                            orderNumber = String.valueOf(orderId); // Use order ID as order number
+                            tableNumber = "Unknown"; // Default table number
+                            finalAmount = 0.0; // Will be updated once payment process begins
+
+                            setupUI();
+                            setupListeners();
+                            fetchDiscounts();
+                            fetchPaymentMethods();
+                        } else {
+                            Toast.makeText(PaymentActivity.this,
+                                    R.string.order_fetch_failed,
+                                    Toast.LENGTH_SHORT).show();
+                            finish();
+                        }
                     });
                 }
             }
@@ -272,7 +537,6 @@ public class PaymentActivity extends AppCompatActivity {
                 if (radioButton.getId() == checkedId) {
                     // Get the tag (payment method id)
                     String paymentMethodId = (String) radioButton.getTag();
-                    Log.d(TAG, "Found selected radio button with tag: " + paymentMethodId);
 
                     // Find the payment method in our list
                     for (PaymentMethod method : paymentMethods) {
@@ -325,7 +589,10 @@ public class PaymentActivity extends AppCompatActivity {
         cancelButton.setOnClickListener(v -> finish());
 
         // Process payment button
-        processPaymentButton.setOnClickListener(v -> validateAndProcessPayment());
+        processPaymentButton.setOnClickListener(v -> {
+            Log.d(TAG, "Process Payment button clicked");
+            validateAndProcessPayment();
+        });
     }
 
     private void fetchPaymentMethods() {
@@ -484,7 +751,6 @@ public class PaymentActivity extends AppCompatActivity {
         // Add radio buttons for each payment method
         for (int i = 0; i < paymentMethods.size(); i++) {
             PaymentMethod method = paymentMethods.get(i);
-            Log.d(TAG, "Creating radio button for: " + method.getName());
 
             RadioButton radioButton = new RadioButton(this);
             radioButton.setId(View.generateViewId());
@@ -528,15 +794,23 @@ public class PaymentActivity extends AppCompatActivity {
             // Parse amount paid
             amountPaid = Double.parseDouble(amountText);
 
-            // Calculate change based on API-provided finalAmount
-            double change = amountPaid - finalAmount;
+            // Calculate the actual amount to pay after discount
+            double amountToPay = finalAmount;
+
+            // Apply discount if selected
+            if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+                amountToPay = finalAmount - discountedAmount;
+            }
+
+            // Calculate change based on discounted amount
+            double change = amountPaid - amountToPay;
 
             // Update change display
             String formattedChange = formatPriceWithCurrency(Math.max(0, change));
             changeTextView.setText(getString(R.string.change_format, formattedChange));
 
             // Validate if payment is sufficient
-            if (amountPaid < finalAmount && "cash".equalsIgnoreCase(selectedPaymentMethod)) {
+            if (amountPaid < amountToPay && "cash".equalsIgnoreCase(selectedPaymentMethod)) {
                 changeTextView.setTextColor(getResources().getColor(R.color.colorError));
                 processPaymentButton.setEnabled(false);
             } else {
@@ -552,20 +826,31 @@ public class PaymentActivity extends AppCompatActivity {
     }
 
     private void validateAndProcessPayment() {
+        Log.d(TAG, "validateAndProcessPayment called");
+        // Calculate the actual amount to pay after discount
+        double amountToPay = finalAmount;
+        if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+            amountToPay = finalAmount - discountedAmount;
+        }
+
+        Log.d(TAG, "Amount to pay: " + amountToPay + ", Amount paid: " + amountPaid);
+
         // Validate payment
-        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaid < finalAmount) {
+        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaid < amountToPay) {
             Toast.makeText(this, R.string.insufficient_payment, Toast.LENGTH_SHORT).show();
             return;
         }
 
         // Show loading state
         setLoadingState(true);
+        Log.d(TAG, "Loading state set to true, about to process payment");
 
         // Process payment with API
         processPayment();
     }
 
     private void processPayment() {
+        Log.d(TAG, "processPayment method called");
         try {
             // Show loading state
             setLoadingState(true);
@@ -573,16 +858,26 @@ public class PaymentActivity extends AppCompatActivity {
             // Create request body with the correct format
             JSONObject paymentData = new JSONObject();
             paymentData.put("order_id", orderId);
-            paymentData.put("amount", finalAmount); // Use finalAmount from API
-            paymentData.put("payment_mode", Integer.parseInt(selectedPaymentMethodId)); // Use ID as payment_mode
-            paymentData.put("transaction_id", null); // Optional: Set to null as mentioned in the required format
 
-            // Add notes as additional info if provided (even though not in the required format)
+            // Include the discounted amount and discount ID if a discount is applied
+            double amountToPay = finalAmount;
+            if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+                amountToPay = finalAmount - discountedAmount;
+                paymentData.put("discount_id", selectedDiscount.getId());
+            }
+
+            paymentData.put("amount", amountToPay);
+            paymentData.put("payment_mode", Integer.parseInt(selectedPaymentMethodId));
+            paymentData.put("transaction_id", null);
+
+            // Add notes as additional info if provided
             String notes = paymentNotesEditText.getText() != null ?
                     paymentNotesEditText.getText().toString().trim() : "";
             if (!notes.isEmpty()) {
-                paymentData.put("notes", notes); // Extra field, might be ignored by API
+                paymentData.put("notes", notes);
             }
+
+            Log.d(TAG, "Payment data prepared: " + paymentData.toString());
 
             // Use the correct API endpoint
             String apiUrl = "https://api.pood.lol/payments";
@@ -636,12 +931,14 @@ public class PaymentActivity extends AppCompatActivity {
 
                             // Check for success status in the response
                             String status = jsonResponse.optString("status", "");
+                            Log.d(TAG, "Payment response status: " + status);
 
                             if ("success".equals(status)) {
                                 // Payment successful
                                 Log.d(TAG, "Payment processed successfully");
 
                                 runOnUiThread(() -> {
+                                    Log.d(TAG, "Running success UI updates on UI thread");
                                     setLoadingState(false);
                                     showPaymentSuccessAndFinish();
                                 });
@@ -649,9 +946,10 @@ public class PaymentActivity extends AppCompatActivity {
                                 // API returned non-success status
                                 String message = jsonResponse.optString("message",
                                         getString(R.string.payment_failed_unknown));
-                                Log.e(TAG, "Payment failed: " + message);
+                                Log.e(TAG, "Payment failed with status: " + status + ", message: " + message);
 
                                 runOnUiThread(() -> {
+                                    Log.d(TAG, "Running failure UI updates on UI thread");
                                     setLoadingState(false);
                                     Toast.makeText(PaymentActivity.this, message,
                                             Toast.LENGTH_SHORT).show();
@@ -674,6 +972,7 @@ public class PaymentActivity extends AppCompatActivity {
 
                             final String finalErrorMessage = errorMessage;
                             runOnUiThread(() -> {
+                                Log.d(TAG, "Running HTTP error UI updates on UI thread");
                                 setLoadingState(false);
                                 Toast.makeText(PaymentActivity.this, finalErrorMessage,
                                         Toast.LENGTH_SHORT).show();
@@ -682,6 +981,7 @@ public class PaymentActivity extends AppCompatActivity {
                     } catch (JSONException e) {
                         Log.e(TAG, "Error parsing payment response", e);
                         runOnUiThread(() -> {
+                            Log.d(TAG, "Running JSON parse error UI updates on UI thread");
                             setLoadingState(false);
                             Toast.makeText(PaymentActivity.this,
                                     getString(R.string.payment_failed_parsing),
@@ -702,30 +1002,68 @@ public class PaymentActivity extends AppCompatActivity {
         // Show success message
         Toast.makeText(this, R.string.payment_success, Toast.LENGTH_SHORT).show();
 
-        // Return success to previous activity
-        Intent resultIntent = new Intent();
-        resultIntent.putExtra("payment_method", selectedPaymentMethod);
-        resultIntent.putExtra("amount_paid", amountPaid);
-        setResult(RESULT_OK, resultIntent);
+        try {
+            // Return success to previous activity
+            Intent resultIntent = new Intent();
+            resultIntent.putExtra("payment_method", selectedPaymentMethod);
+            resultIntent.putExtra("amount_paid", amountPaid);
 
-        // Close activity
-        finish();
+            // Add discount information if a discount was applied
+            if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+                resultIntent.putExtra("discount_id", selectedDiscount.getId());
+                resultIntent.putExtra("discount_name", selectedDiscount.getName());
+                resultIntent.putExtra("discount_amount", selectedDiscount.getAmount());
+                resultIntent.putExtra("discounted_total", finalAmount - discountedAmount);
+            }
+
+            // Set the result and finish THIS activity first
+            setResult(RESULT_OK, resultIntent);
+
+            // Create an intent specifically for OrderListActivity
+            Intent orderListIntent = new Intent(this, OrderListActivity.class);
+
+            // Add session ID to the intent to maintain session
+            orderListIntent.putExtra("session_id", sessionId);
+
+            // Log for debugging
+            Log.d(TAG, "Navigating to OrderListActivity with session_id: " + sessionId);
+
+            // Start the OrderListActivity
+            startActivity(orderListIntent);
+
+            // THEN finish this activity
+            finish();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error in showPaymentSuccessAndFinish", e);
+            // Fallback to just finishing if there's an error
+            setResult(RESULT_OK);
+            finish();
+        }
     }
 
     private void setLoadingState(boolean isLoading) {
         Log.d(TAG, "Setting loading state: " + isLoading);
 
         // Toggle loading UI elements
-        if (isLoading) {
-            progressBar.setVisibility(View.VISIBLE);
-            contentView.setVisibility(View.GONE);
-            processPaymentButton.setEnabled(false);
-            cancelButton.setEnabled(false);
+        if (progressBar != null) {
+            progressBar.setVisibility(isLoading ? View.VISIBLE : View.GONE);
         } else {
-            progressBar.setVisibility(View.GONE);
-            contentView.setVisibility(View.VISIBLE);
-            processPaymentButton.setEnabled(true);
-            cancelButton.setEnabled(true);
+            Log.e(TAG, "progressBar is null in setLoadingState");
+        }
+
+        if (contentView != null) {
+            contentView.setVisibility(isLoading ? View.GONE : View.VISIBLE);
+        } else {
+            Log.e(TAG, "contentView is null in setLoadingState");
+        }
+
+        if (processPaymentButton != null) {
+            processPaymentButton.setEnabled(!isLoading);
+        }
+
+        if (cancelButton != null) {
+            cancelButton.setEnabled(!isLoading);
         }
     }
 
