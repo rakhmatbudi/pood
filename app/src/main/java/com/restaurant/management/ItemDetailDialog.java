@@ -7,24 +7,33 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.Spinner;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 
 import com.restaurant.management.models.ProductItem;
+import com.restaurant.management.models.Variant;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class ItemDetailDialog extends Dialog {
     private static final String TAG = "ItemDetailDialog";
 
     public interface OnItemAddListener {
-        void onItemAdd(ProductItem menuItem, int quantity, String notes);
+        void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes);
     }
 
     private ProductItem menuItem;
     private OnItemAddListener listener;
     private int quantity = 1;
+    private Long selectedVariantId = null;
+    private double currentPrice;
 
     private TextView itemNameTextView;
     private TextView itemDescriptionTextView;
@@ -35,11 +44,24 @@ public class ItemDetailDialog extends Dialog {
     private EditText notesEditText;
     private Button addButton;
     private Button cancelButton;
+    private Spinner variantSpinner;
+    private View variantContainer;
 
     public ItemDetailDialog(@NonNull Context context, ProductItem menuItem, OnItemAddListener listener) {
         super(context);
         this.menuItem = menuItem;
         this.listener = listener;
+        this.currentPrice = menuItem.getPrice();
+
+        // Debug log to check the item's variants
+        if (menuItem.hasVariants()) {
+            Log.d(TAG, "Constructor: Item has " + menuItem.getVariants().size() + " variants");
+            for (Variant v : menuItem.getVariants()) {
+                Log.d(TAG, "Variant: " + v.getName() + ", ID: " + v.getId() + ", Price: " + v.getPrice());
+            }
+        } else {
+            Log.d(TAG, "Constructor: Item has no variants");
+        }
     }
 
     @Override
@@ -66,6 +88,22 @@ public class ItemDetailDialog extends Dialog {
         addButton = findViewById(R.id.add_button);
         cancelButton = findViewById(R.id.cancel_button);
 
+        // Find variant views
+        variantContainer = findViewById(R.id.variant_container);
+        variantSpinner = findViewById(R.id.variant_spinner);
+
+        if (variantContainer == null) {
+            Log.e(TAG, "Variant container view not found in layout!");
+        } else {
+            Log.d(TAG, "Variant container found in layout");
+        }
+
+        if (variantSpinner == null) {
+            Log.e(TAG, "Variant spinner view not found in layout!");
+        } else {
+            Log.d(TAG, "Variant spinner found in layout");
+        }
+
         // Set menu item details
         itemNameTextView.setText(menuItem.getName());
 
@@ -77,10 +115,79 @@ public class ItemDetailDialog extends Dialog {
             itemDescriptionTextView.setVisibility(View.GONE);
         }
 
+        // Set up variant spinner if there are variants
+        if (menuItem.hasVariants() && menuItem.getVariants().size() > 0) {
+            Log.d(TAG, "Item " + menuItem.getId() + " has " + menuItem.getVariants().size() + " variants - showing variant section");
+
+            // Debug each variant
+            for (Variant v : menuItem.getVariants()) {
+                Log.d(TAG, "Available variant: " + v.getName() + " (ID: " + v.getId() + "), Price: " + v.getPrice());
+            }
+
+            if (variantContainer != null) {
+                variantContainer.setVisibility(View.VISIBLE);
+
+                // Create the adapter for variants
+                List<String> variantLabels = new ArrayList<>();
+                variantLabels.add("Regular - " + formatPrice(menuItem.getPrice(),
+                        getContext().getString(R.string.currency_prefix))); // Default option
+
+                List<Variant> variants = menuItem.getVariants();
+                for (Variant variant : variants) {
+                    String formattedPrice = formatPrice(variant.getPrice(),
+                            getContext().getString(R.string.currency_prefix));
+                    variantLabels.add(variant.getName() + " - " + formattedPrice);
+                    Log.d(TAG, "Added variant to spinner: " + variant.getName() + " - " + formattedPrice);
+                }
+
+                ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                        getContext(),
+                        android.R.layout.simple_spinner_item,
+                        variantLabels
+                );
+                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                variantSpinner.setAdapter(adapter);
+
+                // Handle variant selection
+                variantSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                    @Override
+                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                        if (position == 0) {
+                            // Regular price option
+                            selectedVariantId = null;
+                            currentPrice = menuItem.getPrice();
+                            Log.d(TAG, "Selected regular item (no variant) with price: " + currentPrice);
+                        } else {
+                            // Variant selected (position - 1 because we added "Regular" as first item)
+                            Variant selectedVariant = menuItem.getVariants().get(position - 1);
+                            selectedVariantId = selectedVariant.getId();
+                            currentPrice = selectedVariant.getPrice();
+                            Log.d(TAG, "Selected variant: " + selectedVariant.getName() +
+                                    " (ID: " + selectedVariantId + ") with price: " + currentPrice);
+                        }
+                        updatePriceDisplay();
+                    }
+
+                    @Override
+                    public void onNothingSelected(AdapterView<?> parent) {
+                        // If nothing is selected, use regular price
+                        selectedVariantId = null;
+                        currentPrice = menuItem.getPrice();
+                        updatePriceDisplay();
+                    }
+                });
+            } else {
+                Log.e(TAG, "Cannot show variants - variant container view is null");
+            }
+        } else {
+            Log.d(TAG, "Item " + menuItem.getId() + " has no variants - hiding variant section");
+            if (variantContainer != null) {
+                variantContainer.setVisibility(View.GONE);
+            }
+        }
+
         // Format price with currency
-        String formattedPrice = formatPrice(menuItem.getPrice(),
-                getContext().getString(R.string.currency_prefix));
-        itemPriceTextView.setText(formattedPrice);
+        updatePriceDisplay();
 
         // Set initial quantity
         updateQuantityDisplay();
@@ -89,18 +196,21 @@ public class ItemDetailDialog extends Dialog {
         decreaseButton.setOnClickListener(v -> {
             decreaseQuantity();
             Log.d(TAG, "Decrease button clicked, quantity: " + quantity);
+            updatePriceDisplay();
         });
 
         increaseButton.setOnClickListener(v -> {
             increaseQuantity();
             Log.d(TAG, "Increase button clicked, quantity: " + quantity);
+            updatePriceDisplay();
         });
 
         addButton.setOnClickListener(v -> {
             if (listener != null) {
                 String notes = notesEditText.getText().toString().trim();
-                Log.d(TAG, "Add button clicked with quantity: " + quantity);
-                listener.onItemAdd(menuItem, quantity, notes);
+                Log.d(TAG, "Add button clicked with quantity: " + quantity +
+                        ", variant ID: " + (selectedVariantId != null ? selectedVariantId : "none"));
+                listener.onItemAdd(menuItem, selectedVariantId, quantity, notes);
             }
             dismiss();
         });
@@ -126,6 +236,12 @@ public class ItemDetailDialog extends Dialog {
         // Disable decrease button if quantity is 1
         decreaseButton.setEnabled(quantity > 1);
         decreaseButton.setAlpha(quantity > 1 ? 1.0f : 0.5f);
+    }
+
+    private void updatePriceDisplay() {
+        double totalPrice = currentPrice * quantity;
+        String formattedPrice = formatPrice(totalPrice, getContext().getString(R.string.currency_prefix));
+        itemPriceTextView.setText(formattedPrice);
     }
 
     private String formatPrice(double price, String currencyPrefix) {

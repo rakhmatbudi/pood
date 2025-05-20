@@ -41,6 +41,30 @@
             android:layout_marginBottom="8dp"
             tools:text="Fresh garden salad with grilled chicken breast, cherry tomatoes, and our house dressing" />
 
+        <LinearLayout
+            android:id="@+id/variant_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/select_variant"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+
+            <Spinner
+                android:id="@+id/variant_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="8dp" />
+
+        </LinearLayout>
+
         <TextView
             android:id="@+id/item_price_text_view"
             android:layout_width="match_parent"
@@ -136,9 +160,6 @@
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
                 android:text="@string/add" />
-
         </LinearLayout>
-
     </LinearLayout>
-
 </androidx.cardview.widget.CardView>

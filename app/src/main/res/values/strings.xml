@@ -295,4 +295,11 @@
     <string name="discount_applied">Discount Applied: %s (%d%%)</string>
     <string name="discounted_total">Total After Discount: %s</string>
     <string name="error_loading_discounts">Failed to load discounts</string>
+
+    <!-- Variant related strings -->
+    <string name="select_variant">Select Variant</string>
+
+    <!-- Other existing strings that might be needed -->
+    <string name="add_to_order">Add to Order</string>
+    <string name="menu_item_image">Menu item image</string>
 </resources>

@@ -16,9 +16,9 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
-
 import com.restaurant.management.adapters.ProductItemAdapter;
 import com.restaurant.management.models.ProductItem;
+import com.restaurant.management.models.Variant;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -59,7 +59,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate: Starting AddItemActivity");
+        //Log.d(TAG, "onCreate: Starting AddItemActivity");
 
         setContentView(R.layout.activity_add_item);
 
@@ -77,13 +77,13 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         progressBar = findViewById(R.id.progress_bar);
         contentLayout = findViewById(R.id.content_layout);
 
-        Log.d(TAG, "Views initialized");
+        //Log.d(TAG, "Views initialized");
 
         // Get order details from intent
         orderId = getIntent().getLongExtra("order_id", -1);
         tableNumber = getIntent().getStringExtra("table_number");
 
-        Log.d(TAG, "Order ID: " + orderId + ", Table: " + tableNumber);
+        //Log.d(TAG, "Order ID: " + orderId + ", Table: " + tableNumber);
 
         if (orderId == -1 || tableNumber == null) {
             Toast.makeText(this, R.string.invalid_order_details, Toast.LENGTH_SHORT).show();
@@ -95,7 +95,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         tableNumberTextView.setText(getString(R.string.table_number_format, tableNumber));
 
         // Set up RecyclerView
-        Log.d(TAG, "Setting up RecyclerView");
+        //Log.d(TAG, "Setting up RecyclerView");
         menuItemsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         menuItemAdapter = new ProductItemAdapter(menuItems, this);
         menuItemsRecyclerView.setAdapter(menuItemAdapter);
@@ -122,7 +122,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     }
 
     private void fetchMenuItems(String searchQuery) {
-        Log.d(TAG, "fetchMenuItems called with query: " + (searchQuery.isEmpty() ? "empty" : searchQuery));
+        //Log.d(TAG, "fetchMenuItems called with query: " + (searchQuery.isEmpty() ? "empty" : searchQuery));
 
         // Show loading state
         progressBar.setVisibility(View.VISIBLE);
@@ -134,7 +134,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             apiUrl += "?search=" + searchQuery;
         }
 
-        Log.d(TAG, "Fetching menu items from: " + apiUrl);
+        //Log.d(TAG, "Fetching menu items from: " + apiUrl);
 
         // Get the auth token
         String authToken = getAuthToken();
@@ -154,7 +154,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "API request failed", e);
+                //Log.e(TAG, "API request failed", e);
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     menuItemsRecyclerView.setVisibility(View.VISIBLE);
@@ -168,8 +168,8 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "API response received: " + response.code());
-                    Log.d(TAG, "Response body length: " + responseBody.length());
+                    //Log.d(TAG, "API response received: " + response.code());
+                    //Log.d(TAG, "Response body length: " + responseBody.length());
 
                     if (!response.isSuccessful()) {
                         throw new IOException("Unexpected response code: " + response.code());
@@ -178,7 +178,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<ProductItem> items = parseMenuItems(jsonResponse);
 
-                    Log.d(TAG, "Parsed " + items.size() + " menu items");
+                    //Log.d(TAG, "Parsed " + items.size() + " menu items");
 
                     runOnUiThread(() -> {
                         menuItems.clear();
@@ -189,7 +189,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                     });
 
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing response", e);
+                    //Log.e(TAG, "Error processing response", e);
                     runOnUiThread(() -> {
                         progressBar.setVisibility(View.GONE);
                         menuItemsRecyclerView.setVisibility(View.VISIBLE);
@@ -206,7 +206,19 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         List<ProductItem> items = new ArrayList<>();
 
         if (jsonResponse.has("data") && !jsonResponse.isNull("data")) {
-            JSONArray itemsArray = jsonResponse.getJSONArray("data");
+            JSONArray itemsArray;
+
+            // Check if "data" is an array or an object
+            if (jsonResponse.get("data") instanceof JSONArray) {
+                itemsArray = jsonResponse.getJSONArray("data");
+                //Log.d(TAG, "Parsing array of items: " + itemsArray.length());
+            } else {
+                // If "data" is a single object, create an array with just that object
+                JSONObject singleItem = jsonResponse.getJSONObject("data");
+                itemsArray = new JSONArray();
+                itemsArray.put(singleItem);
+                //Log.d(TAG, "Parsing single item as array");
+            }
 
             for (int i = 0; i < itemsArray.length(); i++) {
                 JSONObject itemJson = itemsArray.getJSONObject(i);
@@ -215,10 +227,48 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 item.setId(itemJson.optLong("id", -1));
                 item.setName(itemJson.optString("name", ""));
                 item.setDescription(itemJson.optString("description", ""));
-                item.setPrice(itemJson.optDouble("price", 0.0));
-                item.setCategory(itemJson.optString("category", ""));
-                item.setImageUrl(itemJson.optString("image_url", ""));
+                item.setPrice(parsePrice(itemJson.optString("price", "0")));
 
+                // Handle different category field names
+                if (itemJson.has("category_name") && !itemJson.isNull("category_name")) {
+                    item.setCategory(itemJson.optString("category_name", ""));
+                } else if (itemJson.has("category") && !itemJson.isNull("category")) {
+                    item.setCategory(itemJson.optString("category", ""));
+                }
+
+                // Handle image URL - check for both image_url and image_path
+                if (itemJson.has("image_url") && !itemJson.isNull("image_url")) {
+                    item.setImageUrl(itemJson.optString("image_url", ""));
+                } else if (itemJson.has("image_path") && !itemJson.isNull("image_path")) {
+                    item.setImageUrl(itemJson.optString("image_path", ""));
+                }
+
+                // Parse variants if available
+                List<Variant> variants = new ArrayList<>();
+                if (itemJson.has("variants") && !itemJson.isNull("variants")) {
+                    JSONArray variantsArray = itemJson.getJSONArray("variants");
+                    //Log.d(TAG, "Found " + variantsArray.length() + " variants for item " + item.getName());
+
+                    for (int j = 0; j < variantsArray.length(); j++) {
+                        JSONObject variantJson = variantsArray.getJSONObject(j);
+                        Variant variant = new Variant();
+                        variant.setId(variantJson.optLong("id", -1));
+                        variant.setName(variantJson.optString("name", ""));
+                        variant.setPrice(parsePrice(variantJson.optString("price", "0")));
+                        variants.add(variant);
+
+                        //Log.d(TAG, "Added variant: " + variant.getName() +
+                        //        " (ID: " + variant.getId() + ") with price: " + variant.getPrice());
+                    }
+                } else {
+                    //Log.d(TAG, "No variants found for item " + item.getName());
+                }
+
+                if (!variants.isEmpty()) {
+                    //Log.d(TAG, "Setting " + variants.size() + " variants on item " + item.getName());
+                }
+
+                item.setVariants(variants);
                 items.add(item);
             }
 
@@ -230,23 +280,32 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         return items;
     }
 
+    private double parsePrice(String priceString) {
+        try {
+            return Double.parseDouble(priceString);
+        } catch (NumberFormatException e) {
+            //Log.e(TAG, "Error parsing price: " + priceString, e);
+            return 0.0;
+        }
+    }
+
     @Override
     public void onItemClick(ProductItem menuItem) {
-        Log.d(TAG, "Item clicked: " + menuItem.getName() + " (ID: " + menuItem.getId() + ")");
 
-        // Show item detail dialog with quantity selector
-        ItemDetailDialog dialog = new ItemDetailDialog(this, menuItem, (selectedItem, quantity, notes) -> {
-            // Add item to order
-            addItemToOrder(selectedItem, quantity, notes);
+
+        // Show item detail dialog with quantity selector and variants if available
+        ItemDetailDialog dialog = new ItemDetailDialog(this, menuItem, new ItemDetailDialog.OnItemAddListener() {
+            @Override
+            public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes) {
+                // Add item to order
+                addItemToOrder(selectedItem, variantId, quantity, notes);
+            }
         });
         dialog.show();
     }
 
-    private void addItemToOrder(ProductItem menuItem, int quantity, String notes) {
-        Log.d(TAG, "Adding item to order: " + menuItem.getName() + ", Quantity: " + quantity);
-        if (notes != null && !notes.isEmpty()) {
-            Log.d(TAG, "Notes: " + notes);
-        }
+    private void addItemToOrder(ProductItem menuItem, Long variantId, int quantity, String notes) {
+
 
         if (quantity <= 0) {
             Toast.makeText(this, R.string.invalid_quantity, Toast.LENGTH_SHORT).show();
@@ -257,15 +316,33 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         progressBar.setVisibility(View.VISIBLE);
         menuItemsRecyclerView.setVisibility(View.GONE);
 
-        // Calculate the total price
+        // Get the unit price based on whether a variant is selected
         double unitPrice = menuItem.getPrice();
+        if (variantId != null) {
+            // Find the selected variant
+            for (Variant variant : menuItem.getVariants()) {
+                if (variant.getId() == variantId) {
+                    unitPrice = variant.getPrice();
+                    Log.d(TAG, "Using variant price: " + unitPrice);
+                    break;
+                }
+            }
+        }
+
+        // Calculate the total price
         double totalPrice = unitPrice * quantity;
 
         // Prepare the request body according to the specified structure
         JSONObject requestJson = new JSONObject();
         try {
             requestJson.put("menu_item_id", menuItem.getId());
-            requestJson.put("variant_id", JSONObject.NULL); // Set to null as specified
+
+            if (variantId != null) {
+                requestJson.put("variant_id", variantId);
+            } else {
+                requestJson.put("variant_id", JSONObject.NULL);
+            }
+
             requestJson.put("quantity", quantity);
             requestJson.put("unit_price", unitPrice);
             requestJson.put("total_price", totalPrice);
@@ -297,7 +374,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         Log.d(TAG, "Using auth token: " + (authToken != null && !authToken.isEmpty() ? "Valid token present" : "No token or empty token"));
 
         // Create request with token and proper content type
-        RequestBody body = RequestBody.create(requestJson.toString(), JSON);
+        RequestBody body = RequestBody.create(JSON, requestJson.toString());
         Request.Builder requestBuilder = new Request.Builder()
                 .url(apiUrl)
                 .post(body)
@@ -383,4 +460,5 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         return getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE)
                 .getString(getString(R.string.pref_token), "");
     }
+
 }

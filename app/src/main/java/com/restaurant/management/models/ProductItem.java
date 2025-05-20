@@ -1,27 +1,22 @@
 package com.restaurant.management.models;
 
-public class ProductItem {
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+
+public class ProductItem implements Serializable {
     private long id;
     private String name;
     private String description;
     private double price;
     private String category;
     private String imageUrl;
+    private List<Variant> variants = new ArrayList<>();
 
     public ProductItem() {
         // Default constructor
     }
 
-    public ProductItem(long id, String name, String description, double price, String category, String imageUrl) {
-        this.id = id;
-        this.name = name;
-        this.description = description;
-        this.price = price;
-        this.category = category;
-        this.imageUrl = imageUrl;
-    }
-
-    // Getters and Setters
     public long getId() {
         return id;
     }
@@ -68,5 +63,17 @@ public class ProductItem {
 
     public void setImageUrl(String imageUrl) {
         this.imageUrl = imageUrl;
+    }
+
+    public List<Variant> getVariants() {
+        return variants;
+    }
+
+    public void setVariants(List<Variant> variants) {
+        this.variants = variants;
+    }
+
+    public boolean hasVariants() {
+        return variants != null && !variants.isEmpty();
     }
 }

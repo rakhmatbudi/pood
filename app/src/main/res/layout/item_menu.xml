@@ -39,15 +39,6 @@
                 android:textSize="14sp"
                 tools:text="Fresh garden salad with grilled chicken breast, cherry tomatoes, and our house dressing" />
 
-            <TextView
-                android:id="@+id/menu_item_category"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textSize="12sp"
-                android:textStyle="italic"
-                tools:text="Salads" />
-
         </LinearLayout>
 
         <TextView
