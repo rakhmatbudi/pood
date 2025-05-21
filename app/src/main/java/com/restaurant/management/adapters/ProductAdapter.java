@@ -100,10 +100,10 @@ public class ProductAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     }
 
     public void updateList(List<Product> newList) {
-        Log.d("ProductAdapter", "updateList called. New list size: " + (newList != null ? newList.size() : "null"));
-        this.productList = newList;
+        this.productList.clear();
+        this.productList.addAll(newList);
         notifyDataSetChanged();
-        Log.d("ProductAdapter", "notifyDataSetChanged called");
+        //Log.d("ProductAdapter", "notifyDataSetChanged called");
     }
 
     // Header ViewHolder
