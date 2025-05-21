@@ -1,7 +1,9 @@
 package com.restaurant.management;
 
 import android.os.Bundle;
+import android.text.Editable;
 import android.text.TextUtils;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
@@ -51,6 +53,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
     private OkHttpClient client = new OkHttpClient();
     private List<ProductItem> menuItems = new ArrayList<>();
+    private List<ProductItem> allMenuItems = new ArrayList<>(); // Store all items for filtering
     private ProductItemAdapter menuItemAdapter;
 
     private long orderId;
@@ -59,7 +62,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        //Log.d(TAG, "onCreate: Starting AddItemActivity");
 
         setContentView(R.layout.activity_add_item);
 
@@ -77,13 +79,9 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         progressBar = findViewById(R.id.progress_bar);
         contentLayout = findViewById(R.id.content_layout);
 
-        //Log.d(TAG, "Views initialized");
-
         // Get order details from intent
         orderId = getIntent().getLongExtra("order_id", -1);
         tableNumber = getIntent().getStringExtra("table_number");
-
-        //Log.d(TAG, "Order ID: " + orderId + ", Table: " + tableNumber);
 
         if (orderId == -1 || tableNumber == null) {
             Toast.makeText(this, R.string.invalid_order_details, Toast.LENGTH_SHORT).show();
@@ -95,16 +93,30 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         tableNumberTextView.setText(getString(R.string.table_number_format, tableNumber));
 
         // Set up RecyclerView
-        //Log.d(TAG, "Setting up RecyclerView");
         menuItemsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         menuItemAdapter = new ProductItemAdapter(menuItems, this);
         menuItemsRecyclerView.setAdapter(menuItemAdapter);
 
-        // Set up search button
+        // Set up search button for immediate search
         searchButton.setOnClickListener(v -> searchMenuItems());
 
-        // Load initial menu items
-        fetchMenuItems("");
+        // Optional: Add text change listener for real-time search
+        searchEditText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Implement search as user types
+                searchMenuItems();
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {}
+        });
+
+        // Load all menu items once
+        fetchMenuItems();
     }
 
     @Override
@@ -117,24 +129,47 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     }
 
     private void searchMenuItems() {
-        String query = searchEditText.getText().toString().trim();
-        fetchMenuItems(query);
+        String query = searchEditText.getText().toString().trim().toLowerCase();
+
+        if (TextUtils.isEmpty(query)) {
+            // If query is empty, show all items
+            menuItems.clear();
+            menuItems.addAll(allMenuItems);
+            menuItemAdapter.notifyDataSetChanged();
+        } else {
+            // Filter items based on name, description, or category
+            List<ProductItem> filteredItems = new ArrayList<>();
+
+            for (ProductItem item : allMenuItems) {
+                String itemName = item.getName() != null ? item.getName().toLowerCase() : "";
+                String itemDesc = item.getDescription() != null ? item.getDescription().toLowerCase() : "";
+                String itemCategory = item.getCategory() != null ? item.getCategory().toLowerCase() : "";
+
+                if (itemName.contains(query) || itemDesc.contains(query) || itemCategory.contains(query)) {
+                    filteredItems.add(item);
+                }
+            }
+
+            // Update adapter with filtered results
+            menuItems.clear();
+            menuItems.addAll(filteredItems);
+            menuItemAdapter.notifyDataSetChanged();
+
+            // Show message if no results found
+            if (filteredItems.isEmpty() && !allMenuItems.isEmpty()) {
+                Toast.makeText(this, "No items found matching '" + query + "'", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
-    private void fetchMenuItems(String searchQuery) {
-        //Log.d(TAG, "fetchMenuItems called with query: " + (searchQuery.isEmpty() ? "empty" : searchQuery));
-
+    private void fetchMenuItems() {
         // Show loading state
         progressBar.setVisibility(View.VISIBLE);
         menuItemsRecyclerView.setVisibility(View.GONE);
 
-        // Build the URL
+        // Simple URL to fetch all menu items
         String apiUrl = BASE_API_URL + "menu-items";
-        if (!TextUtils.isEmpty(searchQuery)) {
-            apiUrl += "?search=" + searchQuery;
-        }
-
-        //Log.d(TAG, "Fetching menu items from: " + apiUrl);
+        Log.d(TAG, "Fetching all menu items from: " + apiUrl);
 
         // Get the auth token
         String authToken = getAuthToken();
@@ -154,7 +189,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                //Log.e(TAG, "API request failed", e);
+                Log.e(TAG, "API request failed", e);
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     menuItemsRecyclerView.setVisibility(View.VISIBLE);
@@ -168,8 +203,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    //Log.d(TAG, "API response received: " + response.code());
-                    //Log.d(TAG, "Response body length: " + responseBody.length());
+                    Log.d(TAG, "API response received: " + response.code());
 
                     if (!response.isSuccessful()) {
                         throw new IOException("Unexpected response code: " + response.code());
@@ -177,19 +211,23 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<ProductItem> items = parseMenuItems(jsonResponse);
-
-                    //Log.d(TAG, "Parsed " + items.size() + " menu items");
+                    Log.d(TAG, "Parsed " + items.size() + " menu items");
 
                     runOnUiThread(() -> {
+                        // Store in both lists for filtering
+                        allMenuItems.clear();
+                        allMenuItems.addAll(items);
+
                         menuItems.clear();
                         menuItems.addAll(items);
                         menuItemAdapter.notifyDataSetChanged();
+
                         progressBar.setVisibility(View.GONE);
                         menuItemsRecyclerView.setVisibility(View.VISIBLE);
                     });
 
                 } catch (Exception e) {
-                    //Log.e(TAG, "Error processing response", e);
+                    Log.e(TAG, "Error processing response", e);
                     runOnUiThread(() -> {
                         progressBar.setVisibility(View.GONE);
                         menuItemsRecyclerView.setVisibility(View.VISIBLE);
@@ -211,13 +249,13 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             // Check if "data" is an array or an object
             if (jsonResponse.get("data") instanceof JSONArray) {
                 itemsArray = jsonResponse.getJSONArray("data");
-                //Log.d(TAG, "Parsing array of items: " + itemsArray.length());
+                Log.d(TAG, "Parsing array of items: " + itemsArray.length());
             } else {
                 // If "data" is a single object, create an array with just that object
                 JSONObject singleItem = jsonResponse.getJSONObject("data");
                 itemsArray = new JSONArray();
                 itemsArray.put(singleItem);
-                //Log.d(TAG, "Parsing single item as array");
+                Log.d(TAG, "Parsing single item as array");
             }
 
             for (int i = 0; i < itemsArray.length(); i++) {
@@ -229,11 +267,23 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 item.setDescription(itemJson.optString("description", ""));
                 item.setPrice(parsePrice(itemJson.optString("price", "0")));
 
-                // Handle different category field names
+                // Handle different category field structures
                 if (itemJson.has("category_name") && !itemJson.isNull("category_name")) {
+                    // Direct category_name field
                     item.setCategory(itemJson.optString("category_name", ""));
                 } else if (itemJson.has("category") && !itemJson.isNull("category")) {
-                    item.setCategory(itemJson.optString("category", ""));
+                    // Check if "category" is a string or an object
+                    Object categoryObj = itemJson.get("category");
+                    if (categoryObj instanceof JSONObject) {
+                        // Handle nested category object
+                        JSONObject categoryJson = (JSONObject) categoryObj;
+                        if (categoryJson.has("name")) {
+                            item.setCategory(categoryJson.optString("name", ""));
+                        }
+                    } else {
+                        // Handle string category
+                        item.setCategory(itemJson.optString("category", ""));
+                    }
                 }
 
                 // Handle image URL - check for both image_url and image_path
@@ -247,7 +297,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 List<Variant> variants = new ArrayList<>();
                 if (itemJson.has("variants") && !itemJson.isNull("variants")) {
                     JSONArray variantsArray = itemJson.getJSONArray("variants");
-                    //Log.d(TAG, "Found " + variantsArray.length() + " variants for item " + item.getName());
 
                     for (int j = 0; j < variantsArray.length(); j++) {
                         JSONObject variantJson = variantsArray.getJSONObject(j);
@@ -256,16 +305,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                         variant.setName(variantJson.optString("name", ""));
                         variant.setPrice(parsePrice(variantJson.optString("price", "0")));
                         variants.add(variant);
-
-                        //Log.d(TAG, "Added variant: " + variant.getName() +
-                        //        " (ID: " + variant.getId() + ") with price: " + variant.getPrice());
                     }
-                } else {
-                    //Log.d(TAG, "No variants found for item " + item.getName());
-                }
-
-                if (!variants.isEmpty()) {
-                    //Log.d(TAG, "Setting " + variants.size() + " variants on item " + item.getName());
                 }
 
                 item.setVariants(variants);
@@ -284,15 +324,13 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         try {
             return Double.parseDouble(priceString);
         } catch (NumberFormatException e) {
-            //Log.e(TAG, "Error parsing price: " + priceString, e);
+            Log.e(TAG, "Error parsing price: " + priceString, e);
             return 0.0;
         }
     }
 
     @Override
     public void onItemClick(ProductItem menuItem) {
-
-
         // Show item detail dialog with quantity selector and variants if available
         ItemDetailDialog dialog = new ItemDetailDialog(this, menuItem, new ItemDetailDialog.OnItemAddListener() {
             @Override
@@ -305,8 +343,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     }
 
     private void addItemToOrder(ProductItem menuItem, Long variantId, int quantity, String notes) {
-
-
         if (quantity <= 0) {
             Toast.makeText(this, R.string.invalid_quantity, Toast.LENGTH_SHORT).show();
             return;
@@ -460,5 +496,4 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         return getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE)
                 .getString(getString(R.string.pref_token), "");
     }
-
 }
