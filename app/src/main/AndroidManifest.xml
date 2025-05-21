@@ -15,7 +15,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.restaurant.management.MainActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -24,86 +24,86 @@
         </activity>
 
         <activity
-            android:name=".DashboardActivity"
+            android:name="com.restaurant.management.DashboardActivity"
             android:exported="false" />
 
         <activity
-            android:name=".OpenSessionActivity"
+            android:name="com.restaurant.management.OpenSessionActivity"
             android:exported="false"
-            android:parentActivityName=".DashboardActivity" />
+            android:parentActivityName="com.restaurant.management.DashboardActivity" />
 
         <activity
-            android:name=".EndSessionActivity"
+            android:name="com.restaurant.management.EndSessionActivity"
             android:exported="false"
-            android:parentActivityName=".DashboardActivity" />
+            android:parentActivityName="com.restaurant.management.DashboardActivity" />
 
         <activity
-            android:name=".OrderListActivity"
+            android:name="com.restaurant.management.OrderListActivity"
             android:label="@string/orders"
-            android:parentActivityName=".DashboardActivity">
+            android:parentActivityName="com.restaurant.management.DashboardActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value=".DashboardActivity" />
+                android:value="com.restaurant.management.DashboardActivity" />
         </activity>
 
         <activity
-            android:name=".OrderActivity"
+            android:name="com.restaurant.management.OrderActivity"
             android:label="@string/order_details"
-            android:parentActivityName=".OrderListActivity" />
+            android:parentActivityName="com.restaurant.management.OrderListActivity" />
 
         <activity
-            android:name=".AddItemActivity"
+            android:name="com.restaurant.management.AddItemActivity"
             android:label="@string/add_item"
-            android:parentActivityName=".OrderActivity">
+            android:parentActivityName="com.restaurant.management.OrderActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value=".OrderActivity" />
+                android:value="com.restaurant.management.OrderActivity" />
         </activity>
 
         <activity
-            android:name=".PaymentActivity"
+            android:name="com.restaurant.management.PaymentActivity"
             android:label="@string/payment"
-            android:parentActivityName=".OrderActivity">
+            android:parentActivityName="com.restaurant.management.OrderActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value=".OrderActivity" />
+                android:value="com.restaurant.management.OrderActivity" />
         </activity>
 
         <activity
-            android:name=".TransactionActivity"
+            android:name="com.restaurant.management.TransactionActivity"
             android:label="@string/transactions"
-            android:parentActivityName=".DashboardActivity">
+            android:parentActivityName="com.restaurant.management.DashboardActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value=".DashboardActivity" />
+                android:value="com.restaurant.management.DashboardActivity" />
         </activity>
 
         <activity
-            android:name=".ProductListActivity"
+            android:name="com.restaurant.management.ProductListActivity"
             android:label="@string/product_list"
-            android:parentActivityName=".DashboardActivity">
+            android:parentActivityName="com.restaurant.management.DashboardActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value=".DashboardActivity" />
+                android:value="com.restaurant.management.DashboardActivity" />
         </activity>
 
         <activity
-            android:name=".ReconciliationActivity"
+            android:name="com.restaurant.management.ReconciliationActivity"
             android:label="@string/title_activity_reconciliation"
-            android:parentActivityName=".DashboardActivity" />
+            android:parentActivityName="com.restaurant.management.DashboardActivity" />
 
         <activity
-            android:name=".TaxListActivity"
+            android:name="com.restaurant.management.TaxListActivity"
             android:label="@string/title_activity_tax_list"
-            android:parentActivityName=".DashboardActivity" />
+            android:parentActivityName="com.restaurant.management.DashboardActivity" />
 
         <activity
-            android:name=".DiscountListActivity"
+            android:name="com.restaurant.management.DiscountListActivity"
             android:label="@string/title_activity_discount_list"
-            android:parentActivityName=".DashboardActivity">
+            android:parentActivityName="com.restaurant.management.DashboardActivity">
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
-                android:value=".DashboardActivity" />
+                android:value="com.restaurant.management.DashboardActivity" />
         </activity>
 
     </application>

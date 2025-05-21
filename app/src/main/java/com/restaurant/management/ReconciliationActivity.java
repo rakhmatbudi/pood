@@ -1,6 +1,5 @@
 package com.restaurant.management;
 
-import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.text.Editable;

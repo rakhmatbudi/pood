@@ -49,6 +49,9 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        // Switch from launch theme to regular theme
+        //setTheme(R.style.AppTheme); // Or whatever your main theme is called
+
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 

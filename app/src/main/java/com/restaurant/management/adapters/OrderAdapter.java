@@ -14,7 +14,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.restaurant.management.R;
 import com.restaurant.management.models.Order;
-import com.restaurant.management.adapters.OrderItemCompactAdapter;
 import com.restaurant.management.models.OrderItem;
 
 import java.text.ParseException;

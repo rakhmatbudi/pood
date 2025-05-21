@@ -1,9 +1,7 @@
 package com.restaurant.management.adapters;
 
 import android.content.Context;
-import android.graphics.Typeface;
 import android.util.Log;
-import android.graphics.Color;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,7 +14,6 @@ import com.restaurant.management.models.Transaction;
 import com.restaurant.management.models.OrderItem;
 
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
