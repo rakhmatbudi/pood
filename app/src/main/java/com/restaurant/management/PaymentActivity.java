@@ -25,6 +25,7 @@ import androidx.appcompat.widget.Toolbar;
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.models.Discount;
 import com.restaurant.management.models.PaymentMethod;
+import com.restaurant.management.models.RoundingConfig;
 import com.restaurant.management.adapters.DiscountSpinnerAdapter;
 
 import org.json.JSONArray;
@@ -44,6 +45,8 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class PaymentActivity extends AppCompatActivity {
+    private static final String ROUNDING_API_URL = "https://api.pood.lol/roundings/values";
+    private RoundingConfig roundingConfig;
     private static final String TAG = "PaymentActivity";
     private static final String BASE_API_URL = "https://api.pood.lol/orders/";
     private static final String PAYMENT_MODES_URL = "https://api.pood.lol/payment-modes";
@@ -168,6 +171,167 @@ public class PaymentActivity extends AppCompatActivity {
 
         fetchDiscounts();
         fetchPaymentMethods();
+        fetchRoundingConfig();
+    }
+
+    private void updateAmountPaidWithRounding() {
+        // Skip if no rounding config is available yet
+        if (roundingConfig == null) {
+            Log.d(TAG, "Skipping amount rounding, config not loaded yet");
+            return;
+        }
+
+        // Calculate the actual amount to pay after discount
+        double amountToPay = finalAmount;
+        if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+            amountToPay = finalAmount - discountedAmount;
+        }
+
+        // Apply rounding logic
+        double roundedAmount = applyRounding(amountToPay);
+        Log.d(TAG, "Rounded amount: " + roundedAmount + " (from " + amountToPay + ")");
+
+        // Update the amount paid field with the rounded value
+        amountPaidEditText.setText(String.valueOf(Math.round(roundedAmount)));
+
+        // Update the change calculation
+        updateChangeDisplay();
+    }
+
+    private double applyRounding(double amount) {
+        // If amount is negative or rounding config is not available, return the original amount
+        if (amount < 0 || roundingConfig == null) {
+            Log.d(TAG, "Skipping rounding: amount=" + amount +
+                    ", config=" + (roundingConfig == null ? "null" : "available"));
+            return amount;
+        }
+
+        int roundingBelow = roundingConfig.getRoundingBelow();
+        int roundingNumber = roundingConfig.getRoundingNumber();
+        int roundingDigit = roundingConfig.getRoundingDigit();
+
+        // Convert amount to integer (removing decimal part)
+        long amountInt = Math.round(amount);
+
+        // Apply rounding based on the configuration
+        long remainder = amountInt % roundingNumber;
+        long roundedAmount;
+
+        if (remainder <= roundingBelow) {
+            // Round down to the nearest multiple of roundingNumber
+            roundedAmount = amountInt - remainder;
+            Log.d(TAG, "Rounding down: " + amountInt + " -> " + roundedAmount +
+                    " (remainder " + remainder + " <= " + roundingBelow + ")");
+        } else {
+            // Round up to the nearest multiple of roundingNumber
+            roundedAmount = amountInt + (roundingNumber - remainder);
+            Log.d(TAG, "Rounding up: " + amountInt + " -> " + roundedAmount +
+                    " (remainder " + remainder + " > " + roundingBelow + ")");
+        }
+
+        return roundedAmount;
+    }
+
+    private void fetchRoundingConfig() {
+        Log.d(TAG, "Fetching rounding configuration");
+
+        // Get the auth token
+        String authToken = getAuthToken();
+
+        // Create request with token
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(ROUNDING_API_URL);
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        // Execute the request
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to fetch rounding configuration", e);
+                // Default to standard rounding if API fails
+                runOnUiThread(() -> {
+                    roundingConfig = new RoundingConfig(99, 1, "00 - Hundreds", 100);
+                    // If we already loaded the UI, update the amount paid with rounding
+                    if (amountPaidEditText != null) {
+                        updateAmountPaidWithRounding();
+                    }
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "Rounding config response code: " + response.code());
+                    Log.d(TAG, "Rounding config response: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject jsonResponse = new JSONObject(responseBody);
+
+                        // Check if status is success
+                        String status = jsonResponse.optString("status", "");
+                        if (!"success".equals(status)) {
+                            throw new JSONException("API returned non-success status: " + status);
+                        }
+
+                        // Parse rounding config
+                        JSONArray dataArray = jsonResponse.getJSONArray("data");
+                        if (dataArray.length() > 0) {
+                            JSONObject config = dataArray.getJSONObject(0);
+
+                            int roundingBelow = config.optInt("rounding_below", 99);
+                            int roundingDigit = config.optInt("rounding_digit", 1);
+                            String description = config.optString("rounding_digit_description", "00 - Hundreds");
+                            int roundingNumber = config.optInt("rounding_number", 100);
+
+                            Log.d(TAG, "Parsed rounding config: below=" + roundingBelow +
+                                    ", digit=" + roundingDigit +
+                                    ", number=" + roundingNumber);
+
+                            roundingConfig = new RoundingConfig(
+                                    roundingBelow,
+                                    roundingDigit,
+                                    description,
+                                    roundingNumber
+                            );
+                        } else {
+                            // No config found, use default
+                            roundingConfig = new RoundingConfig(99, 1, "00 - Hundreds", 100);
+                        }
+
+                        runOnUiThread(() -> {
+                            // Update the amount paid with rounding if UI is already loaded
+                            if (amountPaidEditText != null) {
+                                updateAmountPaidWithRounding();
+                            }
+                        });
+                    } else {
+                        // API error, use default
+                        Log.e(TAG, "API returned error: " + response.code());
+                        runOnUiThread(() -> {
+                            roundingConfig = new RoundingConfig(99, 1, "00 - Hundreds", 100);
+                            if (amountPaidEditText != null) {
+                                updateAmountPaidWithRounding();
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing rounding config response", e);
+                    runOnUiThread(() -> {
+                        roundingConfig = new RoundingConfig(99, 1, "00 - Hundreds", 100);
+                        if (amountPaidEditText != null) {
+                            updateAmountPaidWithRounding();
+                        }
+                    });
+                }
+            }
+        });
     }
 
     @Override
@@ -324,6 +488,16 @@ public class PaymentActivity extends AppCompatActivity {
             String formattedTotal = formatPriceWithCurrency(finalAmount);
             orderTotalTextView.setText(getString(R.string.order_total_format, formattedTotal));
             orderTotalTextView.setPaintFlags(orderTotalTextView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+
+            // If this is a cash payment, update the amount paid field to match the total with rounding
+            if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaidEditText.isEnabled()) {
+                if (roundingConfig != null) {
+                    double roundedAmount = applyRounding(finalAmount);
+                    amountPaidEditText.setText(String.valueOf(Math.round(roundedAmount)));
+                } else {
+                    amountPaidEditText.setText(String.valueOf(Math.round(finalAmount)));
+                }
+            }
         } else {
             // Calculate discount amount
             double discountPercentage = selectedDiscount.getAmount();
@@ -358,9 +532,14 @@ public class PaymentActivity extends AppCompatActivity {
             // Hide the now-redundant discounted total text view
             discountedTotalTextView.setVisibility(View.GONE);
 
-            // If this is a cash payment, update the amount paid field to match the new total
+            // If this is a cash payment, update the amount paid field to match the new total with rounding
             if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaidEditText.isEnabled()) {
-                amountPaidEditText.setText(String.valueOf(Math.round(newTotal)));
+                if (roundingConfig != null) {
+                    double roundedAmount = applyRounding(newTotal);
+                    amountPaidEditText.setText(String.valueOf(Math.round(roundedAmount)));
+                } else {
+                    amountPaidEditText.setText(String.valueOf(Math.round(newTotal)));
+                }
             }
         }
 
@@ -519,8 +698,14 @@ public class PaymentActivity extends AppCompatActivity {
         String formattedTotal = formatPriceWithCurrency(finalAmount);
         orderTotalTextView.setText(getString(R.string.order_total_format, formattedTotal));
 
-        // Set initial amount paid to match final amount
-        amountPaidEditText.setText(String.valueOf(Math.round(finalAmount)));
+        // If rounding config is available, use rounded amount
+        // Otherwise, use regular amount and update later when config is loaded
+        if (roundingConfig != null) {
+            double roundedAmount = applyRounding(finalAmount);
+            amountPaidEditText.setText(String.valueOf(Math.round(roundedAmount)));
+        } else {
+            amountPaidEditText.setText(String.valueOf(Math.round(finalAmount)));
+        }
 
         // Initial change calculation (zero if exact amount)
         updateChangeDisplay();
@@ -551,9 +736,16 @@ public class PaymentActivity extends AppCompatActivity {
                                 // Cash needs change calculation
                                 amountPaidEditText.setEnabled(true);
                                 Log.d(TAG, "Enabled amount input for cash payment");
+
+                                // Update with rounded amount for cash
+                                updateAmountPaidWithRounding();
                             } else {
-                                // Non-cash payments typically match total exactly
-                                amountPaidEditText.setText(String.valueOf(Math.round(finalAmount))); // Use finalAmount
+                                // Non-cash payments typically match total exactly (no rounding)
+                                double amountToPay = finalAmount;
+                                if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+                                    amountToPay = finalAmount - discountedAmount;
+                                }
+                                amountPaidEditText.setText(String.valueOf(Math.round(amountToPay)));
                                 amountPaidEditText.setEnabled(false);
                                 Log.d(TAG, "Disabled amount input for non-cash payment");
                             }
@@ -802,26 +994,37 @@ public class PaymentActivity extends AppCompatActivity {
                 amountToPay = finalAmount - discountedAmount;
             }
 
-            // Calculate change based on discounted amount
+            // For cash payments, we need to consider the rounded amount for validation
+            double amountToCompare = amountToPay;
+            if ("cash".equalsIgnoreCase(selectedPaymentMethod) && roundingConfig != null) {
+                amountToCompare = applyRounding(amountToPay);
+            }
+
+            // Calculate change based on the appropriate amount
             double change = amountPaid - amountToPay;
 
             // Update change display
             String formattedChange = formatPriceWithCurrency(Math.max(0, change));
             changeTextView.setText(getString(R.string.change_format, formattedChange));
 
-            // Validate if payment is sufficient
-            if (amountPaid < amountToPay && "cash".equalsIgnoreCase(selectedPaymentMethod)) {
+            // Validate if payment is sufficient - using the appropriate amount for comparison
+            if (amountPaid < amountToCompare && "cash".equalsIgnoreCase(selectedPaymentMethod)) {
                 changeTextView.setTextColor(getResources().getColor(R.color.colorError));
                 processPaymentButton.setEnabled(false);
+                Log.d(TAG, "Payment button disabled: amount paid (" + amountPaid +
+                        ") is less than amount to pay after rounding (" + amountToCompare + ")");
             } else {
                 changeTextView.setTextColor(getResources().getColor(R.color.colorNormal));
                 processPaymentButton.setEnabled(true);
+                Log.d(TAG, "Payment button enabled: amount paid (" + amountPaid +
+                        ") is sufficient for amount to pay (" + amountToCompare + ")");
             }
         } catch (NumberFormatException e) {
             // Invalid amount format
             changeTextView.setText(getString(R.string.invalid_amount));
             changeTextView.setTextColor(getResources().getColor(R.color.colorError));
             processPaymentButton.setEnabled(false);
+            Log.e(TAG, "Invalid amount format", e);
         }
     }
 
@@ -833,10 +1036,18 @@ public class PaymentActivity extends AppCompatActivity {
             amountToPay = finalAmount - discountedAmount;
         }
 
-        Log.d(TAG, "Amount to pay: " + amountToPay + ", Amount paid: " + amountPaid);
+        // For cash payments, use the rounded amount for validation
+        double amountToValidate = amountToPay;
+        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && roundingConfig != null) {
+            amountToValidate = applyRounding(amountToPay);
+        }
+
+        Log.d(TAG, "Amount to pay: " + amountToPay +
+                ", Amount after rounding: " + amountToValidate +
+                ", Amount paid: " + amountPaid);
 
         // Validate payment
-        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaid < amountToPay) {
+        if ("cash".equalsIgnoreCase(selectedPaymentMethod) && amountPaid < amountToValidate) {
             Toast.makeText(this, R.string.insufficient_payment, Toast.LENGTH_SHORT).show();
             return;
         }
