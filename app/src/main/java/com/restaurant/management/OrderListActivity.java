@@ -13,6 +13,9 @@ import android.widget.EditText;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.ArrayAdapter;
+import android.widget.Spinner;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -23,6 +26,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.restaurant.management.adapters.OrderAdapter;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
+import com.restaurant.management.models.OrderType;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -41,6 +45,8 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class OrderListActivity extends AppCompatActivity implements OrderAdapter.OnOrderClickListener {
+    private static final String ORDER_TYPES_API_URL = "https://api.pood.lol/order-types/";
+
     private static final String TAG = "OrderListActivity";
     private static final String ORDERS_API_URL = "https://api.pood.lol/orders";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
@@ -55,6 +61,8 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
     private EditText searchEditText;
     private long sessionId = -1;
     private OkHttpClient client = new OkHttpClient();
+    private List<OrderType> orderTypesList = new ArrayList<>();
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -374,7 +382,9 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         // Create dialog view
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_create_order, null);
 
-        // Get views from dialog layout using EditText instead of TextInputEditText
+        // Get views from dialog layout
+        Spinner orderTypeSpinner = dialogView.findViewById(R.id.order_type_spinner);
+        ProgressBar orderTypeProgress = dialogView.findViewById(R.id.order_type_progress);
         EditText tableNumberEditText = dialogView.findViewById(R.id.table_number_edit_text);
         EditText customerNameEditText = dialogView.findViewById(R.id.customer_name_edit_text);
 
@@ -389,44 +399,172 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         AlertDialog dialog = builder.create();
         dialog.show();
 
-        // Get the positive button and set custom click listener to prevent auto-dismiss on validation errors
+        // Fetch order types and populate spinner
+        fetchOrderTypes(orderTypeSpinner, orderTypeProgress);
+
+        // Get the positive button and set custom click listener
         Button positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
         positiveButton.setOnClickListener(v -> {
-            // Get table number
+            // Get form values
             String tableNumber = tableNumberEditText.getText().toString().trim();
             String customerName = customerNameEditText.getText().toString().trim();
 
-            // Validate table number
+            /// Get selected order type
+            OrderType selectedOrderType = null;
+            if (orderTypeSpinner.getSelectedItem() != null && orderTypeSpinner.getSelectedItemPosition() > 0) {
+                selectedOrderType = (OrderType) orderTypeSpinner.getSelectedItem();
+            }
+
+            // Validate required fields
+            if (selectedOrderType == null) {
+                Toast.makeText(this, R.string.please_select_order_type, Toast.LENGTH_SHORT).show();
+                return;
+            }
+
             if (tableNumber.isEmpty()) {
                 tableNumberEditText.setError(getString(R.string.required_field));
                 return;
             }
 
             // Show loading state
-            // We'll use a toast for loading indication since your layout doesn't have a progress bar
             Toast loadingToast = Toast.makeText(this, R.string.creating_order, Toast.LENGTH_LONG);
             loadingToast.show();
 
             // Disable input during API call
             positiveButton.setEnabled(false);
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setEnabled(false);
+            orderTypeSpinner.setEnabled(false);
             tableNumberEditText.setEnabled(false);
             customerNameEditText.setEnabled(false);
 
-            // Create order
-            createOrder(tableNumber, customerName, dialog, loadingToast, positiveButton,
-                    dialog.getButton(AlertDialog.BUTTON_NEGATIVE), tableNumberEditText, customerNameEditText);
+            // Create order with order type
+            createOrderWithType(tableNumber, customerName, selectedOrderType, dialog, loadingToast,
+                    positiveButton, dialog.getButton(AlertDialog.BUTTON_NEGATIVE),
+                    orderTypeSpinner, tableNumberEditText, customerNameEditText);
         });
     }
 
-    private void createOrder(String tableNumber, String customerName, AlertDialog dialog,
-                             Toast loadingToast, Button positiveButton, Button negativeButton,
-                             EditText tableNumberEditText, EditText customerNameEditText) {
+    private void fetchOrderTypes(Spinner orderTypeSpinner, ProgressBar orderTypeProgress) {
+        // Show loading
+        orderTypeProgress.setVisibility(View.VISIBLE);
+        orderTypeSpinner.setEnabled(false);
+
+        // Get auth token
+        String authToken = getAuthToken();
+
+        // Create request
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(ORDER_TYPES_API_URL)
+                .header("Cache-Control", "no-cache");
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        // Execute the request
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to fetch order types", e);
+                runOnUiThread(() -> {
+                    orderTypeProgress.setVisibility(View.GONE);
+                    orderTypeSpinner.setEnabled(true);
+
+                    // Use fallback data
+                    setupOrderTypeSpinner(orderTypeSpinner, getFallbackOrderTypes());
+                    Toast.makeText(OrderListActivity.this,
+                            "Using offline order types", Toast.LENGTH_SHORT).show();
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "Order types response: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONObject jsonResponse = new JSONObject(responseBody);
+
+                        if ("success".equals(jsonResponse.optString("status"))) {
+                            JSONArray dataArray = jsonResponse.getJSONArray("data");
+                            List<OrderType> orderTypes = new ArrayList<>();
+
+                            for (int i = 0; i < dataArray.length(); i++) {
+                                JSONObject orderTypeJson = dataArray.getJSONObject(i);
+                                OrderType orderType = new OrderType();
+                                orderType.setId(orderTypeJson.optLong("id"));
+                                orderType.setName(orderTypeJson.optString("name"));
+                                orderTypes.add(orderType);
+                            }
+
+                            runOnUiThread(() -> {
+                                orderTypeProgress.setVisibility(View.GONE);
+                                orderTypeSpinner.setEnabled(true);
+                                setupOrderTypeSpinner(orderTypeSpinner, orderTypes);
+                            });
+                        } else {
+                            throw new IOException("API returned non-success status");
+                        }
+                    } else {
+                        throw new IOException("HTTP error: " + response.code());
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing order types response", e);
+                    runOnUiThread(() -> {
+                        orderTypeProgress.setVisibility(View.GONE);
+                        orderTypeSpinner.setEnabled(true);
+
+                        // Use fallback data
+                        setupOrderTypeSpinner(orderTypeSpinner, getFallbackOrderTypes());
+                        Toast.makeText(OrderListActivity.this,
+                                "Using offline order types", Toast.LENGTH_SHORT).show();
+                    });
+                }
+            }
+        });
+    }
+
+    private void setupOrderTypeSpinner(Spinner orderTypeSpinner, List<OrderType> orderTypes) {
+        orderTypesList = orderTypes;
+
+        // Add a placeholder at the beginning
+        List<OrderType> spinnerItems = new ArrayList<>();
+        spinnerItems.add(new OrderType(0, "Select Order Type")); // Placeholder
+        spinnerItems.addAll(orderTypes);
+
+        ArrayAdapter<OrderType> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, spinnerItems);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        orderTypeSpinner.setAdapter(adapter);
+    }
+
+    // Add this method to provide fallback data
+    private List<OrderType> getFallbackOrderTypes() {
+        List<OrderType> fallbackTypes = new ArrayList<>();
+        fallbackTypes.add(new OrderType(1, "Dine In"));
+        fallbackTypes.add(new OrderType(2, "Take Away"));
+        fallbackTypes.add(new OrderType(3, "GoFood"));
+        fallbackTypes.add(new OrderType(4, "GrabFood"));
+        fallbackTypes.add(new OrderType(5, "ShopeeFood"));
+        fallbackTypes.add(new OrderType(6, "Self Order"));
+        return fallbackTypes;
+    }
+
+    private void createOrderWithType(String tableNumber, String customerName, OrderType orderType,
+                                     AlertDialog dialog, Toast loadingToast, Button positiveButton,
+                                     Button negativeButton, Spinner orderTypeSpinner,
+                                     EditText tableNumberEditText, EditText customerNameEditText) {
+        // ... rest of the method remains the same as before
         try {
             // Create JSON payload
             JSONObject orderData = new JSONObject();
             orderData.put("table_number", tableNumber);
             orderData.put("cashier_session_id", sessionId);
+            orderData.put("order_type_id", orderType.getId()); // Add order type ID
 
             // Add customer name if provided
             if (!customerName.isEmpty()) {
@@ -457,18 +595,10 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                 public void onFailure(Call call, IOException e) {
                     Log.e(TAG, "API request failed", e);
                     runOnUiThread(() -> {
-                        // Cancel loading toast
                         loadingToast.cancel();
-
-                        // Restore dialog state
-                        positiveButton.setEnabled(true);
-                        negativeButton.setEnabled(true);
-                        tableNumberEditText.setEnabled(true);
-                        customerNameEditText.setEnabled(true);
-
-                        // Show error
-                        Toast.makeText(OrderListActivity.this,
-                                R.string.network_error, Toast.LENGTH_SHORT).show();
+                        restoreDialogStateSpinner(positiveButton, negativeButton, orderTypeSpinner,
+                                tableNumberEditText, customerNameEditText);
+                        Toast.makeText(OrderListActivity.this, R.string.network_error, Toast.LENGTH_SHORT).show();
                     });
                 }
 
@@ -481,88 +611,37 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                     try {
                         if (response.isSuccessful()) {
                             JSONObject jsonResponse = new JSONObject(responseBody);
-
-                            // Check for success status in the response
                             String status = jsonResponse.optString("status", "");
 
                             if ("success".equals(status)) {
-                                // Order created successfully
-                                JSONObject data = jsonResponse.getJSONObject("data");
-                                long orderId = data.optLong("id", -1);
-
                                 runOnUiThread(() -> {
-                                    // Cancel loading toast
                                     loadingToast.cancel();
-
-                                    // Dismiss dialog
                                     dialog.dismiss();
-
-                                    // Show success message
                                     Toast.makeText(OrderListActivity.this,
-                                            R.string.order_created_successfully,
+                                            getString(R.string.order_created_successfully) +
+                                                    " (" + orderType.getName() + ")",
                                             Toast.LENGTH_SHORT).show();
-
-                                    // Refresh orders list
                                     fetchOrders();
                                 });
                             } else {
-                                // API returned non-success status
-                                String message = jsonResponse.optString("message",
-                                        getString(R.string.order_creation_failed));
-
+                                String message = jsonResponse.optString("message", getString(R.string.order_creation_failed));
                                 runOnUiThread(() -> {
-                                    // Cancel loading toast
                                     loadingToast.cancel();
-
-                                    // Restore dialog state
-                                    positiveButton.setEnabled(true);
-                                    negativeButton.setEnabled(true);
-                                    tableNumberEditText.setEnabled(true);
-                                    customerNameEditText.setEnabled(true);
-
-                                    // Show error
+                                    restoreDialogStateSpinner(positiveButton, negativeButton, orderTypeSpinner,
+                                            tableNumberEditText, customerNameEditText);
                                     Toast.makeText(OrderListActivity.this, message, Toast.LENGTH_SHORT).show();
                                 });
                             }
                         } else {
-                            // HTTP error response
-                            String errorMessage;
-                            try {
-                                JSONObject errorJson = new JSONObject(responseBody);
-                                errorMessage = errorJson.optString("message",
-                                        getString(R.string.order_creation_failed));
-                            } catch (JSONException e) {
-                                errorMessage = getString(R.string.order_creation_failed);
-                            }
-
-                            final String finalErrorMessage = errorMessage;
-                            runOnUiThread(() -> {
-                                // Cancel loading toast
-                                loadingToast.cancel();
-
-                                // Restore dialog state
-                                positiveButton.setEnabled(true);
-                                negativeButton.setEnabled(true);
-                                tableNumberEditText.setEnabled(true);
-                                customerNameEditText.setEnabled(true);
-
-                                // Show error
-                                Toast.makeText(OrderListActivity.this, finalErrorMessage, Toast.LENGTH_SHORT).show();
-                            });
+                            handleErrorResponseSpinner(responseBody, loadingToast, positiveButton, negativeButton,
+                                    orderTypeSpinner, tableNumberEditText, customerNameEditText);
                         }
                     } catch (JSONException e) {
                         Log.e(TAG, "Error parsing response", e);
                         runOnUiThread(() -> {
-                            // Cancel loading toast
                             loadingToast.cancel();
-
-                            // Restore dialog state
-                            positiveButton.setEnabled(true);
-                            negativeButton.setEnabled(true);
-                            tableNumberEditText.setEnabled(true);
-                            customerNameEditText.setEnabled(true);
-
-                            // Show error
+                            restoreDialogStateSpinner(positiveButton, negativeButton, orderTypeSpinner,
+                                    tableNumberEditText, customerNameEditText);
                             Toast.makeText(OrderListActivity.this,
                                     getString(R.string.error_processing_response, e.getMessage()),
                                     Toast.LENGTH_SHORT).show();
@@ -573,20 +652,43 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
 
         } catch (Exception e) {
             Log.e(TAG, "Error creating order request", e);
-            // Cancel loading toast
             loadingToast.cancel();
-
-            // Restore dialog state
-            positiveButton.setEnabled(true);
-            negativeButton.setEnabled(true);
-            tableNumberEditText.setEnabled(true);
-            customerNameEditText.setEnabled(true);
-
-            // Show error
-            Toast.makeText(this,
-                    getString(R.string.error_creating_request, e.getMessage()),
-                    Toast.LENGTH_SHORT).show();
+            restoreDialogStateSpinner(positiveButton, negativeButton, orderTypeSpinner,
+                    tableNumberEditText, customerNameEditText);
+            Toast.makeText(this, getString(R.string.error_creating_request, e.getMessage()), Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void restoreDialogStateSpinner(Button positiveButton, Button negativeButton,
+                                           Spinner orderTypeSpinner,
+                                           EditText tableNumberEditText, EditText customerNameEditText) {
+        positiveButton.setEnabled(true);
+        negativeButton.setEnabled(true);
+        orderTypeSpinner.setEnabled(true);
+        tableNumberEditText.setEnabled(true);
+        customerNameEditText.setEnabled(true);
+    }
+
+    // Add this helper method to handle error responses
+    private void handleErrorResponseSpinner(String responseBody, Toast loadingToast,
+                                            Button positiveButton, Button negativeButton,
+                                            Spinner orderTypeSpinner,
+                                            EditText tableNumberEditText, EditText customerNameEditText) {
+        String errorMessage;
+        try {
+            JSONObject errorJson = new JSONObject(responseBody);
+            errorMessage = errorJson.optString("message", getString(R.string.order_creation_failed));
+        } catch (JSONException e) {
+            errorMessage = getString(R.string.order_creation_failed);
+        }
+
+        final String finalErrorMessage = errorMessage;
+        runOnUiThread(() -> {
+            loadingToast.cancel();
+            restoreDialogStateSpinner(positiveButton, negativeButton, orderTypeSpinner,
+                    tableNumberEditText, customerNameEditText);
+            Toast.makeText(OrderListActivity.this, finalErrorMessage, Toast.LENGTH_SHORT).show();
+        });
     }
 
     private String getAuthToken() {

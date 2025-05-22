@@ -302,4 +302,7 @@
     <!-- Other existing strings that might be needed -->
     <string name="add_to_order">Add to Order</string>
     <string name="menu_item_image">Menu item image</string>
+
+    <string name="order_type">Order Type</string>
+    <string name="please_select_order_type">Please select an order type</string>
 </resources>

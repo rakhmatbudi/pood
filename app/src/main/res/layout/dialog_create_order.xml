@@ -5,10 +5,37 @@
     android:orientation="vertical"
     android:padding="16dp">
 
+    <!-- Order Type Spinner -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/order_type"
+        android:textSize="12sp"
+        android:textColor="@android:color/darker_gray"
+        android:layout_marginBottom="4dp" />
+
+    <Spinner
+        android:id="@+id/order_type_spinner"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@android:drawable/editbox_background"
+        android:padding="12dp" />
+
+    <!-- Loading indicator for order types -->
+    <ProgressBar
+        android:id="@+id/order_type_progress"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:layout_marginTop="8dp"
+        android:visibility="gone"
+        style="?android:attr/progressBarStyleSmall" />
+
     <!-- Table Number -->
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
         android:hint="@string/table_number">
 
         <com.google.android.material.textfield.TextInputEditText
