@@ -34,6 +34,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
     @Override
     public void onBindViewHolder(@NonNull OrderItemViewHolder holder, int position) {
         OrderItem item = orderItems.get(position);
+        holder.itemNameTextView.setText(item.getDisplayName());
         holder.bind(item);
     }
 
@@ -59,8 +60,8 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
         }
 
         public void bind(OrderItem item) {
-            // Set item name
-            itemNameTextView.setText(item.getMenuItemName());
+            // Set item name with variant - use getDisplayName() instead of getMenuItemName()
+            itemNameTextView.setText(item.getDisplayName());
 
             // Set quantity
             itemQuantityTextView.setText(String.valueOf(item.getQuantity()) + "x");
@@ -76,8 +77,6 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
             } else {
                 itemNotesTextView.setVisibility(View.GONE);
             }
-
-            // Removed setting of unit price, kitchen status, and item status
         }
 
         private String formatPriceWithCurrency(double price) {

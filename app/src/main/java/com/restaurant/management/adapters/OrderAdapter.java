@@ -67,6 +67,8 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             LinearLayoutManager layoutManager = new LinearLayoutManager(context);
             holder.orderItemsRecyclerView.setLayoutManager(layoutManager);
 
+
+
             // Create and set the adapter
             OrderItemCompactAdapter itemsAdapter = new OrderItemCompactAdapter(orderItems, context);
             holder.orderItemsRecyclerView.setAdapter(itemsAdapter);

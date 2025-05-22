@@ -293,6 +293,13 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                         item.setVariantId(itemJson.optLong("variant_id", -1));
                     }
 
+                    // ADD THIS - Parse variant name
+                    if (!itemJson.isNull("variant_name")) {
+                        item.setVariantName(itemJson.optString("variant_name", ""));
+                    } else {
+                        item.setVariantName(null);
+                    }
+
                     item.setQuantity(itemJson.optInt("quantity", 0));
                     item.setUnitPrice(itemJson.optDouble("unit_price", 0));
                     item.setTotalPrice(itemJson.optDouble("total_price", 0));
@@ -309,7 +316,6 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                     orderItems.add(item);
                 }
 
-                // Use setItems instead of setOrderItems based on your Order class
                 order.setItems(orderItems);
             }
 

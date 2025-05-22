@@ -371,6 +371,13 @@ public class OrderActivity extends AppCompatActivity {
             item.setVariantId(null); // Explicitly set to null if it's null in the JSON
         }
 
+        // Parse variant name directly from the API response
+        if (!itemJson.isNull("variant_name")) {
+            item.setVariantName(itemJson.optString("variant_name", ""));
+        } else {
+            item.setVariantName(null);
+        }
+
         item.setQuantity(itemJson.optInt("quantity", 0));
         item.setUnitPrice(itemJson.optDouble("unit_price", 0.0));
         item.setTotalPrice(itemJson.optDouble("total_price", 0.0));

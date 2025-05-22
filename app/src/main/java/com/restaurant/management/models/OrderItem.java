@@ -8,7 +8,8 @@ public class OrderItem {
     private long orderId;
     private long menuItemId;
     private String menuItemName;
-    private Long variantId;  // Changed from 'long' to 'Long' to support null values
+    private Long variantId;
+    private String variantName;
     private int quantity;
     private double unitPrice;
     private double totalPrice;
@@ -125,6 +126,23 @@ public class OrderItem {
 
     public void setUpdatedAt(String updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getVariantName() {
+        return variantName;
+    }
+
+    public void setVariantName(String variantName) {
+        this.variantName = variantName;
+    }
+
+    // Method to get display name with variant
+    public String getDisplayName() {
+        String name = menuItemName != null ? menuItemName : "";
+        if (variantName != null && !variantName.isEmpty()) {
+            name += " (" + variantName + ")";
+        }
+        return name;
     }
 
     @Override

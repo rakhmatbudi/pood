@@ -1,6 +1,7 @@
 package com.restaurant.management.adapters;
 
 import android.content.Context;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -14,7 +15,8 @@ import com.restaurant.management.models.OrderItem;
 
 import java.util.List;
 
-public class OrderItemCompactAdapter extends RecyclerView.Adapter<OrderItemCompactAdapter.OrderItemViewHolder> {
+public class OrderItemCompactAdapter extends RecyclerView.Adapter<OrderItemCompactAdapter.ViewHolder> {
+    private static final String TAG = "OrderItemCompact";
     private List<OrderItem> orderItems;
     private Context context;
 
@@ -25,45 +27,47 @@ public class OrderItemCompactAdapter extends RecyclerView.Adapter<OrderItemCompa
 
     @NonNull
     @Override
-    public OrderItemViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context)
-                .inflate(R.layout.item_order_item, parent, false);
-        return new OrderItemViewHolder(view);
+    public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        View view = LayoutInflater.from(parent.getContext())
+                .inflate(R.layout.item_order_item_compact, parent, false);
+        return new ViewHolder(view);
     }
 
     @Override
-    public void onBindViewHolder(@NonNull OrderItemViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
         OrderItem item = orderItems.get(position);
         holder.bind(item);
     }
 
     @Override
     public int getItemCount() {
-        return orderItems != null ? orderItems.size() : 0;
+        return orderItems.size();
     }
 
-    public class OrderItemViewHolder extends RecyclerView.ViewHolder {
-        private TextView itemQuantityTextView;
+    class ViewHolder extends RecyclerView.ViewHolder {
         private TextView itemNameTextView;
-        private TextView itemPriceTextView;
+        private TextView quantityTextView;
+        private TextView priceTextView;
 
-        public OrderItemViewHolder(@NonNull View itemView) {
+        ViewHolder(@NonNull View itemView) {
             super(itemView);
-            itemQuantityTextView = itemView.findViewById(R.id.item_quantity);
-            itemNameTextView = itemView.findViewById(R.id.item_name);
-            itemPriceTextView = itemView.findViewById(R.id.item_price);
+            itemNameTextView = itemView.findViewById(R.id.item_name_text_view);
+            quantityTextView = itemView.findViewById(R.id.quantity_text_view);
+            priceTextView = itemView.findViewById(R.id.price_text_view);
         }
 
-        public void bind(OrderItem item) {
-            // Set quantity
-            itemQuantityTextView.setText(String.valueOf(item.getQuantity()) + "x");
+        void bind(OrderItem item) {
+            // Format item name with variant if available using getDisplayName()
+            String displayName = item.getDisplayName();
+            Log.d(TAG, "Binding item: " + item.getMenuItemName() + " with variant: " + item.getVariantName() + " = " + displayName);
+            itemNameTextView.setText(displayName);
 
-            // Set item name
-            itemNameTextView.setText(item.getMenuItemName());
+            // Set quantity
+            quantityTextView.setText(String.valueOf(item.getQuantity()));
 
             // Format and set price
             String formattedPrice = formatPriceWithCurrency(item.getTotalPrice());
-            itemPriceTextView.setText(formattedPrice);
+            priceTextView.setText(formattedPrice);
         }
 
         private String formatPriceWithCurrency(double price) {
