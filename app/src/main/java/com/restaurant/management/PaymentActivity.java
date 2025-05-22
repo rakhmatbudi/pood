@@ -84,12 +84,12 @@ public class PaymentActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.d(TAG, "=================== PaymentActivity onCreate START ===================");
+        //Log.d(TAG, "=================== PaymentActivity onCreate START ===================");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_payment);
 
-        Log.d(TAG, "PaymentActivity onCreate started");
-        Log.d(TAG, "Intent extras: " + (getIntent().getExtras() != null ? getIntent().getExtras().toString() : "null"));
+        //Log.d(TAG, "PaymentActivity onCreate started");
+        //Log.d(TAG, "Intent extras: " + (getIntent().getExtras() != null ? getIntent().getExtras().toString() : "null"));
 
         // Initialize toolbar
         Toolbar toolbar = findViewById(R.id.toolbar);
