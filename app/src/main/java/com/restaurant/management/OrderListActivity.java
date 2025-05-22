@@ -141,16 +141,18 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         ordersRecyclerView.setVisibility(View.GONE);
         emptyView.setVisibility(View.GONE);
 
-        // Build the URL with session ID
-        String apiUrl = ORDERS_API_URL + "/open/sessions/" + sessionId;
+        // Build the URL with session ID and cache-busting parameter
+        String apiUrl = ORDERS_API_URL + "/open/sessions/" + sessionId + "?t=" + System.currentTimeMillis();
         Log.d(TAG, "Fetching orders from: " + apiUrl);
 
         // Get the auth token
         String authToken = getAuthToken();
 
-        // Create request with token
+        // Create request with token and cache control headers
         Request.Builder requestBuilder = new Request.Builder()
-                .url(apiUrl);
+                .url(apiUrl)
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache");
 
         // Add authorization header if token is available
         if (authToken != null && !authToken.isEmpty()) {

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Resto"
+rootProject.name = "Pood"
 include(":app")
