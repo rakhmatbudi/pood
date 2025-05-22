@@ -9,6 +9,8 @@ import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.os.Handler;
+import android.os.Looper;
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -125,9 +127,12 @@ public class OrderActivity extends AppCompatActivity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == ADD_ITEM_REQUEST_CODE && resultCode == RESULT_OK) {
-            // Refresh order details when an item is added
-            fetchOrderDetails(orderId);
-            Toast.makeText(this, R.string.order_updated, Toast.LENGTH_SHORT).show();
+            // Add a small delay to ensure the server has processed the new item
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                // Refresh order details when an item is added
+                fetchOrderDetails(orderId);
+                Toast.makeText(this, R.string.order_updated, Toast.LENGTH_SHORT).show();
+            }, 500); // 500ms delay
         } else if (requestCode == PAYMENT_REQUEST_CODE && resultCode == RESULT_OK) {
             // Payment was successful, refresh order to show closed status
             fetchOrderDetails(orderId);
@@ -197,16 +202,18 @@ public class OrderActivity extends AppCompatActivity {
         progressBar.setVisibility(View.VISIBLE);
         contentLayout.setVisibility(View.GONE);
 
-        // Build the URL
-        String apiUrl = BASE_API_URL + orderId;
+        // Build the URL with cache-busting parameter
+        String apiUrl = BASE_API_URL + orderId + "?t=" + System.currentTimeMillis();
         Log.d(TAG, "Fetching order details from: " + apiUrl);
 
         // Get the auth token
         String authToken = getAuthToken();
 
-        // Create request with token
+        // Create request with token and cache control headers
         Request.Builder requestBuilder = new Request.Builder()
-                .url(apiUrl);
+                .url(apiUrl)
+                .header("Cache-Control", "no-cache")
+                .header("Pragma", "no-cache");
 
         // Add authorization header if token is available
         if (authToken != null && !authToken.isEmpty()) {
