@@ -18,6 +18,10 @@ public class Order implements Serializable {
     private String customerName; // Add this field
     private long serverId; // Add this field
 
+    // ADD THESE NEW FIELDS FOR ORDER TYPE
+    private Long orderTypeId;
+    private String orderTypeName;
+
     // Constructor
     public Order() {
         items = new ArrayList<>();
@@ -115,6 +119,23 @@ public class Order implements Serializable {
 
     public void setServerId(long serverId) {
         this.serverId = serverId;
+    }
+
+    // ADD THESE NEW GETTER AND SETTER METHODS FOR ORDER TYPE
+    public Long getOrderTypeId() {
+        return orderTypeId;
+    }
+
+    public void setOrderTypeId(Long orderTypeId) {
+        this.orderTypeId = orderTypeId;
+    }
+
+    public String getOrderTypeName() {
+        return orderTypeName;
+    }
+
+    public void setOrderTypeName(String orderTypeName) {
+        this.orderTypeName = orderTypeName;
     }
 
     // Additional helper methods

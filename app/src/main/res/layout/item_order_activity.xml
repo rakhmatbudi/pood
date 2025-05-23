@@ -15,32 +15,29 @@
         android:layout_height="wrap_content"
         android:padding="16dp">
 
-        <!-- Table Number - first element in the top row -->
+        <!-- Order Number - first element in the top row -->
         <TextView
-            android:id="@+id/table_number_text_view"
+            android:id="@+id/order_number_text_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:textSize="16sp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            tools:text="Table: 5" />
+            tools:text="Order #123" />
 
-        <!-- Customer Name - middle element in the top row -->
+        <!-- Table Number - second element in the top row -->
         <TextView
-            android:id="@+id/customer_name_text_view"
-            android:layout_width="0dp"
+            android:id="@+id/table_number_text_view"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:ellipsize="end"
-            android:maxLines="1"
-            android:textSize="14sp"
-            app:layout_constraintEnd_toStartOf="@+id/time_text_view"
-            app:layout_constraintStart_toEndOf="@+id/table_number_text_view"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:layout_constraintStart_toEndOf="@+id/order_number_text_view"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@+id/table_number_text_view"
-            tools:text="John Doe" />
+            app:layout_constraintBottom_toBottomOf="@+id/order_number_text_view"
+            tools:text="Table: 5" />
 
         <!-- Time - end element in the top row -->
         <TextView
@@ -51,8 +48,41 @@
             android:textColor="@android:color/darker_gray"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent"
-            app:layout_constraintBottom_toBottomOf="@+id/table_number_text_view"
+            app:layout_constraintBottom_toBottomOf="@+id/order_number_text_view"
             tools:text="May 11, 10:30" />
+
+        <!-- Customer Name and Order Type Row -->
+        <TextView
+            android:id="@+id/customer_text_view"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:layout_marginEnd="8dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textSize="14sp"
+            app:layout_constraintEnd_toStartOf="@+id/order_type_text_view"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/order_number_text_view"
+            tools:text="John Doe" />
+
+        <!-- Order Type Badge -->
+        <TextView
+            android:id="@+id/order_type_text_view"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:background="@drawable/rounded_corner_bg"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:textColor="@android:color/white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/order_number_text_view"
+            tools:text="Dine In"
+            tools:visibility="visible" />
 
         <!-- Divider -->
         <View
@@ -63,52 +93,40 @@
             android:background="@android:color/darker_gray"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/table_number_text_view" />
+            app:layout_constraintTop_toBottomOf="@+id/customer_text_view" />
 
-        <!-- Items -->
-        <TextView
-            android:id="@+id/items_text_view"
+        <!-- Order Items RecyclerView -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/order_items_recycler_view"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:ellipsize="end"
-            android:maxLines="2"
+            android:nestedScrollingEnabled="false"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/divider"
-            tools:text="1x Nasi Goreng, 2x Ayam Bakar, 1x Lemon Tea" />
+            app:layout_constraintTop_toBottomOf="@+id/divider" />
 
         <!-- Footer: Total and Status -->
         <TextView
-            android:id="@+id/total_text_view"
+            android:id="@+id/order_total_text_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textSize="16sp"
             android:textStyle="bold"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/items_text_view"
+            app:layout_constraintTop_toBottomOf="@+id/order_items_recycler_view"
             tools:text="$45.50" />
 
         <TextView
-            android:id="@+id/status_label"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:layout_marginEnd="8dp"
-            android:text="@string/status"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toStartOf="@+id/status_text_view"
-            app:layout_constraintTop_toBottomOf="@+id/items_text_view" />
-
-        <TextView
-            android:id="@+id/status_text_view"
+            android:id="@+id/order_status_text_view"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:textSize="16sp"
             android:textStyle="bold"
             app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/items_text_view"
+            app:layout_constraintTop_toBottomOf="@+id/order_items_recycler_view"
             tools:text="Pending"
             tools:textColor="@color/status_pending" />
 

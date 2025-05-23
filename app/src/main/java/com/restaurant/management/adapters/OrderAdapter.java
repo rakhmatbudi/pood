@@ -2,6 +2,7 @@ package com.restaurant.management.adapters;
 
 import android.content.Context;
 import android.text.format.DateUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,6 +25,7 @@ import java.util.Locale;
 import java.util.TimeZone;
 
 public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHolder> {
+    private static final String TAG = "OrderAdapter";
     private List<Order> orders;
     private OnOrderClickListener listener;
     private Context context;
@@ -60,19 +62,17 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
 
         // Set up the nested RecyclerView for order items
         List<OrderItem> orderItems = order.getItems();
-        if (orderItems != null && !orderItems.isEmpty()) {
+        if (orderItems != null && !orderItems.isEmpty() && holder.orderItemsRecyclerView != null) {
             holder.orderItemsRecyclerView.setVisibility(View.VISIBLE);
 
             // Configure the RecyclerView
             LinearLayoutManager layoutManager = new LinearLayoutManager(context);
             holder.orderItemsRecyclerView.setLayoutManager(layoutManager);
 
-
-
             // Create and set the adapter
             OrderItemCompactAdapter itemsAdapter = new OrderItemCompactAdapter(orderItems, context);
             holder.orderItemsRecyclerView.setAdapter(itemsAdapter);
-        } else {
+        } else if (holder.orderItemsRecyclerView != null) {
             holder.orderItemsRecyclerView.setVisibility(View.GONE);
         }
     }
@@ -96,9 +96,12 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
         private TextView orderTotalTextView;
         private TextView timeTextView;
         private TextView customerTextView;
+        private TextView orderTypeTextView;
 
         OrderViewHolder(@NonNull View itemView) {
             super(itemView);
+
+            // Find all views with null checks and logging
             cardView = itemView.findViewById(R.id.order_card);
             orderNumberTextView = itemView.findViewById(R.id.order_number_text_view);
             tableNumberTextView = itemView.findViewById(R.id.table_number_text_view);
@@ -106,40 +109,84 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             orderTotalTextView = itemView.findViewById(R.id.order_total_text_view);
             timeTextView = itemView.findViewById(R.id.time_text_view);
             customerTextView = itemView.findViewById(R.id.customer_text_view);
-
+            orderTypeTextView = itemView.findViewById(R.id.order_type_text_view);
             orderItemsRecyclerView = itemView.findViewById(R.id.order_items_recycler_view);
 
-            cardView.setOnClickListener(v -> {
-                int position = getAdapterPosition();
-                if (position != RecyclerView.NO_POSITION) {
-                    listener.onOrderClick(orders.get(position));
-                }
-            });
+            // Log which views are null for debugging
+            if (orderNumberTextView == null) Log.e(TAG, "orderNumberTextView is null");
+            if (tableNumberTextView == null) Log.e(TAG, "tableNumberTextView is null");
+            if (orderStatusTextView == null) Log.e(TAG, "orderStatusTextView is null");
+            if (orderTotalTextView == null) Log.e(TAG, "orderTotalTextView is null");
+            if (timeTextView == null) Log.e(TAG, "timeTextView is null");
+            if (customerTextView == null) Log.e(TAG, "customerTextView is null");
+            if (orderTypeTextView == null) Log.e(TAG, "orderTypeTextView is null");
+            if (orderItemsRecyclerView == null) Log.e(TAG, "orderItemsRecyclerView is null");
+
+            if (cardView != null) {
+                cardView.setOnClickListener(v -> {
+                    int position = getAdapterPosition();
+                    if (position != RecyclerView.NO_POSITION && listener != null) {
+                        listener.onOrderClick(orders.get(position));
+                    }
+                });
+            }
         }
 
         void bind(Order order) {
-            // Set order details in views
-            orderNumberTextView.setText(context.getString(R.string.order_number_format,
-                    order.getOrderNumber()));
+            if (order == null) {
+                Log.e(TAG, "Order is null in bind method");
+                return;
+            }
 
-            tableNumberTextView.setText(context.getString(R.string.table_number_format,
-                    order.getTableNumber()));
+            // Set order number with null check
+            if (orderNumberTextView != null) {
+                orderNumberTextView.setText(context.getString(R.string.order_number_format,
+                        order.getOrderNumber()));
+            }
+
+            // Set table number with null check
+            if (tableNumberTextView != null) {
+                tableNumberTextView.setText(context.getString(R.string.table_number_format,
+                        order.getTableNumber()));
+            }
+
+            // Display order type if available
+            if (orderTypeTextView != null) {
+                if (order.getOrderTypeName() != null && !order.getOrderTypeName().isEmpty()) {
+                    orderTypeTextView.setText(order.getOrderTypeName());
+                    orderTypeTextView.setVisibility(View.VISIBLE);
+                } else {
+                    orderTypeTextView.setVisibility(View.GONE);
+                }
+            }
+
+            // Display status
+            if (orderStatusTextView != null) {
+                String formattedStatus = order.getFormattedStatus();
+                orderStatusTextView.setText(formattedStatus);
+            }
 
             // Format and set total amount
-            String formattedTotal = formatPriceWithCurrency(order.getTotalAmount());
-            orderTotalTextView.setText(context.getString(R.string.order_total_format, formattedTotal));
+            if (orderTotalTextView != null) {
+                String formattedTotal = formatPriceWithCurrency(order.getTotalAmount());
+                orderTotalTextView.setText(context.getString(R.string.order_total_format, formattedTotal));
+            }
 
             // Format and set time
-            String formattedTime = formatAPIDate(order.getCreatedAt());
-            timeTextView.setText(formattedTime);
+            if (timeTextView != null) {
+                String formattedTime = formatAPIDate(order.getCreatedAt());
+                timeTextView.setText(formattedTime);
+            }
 
             // Set customer name if available
-            if (order.getCustomerName() != null && !order.getCustomerName().isEmpty()) {
-                customerTextView.setText(context.getString(R.string.customer_name_format,
-                        order.getCustomerName()));
-                customerTextView.setVisibility(View.VISIBLE);
-            } else {
-                customerTextView.setVisibility(View.GONE);
+            if (customerTextView != null) {
+                if (order.getCustomerName() != null && !order.getCustomerName().isEmpty()) {
+                    customerTextView.setText(context.getString(R.string.customer_name_format,
+                            order.getCustomerName()));
+                    customerTextView.setVisibility(View.VISIBLE);
+                } else {
+                    customerTextView.setVisibility(View.GONE);
+                }
             }
         }
 
@@ -160,6 +207,7 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
 
                 return timeAgo.toString();
             } catch (ParseException e) {
+                Log.e(TAG, "Error parsing date: " + apiDateStr, e);
                 return apiDateStr; // Return original if parsing fails
             }
         }

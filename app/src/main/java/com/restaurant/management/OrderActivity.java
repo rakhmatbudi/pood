@@ -338,6 +338,15 @@ public class OrderActivity extends AppCompatActivity {
         // Set session ID
         order.setSessionId(orderJson.optLong("cashier_session_id", -1));
 
+        // Parse order type information - API provides both ID and name directly
+        if (!orderJson.isNull("order_type_id")) {
+            order.setOrderTypeId(orderJson.optLong("order_type_id", -1));
+        }
+
+        if (!orderJson.isNull("order_type_name")) {
+            order.setOrderTypeName(orderJson.optString("order_type_name", ""));
+        }
+
         // Process order items
         List<OrderItem> orderItems = new ArrayList<>();
         if (orderJson.has("order_items") && !orderJson.isNull("order_items")) {
@@ -412,9 +421,16 @@ public class OrderActivity extends AppCompatActivity {
             customerNameTextView.setVisibility(View.GONE);
         }
 
-        // Display status
+        // Display status with order type (if available)
         String formattedStatus = order.getFormattedStatus();
-        orderStatusTextView.setText(getString(R.string.order_status_format, formattedStatus));
+        String statusText;
+        if (order.getOrderTypeName() != null && !order.getOrderTypeName().isEmpty()) {
+            statusText = getString(R.string.order_status_format, formattedStatus) +
+                    " • " + order.getOrderTypeName();
+        } else {
+            statusText = getString(R.string.order_status_format, formattedStatus);
+        }
+        orderStatusTextView.setText(statusText);
 
         // Format the total price
         String formattedTotal = formatPriceWithCurrency(order.getTotalAmount());
