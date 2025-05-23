@@ -41,6 +41,7 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 public class OrderActivity extends AppCompatActivity {
+    private static final int CANCEL_ITEM_REQUEST_CODE = 200;
     private static final int ADD_ITEM_REQUEST_CODE = 100;
     private static final int PAYMENT_REQUEST_CODE = 101;
     private static final String TAG = "OrderActivity";
@@ -150,6 +151,10 @@ public class OrderActivity extends AppCompatActivity {
             } else {
                 Toast.makeText(this, R.string.payment_completed, Toast.LENGTH_SHORT).show();
             }
+        } else if (requestCode == CANCEL_ITEM_REQUEST_CODE && resultCode == RESULT_OK) {
+            // Item was cancelled successfully, refresh order details
+            fetchOrderDetails(orderId);
+            Toast.makeText(this, "Order updated", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -448,10 +453,10 @@ public class OrderActivity extends AppCompatActivity {
         orderServerTextView.setText("Server: #" + order.getServerId());
         orderSessionTextView.setText("Session: #" + order.getSessionId());
 
-        // Set up recycler view for order items
+        // Set up recycler view for order items - UPDATED TO PASS CONTEXT
         List<OrderItem> orderItems = order.getItems();
         if (orderItems != null && !orderItems.isEmpty()) {
-            OrderItemAdapter adapter = new OrderItemAdapter(orderItems);
+            OrderItemAdapter adapter = new OrderItemAdapter(orderItems, this); // Pass context
             orderItemsRecyclerView.setAdapter(adapter);
         }
     }
