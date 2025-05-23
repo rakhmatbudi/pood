@@ -25,6 +25,7 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.restaurant.management.adapters.OrderAdapter;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
+import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.models.OrderType;
 
 import org.json.JSONArray;
@@ -45,6 +46,7 @@ import okhttp3.Response;
 
 public class OrderListActivity extends AppCompatActivity implements OrderAdapter.OnOrderClickListener {
     private static final String ORDER_TYPES_API_URL = "https://api.pood.lol/order-types/";
+    private static final String ORDER_STATUSES_API_URL = "https://api.pood.lol/order-statuses";
     private static final String TAG = "OrderListActivity";
     private static final String ORDERS_API_URL = "https://api.pood.lol/orders";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
@@ -57,9 +59,14 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
     private ProgressBar progressBar;
     private TextView emptyView;
     private EditText searchEditText;
+    private Spinner statusFilterSpinner;
     private long sessionId = -1;
     private OkHttpClient client = new OkHttpClient();
     private List<OrderType> orderTypesList = new ArrayList<>();
+    private List<OrderStatus> orderStatusesList = new ArrayList<>();
+
+    // Current filter state
+    private String currentStatusFilter = "open"; // Default to show only open orders
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -92,6 +99,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         progressBar = findViewById(R.id.progress_bar);
         emptyView = findViewById(R.id.empty_view);
         searchEditText = findViewById(R.id.search_edit_text);
+        statusFilterSpinner = findViewById(R.id.status_filter_spinner);
 
         // Set up RecyclerView
         ordersRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -112,7 +120,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                filterOrders(s.toString());
+                applyFilters();
             }
 
             @Override
@@ -127,8 +135,128 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             fabAddOrder.setOnClickListener(v -> showNewOrderDialog());
         }
 
-        // Fetch orders
-        fetchOrders();
+        // Fetch order statuses first, then orders
+        fetchOrderStatuses();
+    }
+
+    private void fetchOrderStatuses() {
+        // Get auth token
+        String authToken = getAuthToken();
+
+        // Create request
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(ORDER_STATUSES_API_URL)
+                .header("Cache-Control", "no-cache");
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        // Execute the request
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Failed to fetch order statuses", e);
+                runOnUiThread(() -> {
+                    // Use fallback data
+                    setupStatusFilterSpinner(getFallbackOrderStatuses());
+                    Toast.makeText(OrderListActivity.this,
+                            "Using offline order statuses", Toast.LENGTH_SHORT).show();
+                    // Continue with fetching orders
+                    fetchOrders();
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+                    Log.d(TAG, "Order statuses response: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        JSONArray statusesArray = new JSONArray(responseBody);
+                        List<OrderStatus> orderStatuses = new ArrayList<>();
+
+                        for (int i = 0; i < statusesArray.length(); i++) {
+                            JSONObject statusJson = statusesArray.getJSONObject(i);
+                            OrderStatus orderStatus = new OrderStatus();
+                            orderStatus.setId(statusJson.optLong("id"));
+                            orderStatus.setName(statusJson.optString("name"));
+                            orderStatus.setDescription(statusJson.optString("description"));
+                            orderStatuses.add(orderStatus);
+                        }
+
+                        runOnUiThread(() -> {
+                            setupStatusFilterSpinner(orderStatuses);
+                            // Continue with fetching orders
+                            fetchOrders();
+                        });
+                    } else {
+                        throw new IOException("HTTP error: " + response.code());
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error parsing order statuses response", e);
+                    runOnUiThread(() -> {
+                        // Use fallback data
+                        setupStatusFilterSpinner(getFallbackOrderStatuses());
+                        Toast.makeText(OrderListActivity.this,
+                                "Using offline order statuses", Toast.LENGTH_SHORT).show();
+                        // Continue with fetching orders
+                        fetchOrders();
+                    });
+                }
+            }
+        });
+    }
+
+    private void setupStatusFilterSpinner(List<OrderStatus> orderStatuses) {
+        orderStatusesList = orderStatuses;
+
+        // Add "All Orders" option at the beginning
+        List<OrderStatus> spinnerItems = new ArrayList<>();
+        spinnerItems.add(new OrderStatus(0, "all", "Show all orders")); // All option
+        spinnerItems.addAll(orderStatuses);
+
+        ArrayAdapter<OrderStatus> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, spinnerItems);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        statusFilterSpinner.setAdapter(adapter);
+
+        // Set default selection to "open" (find the index)
+        int defaultIndex = 0;
+        for (int i = 0; i < spinnerItems.size(); i++) {
+            if ("open".equals(spinnerItems.get(i).getName())) {
+                defaultIndex = i;
+                break;
+            }
+        }
+        statusFilterSpinner.setSelection(defaultIndex);
+
+        // Set up spinner listener
+        statusFilterSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
+                OrderStatus selectedStatus = (OrderStatus) parent.getItemAtPosition(position);
+                currentStatusFilter = selectedStatus.getName();
+                applyFilters();
+            }
+
+            @Override
+            public void onNothingSelected(android.widget.AdapterView<?> parent) {
+                // Do nothing
+            }
+        });
+    }
+
+    private List<OrderStatus> getFallbackOrderStatuses() {
+        List<OrderStatus> fallbackStatuses = new ArrayList<>();
+        fallbackStatuses.add(new OrderStatus(1, "open", "Order is open"));
+        fallbackStatuses.add(new OrderStatus(2, "closed", "Order has been paid"));
+        fallbackStatuses.add(new OrderStatus(3, "cancelled", "Order was cancelled"));
+        return fallbackStatuses;
     }
 
     @Override
@@ -150,8 +278,8 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         ordersRecyclerView.setVisibility(View.GONE);
         emptyView.setVisibility(View.GONE);
 
-        // Build the URL with session ID and cache-busting parameter
-        String apiUrl = ORDERS_API_URL + "/open/sessions/" + sessionId + "?t=" + System.currentTimeMillis();
+        // Build the URL - fetch ALL orders for the session, we'll filter locally
+        String apiUrl = ORDERS_API_URL + "/sessions/" + sessionId + "?t=" + System.currentTimeMillis();
         Log.d(TAG, "Fetching orders from: " + apiUrl);
 
         // Get the auth token
@@ -186,6 +314,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
+                    Log.d(TAG, "Response code: " + response.code());
                     Log.d(TAG, "Response: " + responseBody);
 
                     if (!response.isSuccessful()) {
@@ -193,9 +322,15 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                     }
 
                     JSONObject jsonResponse = new JSONObject(responseBody);
+
+                    // Check if response has the expected structure
+                    if (!jsonResponse.has("data")) {
+                        throw new IOException("Response missing 'data' field");
+                    }
+
                     JSONArray ordersArray = jsonResponse.getJSONArray("data");
 
-                    // Parse orders
+                    // Parse orders - no need to filter by session since API already does that
                     final List<Order> newOrders = new ArrayList<>();
                     for (int i = 0; i < ordersArray.length(); i++) {
                         JSONObject orderJson = ordersArray.getJSONObject(i);
@@ -208,16 +343,16 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                         // Update the master list
                         ordersList = newOrders;
 
-                        // Apply current filter - now on UI thread
-                        String currentFilter = searchEditText.getText().toString();
-                        filterOrders(currentFilter);
+                        // Apply current filters - now on UI thread
+                        applyFilters();
 
                         // Update UI state
                         swipeRefreshLayout.setRefreshing(false);
                         progressBar.setVisibility(View.GONE);
 
                         if (filteredOrdersList.isEmpty()) {
-                            showEmptyView(getString(R.string.no_orders_found));
+                            String emptyMessage = getEmptyMessage();
+                            showEmptyView(emptyMessage);
                         } else {
                             ordersRecyclerView.setVisibility(View.VISIBLE);
                             emptyView.setVisibility(View.GONE);
@@ -236,6 +371,16 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         });
     }
 
+    private String getEmptyMessage() {
+        if ("all".equals(currentStatusFilter)) {
+            return getString(R.string.no_orders_found);
+        } else {
+            String formattedStatus = currentStatusFilter.substring(0, 1).toUpperCase() +
+                    currentStatusFilter.substring(1);
+            return "No " + formattedStatus.toLowerCase() + " orders found";
+        }
+    }
+
     private Order parseOrder(JSONObject orderJson) {
         try {
             Order order = new Order();
@@ -245,28 +390,37 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             order.setTableNumber(orderJson.optString("table_number", ""));
             order.setOrderNumber(String.valueOf(order.getId()));
 
-            // Parse status
+            // Parse status - use the main status field
             String apiStatus = orderJson.optString("status", "").toLowerCase();
             order.setStatus(apiStatus);
 
-            // Parse total amount
+            // Parse amounts with proper handling of string values
             String totalAmountStr = orderJson.optString("total_amount", "0").replace(",", "");
             try {
                 order.setTotalAmount(Double.parseDouble(totalAmountStr));
             } catch (NumberFormatException e) {
-                Log.e(TAG, "Error parsing total: " + totalAmountStr, e);
+                Log.e(TAG, "Error parsing total amount: " + totalAmountStr, e);
                 order.setTotalAmount(0.0);
             }
 
-            // Set final amount same as total amount since it's not in the response
-            order.setFinalAmount(order.getTotalAmount());
+            // Parse final amount (includes service charge and tax)
+            String finalAmountStr = orderJson.optString("final_amount", "0").replace(",", "");
+            try {
+                order.setFinalAmount(Double.parseDouble(finalAmountStr));
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "Error parsing final amount: " + finalAmountStr, e);
+                order.setFinalAmount(order.getTotalAmount()); // Fallback to total amount
+            }
 
-            // Set timestamp
-            String createdAt = orderJson.optString("created_at", "");
-            order.setCreatedAt(createdAt);
+            // Note: Additional amount fields (discount, service charge, tax) are available in API
+            // but not stored in Order model. They're included in final_amount calculation.
+
+            // Set timestamps
+            order.setCreatedAt(orderJson.optString("created_at", ""));
+            // Note: API provides "update_at" field but Order model may not have setUpdatedAt method
 
             // Parse customer info
-            if (!orderJson.isNull("customer_name")) {
+            if (!orderJson.isNull("customer_name") && !orderJson.optString("customer_name", "").isEmpty()) {
                 order.setCustomerName(orderJson.optString("customer_name", ""));
             } else if (!orderJson.isNull("customer_id")) {
                 long customerId = orderJson.optLong("customer_id", -1);
@@ -275,20 +429,19 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                 }
             }
 
-            // Set session ID
+            // Set session and server IDs
             order.setSessionId(orderJson.optLong("cashier_session_id", -1));
-
-            // Set server ID
             order.setServerId(orderJson.optLong("server_id", -1));
 
-            // Parse order type information - API provides both ID and name directly
-            if (!orderJson.isNull("order_type_id")) {
-                order.setOrderTypeId(orderJson.optLong("order_type_id", -1));
-            }
+            // Parse order type information
+            order.setOrderTypeId(orderJson.optLong("order_type_id", -1));
+            order.setOrderTypeName(orderJson.optString("order_type_name", ""));
 
-            if (!orderJson.isNull("order_type_name")) {
-                order.setOrderTypeName(orderJson.optString("order_type_name", ""));
-            }
+            // Parse order status information (additional fields from API)
+            // Note: These fields may not exist in Order model but are available in API
+            // order.setOrderStatusId(orderJson.optLong("order_status_id", -1));
+            // order.setOrderStatusName(orderJson.optString("order_status_name", ""));
+            // order.setIsOpen(orderJson.optBoolean("is_open", false));
 
             // Extract order items
             if (orderJson.has("order_items")) {
@@ -297,6 +450,12 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
 
                 for (int i = 0; i < itemsArray.length(); i++) {
                     JSONObject itemJson = itemsArray.getJSONObject(i);
+
+                    // Skip items with null id (empty placeholder items)
+                    if (itemJson.isNull("id")) {
+                        continue;
+                    }
+
                     OrderItem item = new OrderItem();
 
                     item.setId(itemJson.optLong("id", -1));
@@ -308,19 +467,20 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
                         item.setVariantId(itemJson.optLong("variant_id", -1));
                     }
 
-                    // Parse variant name
-                    if (!itemJson.isNull("variant_name")) {
+                    if (!itemJson.isNull("variant_name") && !itemJson.optString("variant_name", "").isEmpty()) {
                         item.setVariantName(itemJson.optString("variant_name", ""));
                     } else {
                         item.setVariantName(null);
                     }
 
                     item.setQuantity(itemJson.optInt("quantity", 0));
-                    item.setUnitPrice(itemJson.optDouble("unit_price", 0));
-                    item.setTotalPrice(itemJson.optDouble("total_price", 0));
+                    item.setUnitPrice(itemJson.optDouble("unit_price", 0.0));
+                    item.setTotalPrice(itemJson.optDouble("total_price", 0.0));
 
-                    if (!itemJson.isNull("notes")) {
+                    if (!itemJson.isNull("notes") && !itemJson.optString("notes", "").isEmpty()) {
                         item.setNotes(itemJson.optString("notes", ""));
+                    } else {
+                        item.setNotes(null);
                     }
 
                     item.setStatus(itemJson.optString("status", ""));
@@ -341,16 +501,31 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         }
     }
 
-    private void filterOrders(String query) {
+    private void applyFilters() {
         filteredOrdersList.clear();
 
-        if (query == null || query.isEmpty()) {
-            // No filter, show all orders
-            filteredOrdersList.addAll(ordersList);
-        } else {
-            // Filter by table number or order number
-            String lowerQuery = query.toLowerCase();
-            for (Order order : ordersList) {
+        String searchQuery = searchEditText.getText().toString().trim();
+
+        for (Order order : ordersList) {
+            // Apply status filter first
+            boolean statusMatches = false;
+            if ("all".equals(currentStatusFilter)) {
+                statusMatches = true;
+            } else {
+                statusMatches = currentStatusFilter.equalsIgnoreCase(order.getStatus());
+            }
+
+            if (!statusMatches) {
+                continue; // Skip this order if status doesn't match
+            }
+
+            // Apply search filter
+            if (searchQuery.isEmpty()) {
+                // No search query, add the order (status already matches)
+                filteredOrdersList.add(order);
+            } else {
+                // Check if search query matches table number or order number
+                String lowerQuery = searchQuery.toLowerCase();
                 if (order.getTableNumber().toLowerCase().contains(lowerQuery) ||
                         order.getOrderNumber().toLowerCase().contains(lowerQuery)) {
                     filteredOrdersList.add(order);
@@ -363,10 +538,36 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
 
         // Show/hide empty view
         if (filteredOrdersList.isEmpty()) {
-            showEmptyView(getString(R.string.no_orders_match_filter));
+            String emptyMessage;
+            if (!searchQuery.isEmpty()) {
+                String statusName = "all".equals(currentStatusFilter) ? "orders" :
+                        (currentStatusFilter + " orders");
+                emptyMessage = "No " + statusName + " match your search";
+            } else {
+                emptyMessage = getEmptyMessage();
+            }
+            showEmptyView(emptyMessage);
         } else {
             ordersRecyclerView.setVisibility(View.VISIBLE);
             emptyView.setVisibility(View.GONE);
+        }
+
+        // Update title to show current filter
+        updateTitle();
+    }
+
+    private void updateTitle() {
+        if (getSupportActionBar() != null) {
+            String baseTitle = getString(R.string.orders_list_title);
+            String statusDisplay;
+            if ("all".equals(currentStatusFilter)) {
+                statusDisplay = "All Orders";
+            } else {
+                statusDisplay = currentStatusFilter.substring(0, 1).toUpperCase() +
+                        currentStatusFilter.substring(1) + " Orders";
+            }
+            String title = baseTitle + " (" + statusDisplay + ")";
+            getSupportActionBar().setTitle(title);
         }
     }
 
@@ -399,7 +600,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle(R.string.create_new_order)
                 .setView(dialogView)
-                .setPositiveButton(R.string.create_order, null) // Set listener later to prevent auto-dismiss
+                .setPositiveButton(R.string.create_order, null)
                 .setNegativeButton(R.string.cancel, (dialog, which) -> dialog.dismiss());
 
         // Show dialog
@@ -540,7 +741,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
 
         // Add a placeholder at the beginning
         List<OrderType> spinnerItems = new ArrayList<>();
-        spinnerItems.add(new OrderType(0, "Select Order Type")); // Placeholder
+        spinnerItems.add(new OrderType(0, "Select Order Type"));
         spinnerItems.addAll(orderTypes);
 
         ArrayAdapter<OrderType> adapter = new ArrayAdapter<>(this,
