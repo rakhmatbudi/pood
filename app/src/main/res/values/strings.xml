@@ -102,7 +102,7 @@
     <string name="status">Status:</string>
     <string name="view_orders">View Orders</string>
     <string name="order_details">Order Details</string>
-    <string name="order_number_format">Order #%s</string>
+    <string name="order_number_format">#%s</string>
     <string name="table_number_format">Table: %s</string>
     <string name="customer_name_format">Customer: %s</string>
     <string name="order_status_format">Status: %s</string>

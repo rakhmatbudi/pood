@@ -55,6 +55,44 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
         return new OrderViewHolder(view);
     }
 
+    private void setStatusBackground(TextView statusTextView, String status) {
+        Context context = statusTextView.getContext();
+
+        switch (status) {
+            case "open":
+                // Green for open orders
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_green);
+                break;
+            case "closed":
+            case "paid":
+                // Blue for closed/paid orders
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_blue);
+                break;
+            case "cancelled":
+                // Red for cancelled orders
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_red);
+                break;
+            case "pending":
+                // Orange for pending orders
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_orange);
+                break;
+            case "preparing":
+            case "cooking":
+                // Yellow for preparing/cooking orders
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_yellow);
+                break;
+            case "ready":
+            case "completed":
+                // Purple for ready/completed orders
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_purple);
+                break;
+            default:
+                // Default gray for unknown status
+                statusTextView.setBackgroundResource(R.drawable.rounded_corner_bg_gray);
+                break;
+        }
+    }
+
     @Override
     public void onBindViewHolder(@NonNull OrderViewHolder holder, int position) {
         Order order = orders.get(position);
@@ -64,6 +102,19 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
         List<OrderItem> orderItems = order.getItems();
         if (orderItems != null && !orderItems.isEmpty() && holder.orderItemsRecyclerView != null) {
             holder.orderItemsRecyclerView.setVisibility(View.VISIBLE);
+
+            // Set order status
+            TextView orderStatusTextView = holder.itemView.findViewById(R.id.order_status_text_view);
+            String status = order.getStatus();
+            if (status != null && !status.isEmpty()) {
+                orderStatusTextView.setText(status.toUpperCase());
+                orderStatusTextView.setVisibility(View.VISIBLE);
+
+                // Set background color based on status
+                setStatusBackground(orderStatusTextView, status.toLowerCase());
+            } else {
+                orderStatusTextView.setVisibility(View.GONE);
+            }
 
             // Configure the RecyclerView
             LinearLayoutManager layoutManager = new LinearLayoutManager(context);
@@ -111,16 +162,6 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             customerTextView = itemView.findViewById(R.id.customer_text_view);
             orderTypeTextView = itemView.findViewById(R.id.order_type_text_view);
             orderItemsRecyclerView = itemView.findViewById(R.id.order_items_recycler_view);
-
-            // Log which views are null for debugging
-            if (orderNumberTextView == null) Log.e(TAG, "orderNumberTextView is null");
-            if (tableNumberTextView == null) Log.e(TAG, "tableNumberTextView is null");
-            if (orderStatusTextView == null) Log.e(TAG, "orderStatusTextView is null");
-            if (orderTotalTextView == null) Log.e(TAG, "orderTotalTextView is null");
-            if (timeTextView == null) Log.e(TAG, "timeTextView is null");
-            if (customerTextView == null) Log.e(TAG, "customerTextView is null");
-            if (orderTypeTextView == null) Log.e(TAG, "orderTypeTextView is null");
-            if (orderItemsRecyclerView == null) Log.e(TAG, "orderItemsRecyclerView is null");
 
             if (cardView != null) {
                 cardView.setOnClickListener(v -> {

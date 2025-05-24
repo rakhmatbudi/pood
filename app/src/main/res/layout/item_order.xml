@@ -45,7 +45,7 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Table #, customer, and order type on the same line -->
+        <!-- Table #, customer, order type, and order status on the same line -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -59,7 +59,20 @@
                 android:layout_weight="1"
                 android:textSize="14sp" />
 
-            <!-- ADD THIS ORDER TYPE TEXT VIEW -->
+            <!-- Order Status Badge -->
+            <TextView
+                android:id="@+id/order_status_text_view"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/rounded_corner_bg"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:textColor="@color/white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <!-- Order Type Badge -->
             <TextView
                 android:id="@+id/order_type_text_view"
                 android:layout_width="wrap_content"
