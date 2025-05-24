@@ -8,6 +8,7 @@ import android.text.TextWatcher;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.widget.AutoCompleteTextView;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ProgressBar;
@@ -59,7 +60,8 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
     private ProgressBar progressBar;
     private TextView emptyView;
     private EditText searchEditText;
-    private Spinner statusFilterSpinner;
+    private com.google.android.material.textfield.TextInputLayout statusFilterLayout;
+    private AutoCompleteTextView statusAutoComplete;
     private long sessionId = -1;
     private OkHttpClient client = new OkHttpClient();
     private List<OrderType> orderTypesList = new ArrayList<>();
@@ -99,7 +101,8 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         progressBar = findViewById(R.id.progress_bar);
         emptyView = findViewById(R.id.empty_view);
         searchEditText = findViewById(R.id.search_edit_text);
-        statusFilterSpinner = findViewById(R.id.status_filter_spinner);
+        statusFilterLayout = findViewById(R.id.status_filter_spinner);
+        statusAutoComplete = findViewById(R.id.statusAutoComplete);
 
         // Set up RecyclerView
         ordersRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -216,38 +219,29 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         orderStatusesList = orderStatuses;
 
         // Add "All Orders" option at the beginning
-        List<OrderStatus> spinnerItems = new ArrayList<>();
-        spinnerItems.add(new OrderStatus(0, "all", "Show all orders")); // All option
-        spinnerItems.addAll(orderStatuses);
-
-        ArrayAdapter<OrderStatus> adapter = new ArrayAdapter<>(this,
-                android.R.layout.simple_spinner_item, spinnerItems);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        statusFilterSpinner.setAdapter(adapter);
-
-        // Set default selection to "open" (find the index)
-        int defaultIndex = 0;
-        for (int i = 0; i < spinnerItems.size(); i++) {
-            if ("open".equals(spinnerItems.get(i).getName())) {
-                defaultIndex = i;
-                break;
-            }
+        List<String> spinnerItems = new ArrayList<>();
+        spinnerItems.add("All Orders");
+        for (OrderStatus status : orderStatuses) {
+            spinnerItems.add(status.getName());
         }
-        statusFilterSpinner.setSelection(defaultIndex);
 
-        // Set up spinner listener
-        statusFilterSpinner.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener() {
-            @Override
-            public void onItemSelected(android.widget.AdapterView<?> parent, View view, int position, long id) {
-                OrderStatus selectedStatus = (OrderStatus) parent.getItemAtPosition(position);
-                currentStatusFilter = selectedStatus.getName();
-                applyFilters();
-            }
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_dropdown_item_1line, spinnerItems);
+        statusAutoComplete.setAdapter(adapter);
 
-            @Override
-            public void onNothingSelected(android.widget.AdapterView<?> parent) {
-                // Do nothing
+        // Set default selection to "Open"
+        statusAutoComplete.setText("Open", false);
+        currentStatusFilter = "open";
+
+        // Set up selection listener
+        statusAutoComplete.setOnItemClickListener((parent, view, position, id) -> {
+            String selectedText = (String) parent.getItemAtPosition(position);
+            if ("All Orders".equals(selectedText)) {
+                currentStatusFilter = "all";
+            } else {
+                currentStatusFilter = selectedText.toLowerCase();
             }
+            applyFilters();
         });
     }
 
