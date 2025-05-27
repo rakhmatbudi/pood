@@ -104,7 +104,7 @@
     <string name="order_details">Order Details</string>
     <string name="order_number_format">#%s</string>
     <string name="table_number_format">Table: %s</string>
-    <string name="customer_name_format">Customer: %s</string>
+    <string name="customer_name_format">%s</string>
     <string name="order_status_format">Status: %s</string>
     <string name="order_total_format">Total: %s</string>
     <string name="order_date_format">Date: %s</string>
