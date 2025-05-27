@@ -30,15 +30,17 @@
             app:layout_constraintTop_toBottomOf="@id/toolbar">
 
             <Button
-                android:id="@+id/add_item_button"
+                android:id="@+id/cancel_order_button"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginEnd="4dp"
-                android:text="@string/add_item_button"
-                android:drawableStart="@android:drawable/ic_menu_add"
+                android:text="Cancel Order"
+                android:drawableStart="@android:drawable/ic_menu_close_clear_cancel"
                 android:paddingStart="16dp"
-                android:paddingEnd="16dp" />
+                android:paddingEnd="16dp"
+                android:backgroundTint="@android:color/holo_red_light"
+                android:textColor="@android:color/white" />
 
             <Button
                 android:id="@+id/payment_button"
@@ -197,16 +199,16 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Floating Action Button for Cancel Order -->
+    <!-- Floating Action Button for Add Item -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/cancel_order_fab"
+        android:id="@+id/add_item_fab"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        android:contentDescription="Cancel Order"
-        app:backgroundTint="@android:color/holo_red_light"
+        android:src="@android:drawable/ic_menu_add"
+        android:contentDescription="@string/add_item_button"
+        app:backgroundTint="?attr/colorPrimary"
         app:tint="@android:color/white" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

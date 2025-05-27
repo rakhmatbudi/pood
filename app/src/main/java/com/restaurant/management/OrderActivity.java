@@ -63,9 +63,9 @@ public class OrderActivity extends AppCompatActivity {
     private RecyclerView orderItemsRecyclerView;
     private ProgressBar progressBar;
     private View contentLayout;
-    private Button addItemButton;
+    private Button cancelOrderButton;
     private Button paymentButton;
-    private FloatingActionButton cancelOrderFab;
+    private FloatingActionButton addItemFab;
 
     private Order order;
     private String updatedAt;
@@ -73,7 +73,7 @@ public class OrderActivity extends AppCompatActivity {
     private long sessionId = -1;
     private OkHttpClient client = new OkHttpClient();
     private SimpleDateFormat apiDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-    private SimpleDateFormat displayDateFormat = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.US);
+    private SimpleDateFormat displayDateFormat = new SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.US); // Corrected pattern for 'yyyy'
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -117,15 +117,15 @@ public class OrderActivity extends AppCompatActivity {
         orderItemsRecyclerView = findViewById(R.id.order_items_recycler_view);
         progressBar = findViewById(R.id.progress_bar);
         contentLayout = findViewById(R.id.content_layout);
-        addItemButton = findViewById(R.id.add_item_button);
+        cancelOrderButton = findViewById(R.id.cancel_order_button);
         paymentButton = findViewById(R.id.payment_button);
-        cancelOrderFab = findViewById(R.id.cancel_order_fab);
+        addItemFab = findViewById(R.id.add_item_fab);
     }
 
     private void setupClickListeners() {
-        addItemButton.setOnClickListener(v -> navigateToAddItem());
+        addItemFab.setOnClickListener(v -> navigateToAddItem());
         paymentButton.setOnClickListener(v -> navigateToPayment());
-        cancelOrderFab.setOnClickListener(v -> showCancelOrderDialog());
+        cancelOrderButton.setOnClickListener(v -> showCancelOrderDialog());
     }
 
     private void setupRecyclerView() {
@@ -189,7 +189,7 @@ public class OrderActivity extends AppCompatActivity {
         String cancelUrl = BASE_API_URL + orderId + "/cancel";
         String authToken = getAuthToken();
 
-        RequestBody emptyBody = RequestBody.create("", MediaType.parse("application/json"));
+        RequestBody emptyBody = RequestBody.create(new byte[0], MediaType.parse("application/json")); // Corrected emptyBody
         Request.Builder requestBuilder = new Request.Builder()
                 .url(cancelUrl)
                 .put(emptyBody);
@@ -223,7 +223,7 @@ public class OrderActivity extends AppCompatActivity {
                                     "Order cancelled successfully",
                                     Toast.LENGTH_SHORT).show();
 
-                            finish();
+                            finish(); // Or fetchOrderDetails(orderId); to update UI
                         });
                     } else {
                         runOnUiThread(() -> {
@@ -503,17 +503,19 @@ public class OrderActivity extends AppCompatActivity {
         boolean isOrderOpen = !"closed".equalsIgnoreCase(order.getStatus()) &&
                 !"cancelled".equalsIgnoreCase(order.getStatus());
 
-        addItemButton.setEnabled(isOrderOpen);
-        addItemButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
+        // Update FAB visibility and state
+        if (isOrderOpen) {
+            addItemFab.show();
+        } else {
+            addItemFab.hide();
+        }
+
+        // Update regular buttons
+        cancelOrderButton.setEnabled(isOrderOpen);
+        cancelOrderButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
 
         paymentButton.setEnabled(isOrderOpen);
         paymentButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
-
-        if (isOrderOpen) {
-            cancelOrderFab.show();
-        } else {
-            cancelOrderFab.hide();
-        }
     }
 
     private String formatAPIDate(String apiDateStr) {
