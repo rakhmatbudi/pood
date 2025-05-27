@@ -1,4 +1,3 @@
-// Create this new model class: OrderType.java
 package com.restaurant.management.models;
 
 public class OrderType {
@@ -30,6 +29,19 @@ public class OrderType {
 
     @Override
     public String toString() {
-        return name; // This will be displayed in the spinner
+        return name; // This is crucial for Spinner display
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        OrderType orderType = (OrderType) obj;
+        return id == orderType.id;
+    }
+
+    @Override
+    public int hashCode() {
+        return Long.hashCode(id);
     }
 }
