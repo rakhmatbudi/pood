@@ -12,11 +12,13 @@ import android.widget.Toast;
 import android.os.Handler;
 import android.os.Looper;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.restaurant.management.adapters.OrderItemAdapter;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
@@ -36,8 +38,10 @@ import java.util.TimeZone;
 
 import okhttp3.Call;
 import okhttp3.Callback;
+import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
+import okhttp3.RequestBody;
 import okhttp3.Response;
 
 public class OrderActivity extends AppCompatActivity {
@@ -61,6 +65,7 @@ public class OrderActivity extends AppCompatActivity {
     private View contentLayout;
     private Button addItemButton;
     private Button paymentButton;
+    private FloatingActionButton cancelOrderFab;
 
     private Order order;
     private String updatedAt; // Store updatedAt as a separate variable
@@ -101,10 +106,12 @@ public class OrderActivity extends AppCompatActivity {
         contentLayout = findViewById(R.id.content_layout);
         addItemButton = findViewById(R.id.add_item_button);
         paymentButton = findViewById(R.id.payment_button);
+        cancelOrderFab = findViewById(R.id.cancel_order_fab);
 
         // Set up button click listeners
         addItemButton.setOnClickListener(v -> navigateToAddItem());
         paymentButton.setOnClickListener(v -> navigateToPayment());
+        cancelOrderFab.setOnClickListener(v -> showCancelOrderDialog());
 
         // Setup RecyclerView
         orderItemsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
@@ -156,6 +163,121 @@ public class OrderActivity extends AppCompatActivity {
             fetchOrderDetails(orderId);
             Toast.makeText(this, "Order updated", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void showCancelOrderDialog() {
+        if (order == null) {
+            Toast.makeText(this, R.string.order_not_available, Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if ("closed".equalsIgnoreCase(order.getStatus()) || "cancelled".equalsIgnoreCase(order.getStatus())) {
+            Toast.makeText(this, "Order is already closed or cancelled", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Cancel Order")
+                .setMessage("Are you sure you want to cancel this order? This action cannot be undone.")
+                .setPositiveButton("Cancel Order", (dialog, which) -> cancelOrder())
+                .setNegativeButton("Keep Order", null)
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
+    }
+
+    private void cancelOrder() {
+        // Show progress
+        progressBar.setVisibility(View.VISIBLE);
+        contentLayout.setVisibility(View.GONE);
+
+        // Build the cancel URL
+        String cancelUrl = BASE_API_URL + orderId + "/cancel";
+        Log.d(TAG, "Cancelling order at: " + cancelUrl);
+        Log.d(TAG, "Order ID: " + orderId);
+
+        // Get the auth token
+        String authToken = getAuthToken();
+        Log.d(TAG, "Auth token available: " + (authToken != null && !authToken.isEmpty()));
+
+        // Create PUT request (as confirmed by user)
+        RequestBody emptyBody = RequestBody.create("", MediaType.parse("application/json"));
+        Request.Builder requestBuilder = new Request.Builder()
+                .url(cancelUrl)
+                .put(emptyBody);
+
+        // Add authorization header if token is available
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        Log.d(TAG, "Request method: PUT (empty body)");
+
+        // Execute the request
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Cancel order request failed", e);
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    contentLayout.setVisibility(View.VISIBLE);
+                    Toast.makeText(OrderActivity.this,
+                            "Network error: " + e.getMessage(),
+                            Toast.LENGTH_LONG).show();
+                });
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body() != null ? response.body().string() : "No response body";
+                    Log.d(TAG, "Cancel order response code: " + response.code());
+                    Log.d(TAG, "Cancel order response message: " + response.message());
+                    Log.d(TAG, "Cancel order response body: " + responseBody);
+
+                    if (response.isSuccessful()) {
+                        runOnUiThread(() -> {
+                            Toast.makeText(OrderActivity.this,
+                                    "Order cancelled successfully",
+                                    Toast.LENGTH_SHORT).show();
+
+                            // Navigate back to order list after successful cancellation
+                            finish();
+                        });
+                    } else {
+                        runOnUiThread(() -> {
+                            progressBar.setVisibility(View.GONE);
+                            contentLayout.setVisibility(View.VISIBLE);
+
+                            String errorMessage = "Failed to cancel order (Code: " + response.code() + ")";
+                            try {
+                                if (responseBody.contains("message")) {
+                                    JSONObject errorJson = new JSONObject(responseBody);
+                                    errorMessage = errorJson.optString("message", errorMessage);
+                                } else if (responseBody.contains("error")) {
+                                    JSONObject errorJson = new JSONObject(responseBody);
+                                    errorMessage = errorJson.optString("error", errorMessage);
+                                }
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error parsing error response", e);
+                            }
+
+                            Toast.makeText(OrderActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing cancel response", e);
+                    runOnUiThread(() -> {
+                        progressBar.setVisibility(View.GONE);
+                        contentLayout.setVisibility(View.VISIBLE);
+                        Toast.makeText(OrderActivity.this,
+                                "Error cancelling order: " + e.getMessage(),
+                                Toast.LENGTH_LONG).show();
+                    });
+                }
+            }
+        });
     }
 
     private void navigateToAddItem() {
@@ -462,14 +584,22 @@ public class OrderActivity extends AppCompatActivity {
     }
 
     private void updateActionButtons() {
-        // Only enable buttons if order is "pending" or "open" (not closed)
-        boolean isOrderOpen = !"closed".equalsIgnoreCase(order.getStatus());
+        // Only enable buttons if order is "pending" or "open" (not closed or cancelled)
+        boolean isOrderOpen = !"closed".equalsIgnoreCase(order.getStatus()) &&
+                !"cancelled".equalsIgnoreCase(order.getStatus());
 
         addItemButton.setEnabled(isOrderOpen);
         addItemButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
 
         paymentButton.setEnabled(isOrderOpen);
         paymentButton.setAlpha(isOrderOpen ? 1.0f : 0.5f);
+
+        // Show/hide cancel FAB based on order status
+        if (isOrderOpen) {
+            cancelOrderFab.show();
+        } else {
+            cancelOrderFab.hide();
+        }
     }
 
     private String formatAPIDate(String apiDateStr) {
