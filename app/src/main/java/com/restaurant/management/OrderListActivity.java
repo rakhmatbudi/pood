@@ -384,9 +384,9 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             order.setTableNumber(orderJson.optString("table_number", ""));
             order.setOrderNumber(String.valueOf(order.getId()));
 
-            // Parse status - use the main status field
-            String apiStatus = orderJson.optString("status", "").toLowerCase();
-            order.setStatus(apiStatus);
+            // Parse status - use order_status_name instead of status
+            String orderStatusName = orderJson.optString("order_status_name", "").toLowerCase();
+            order.setStatus(orderStatusName);
 
             // Parse amounts with proper handling of string values
             String totalAmountStr = orderJson.optString("total_amount", "0").replace(",", "");

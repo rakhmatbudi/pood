@@ -334,7 +334,7 @@ public class OrderActivity extends AppCompatActivity {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     JSONObject orderData = jsonResponse.getJSONObject("data");
                     order = parseOrder(orderData);
-                    updatedAt = orderData.optString("updated_at", "");
+                    updatedAt = orderData.optString("update_at", "");
 
                     runOnUiThread(() -> displayOrderDetails());
 
@@ -376,8 +376,9 @@ public class OrderActivity extends AppCompatActivity {
             order.setFinalAmount(finalAmount);
         }
 
-        String apiStatus = orderJson.optString("status", "").toLowerCase();
-        order.setStatus("open".equals(apiStatus) ? "pending" : apiStatus);
+        // Parse status - use order_status_name instead of status
+        String orderStatusName = orderJson.optString("order_status_name", "").toLowerCase();
+        order.setStatus(orderStatusName);
 
         order.setCreatedAt(orderJson.optString("created_at", ""));
 
