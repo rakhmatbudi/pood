@@ -397,6 +397,15 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 Log.e(TAG, "Error starting TaxListActivity", e);
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
+        } else if (id == R.id.nav_cashier) {
+            // Navigate to CashierActivity
+            try {
+                Intent intent = new Intent(DashboardActivity.this, CashierActivity.class);
+                startActivity(intent);
+            } catch (Exception e) {
+                Log.e(TAG, "Error starting CashierActivity", e);
+                Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+            }
         } else if (id == R.id.nav_discounts) {
             // Handle discounts navigation
             Intent intent = new Intent(this, DiscountListActivity.class);

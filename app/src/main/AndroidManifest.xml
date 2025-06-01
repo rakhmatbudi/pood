@@ -88,6 +88,17 @@
         </activity>
 
         <activity
+            android:name="com.restaurant.management.CashierActivity"
+            android:exported="false"
+            android:label="Cashier Management"
+            android:parentActivityName="com.restaurant.management.DashboardActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="com.restaurant.management.DashboardActivity" />
+        </activity>
+
+
+        <activity
             android:name="com.restaurant.management.ReconciliationActivity"
             android:label="@string/title_activity_reconciliation"
             android:parentActivityName="com.restaurant.management.DashboardActivity" />

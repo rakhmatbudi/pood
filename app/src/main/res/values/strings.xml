@@ -308,4 +308,34 @@
 
     <!-- Order UI Helper strings -->
     <string name="not_available">N/A</string>
+
+    <!-- Cashier Activity Strings -->
+    <string name="cashier_management">Cashier Management</string>
+    <string name="close_session">Close Session</string>
+    <string name="withdraw_money">Withdraw Money</string>
+    <string name="add_money">Add Money</string>
+    <string name="current_balance">Current Balance: %1$s</string>
+    <string name="no_active_session_cashier">No Active Session</string>
+    <string name="checking_session_status_cashier">Checking session status...</string>
+    <string name="error_checking_session_cashier">Error checking session status</string>
+
+    <!-- Transaction Dialog Strings -->
+    <string name="amount_required">Amount is required</string>
+    <string name="reason_required">Reason is required</string>
+    <string name="amount_must_be_positive">Amount must be greater than 0</string>
+    <string name="amount_exceeds_balance">Amount exceeds current balance</string>
+    <string name="invalid_amount_format">Invalid amount format</string>
+    <string name="reason_for_withdrawal">Reason for withdrawal (required)</string>
+    <string name="reason_for_adding_money">Reason for adding money (required)</string>
+
+    <!-- API Response Strings -->
+    <string name="withdrawal_successful">Withdrawal successful: %1$s</string>
+    <string name="withdrawal_failed">Withdrawal failed: %1$s</string>
+    <string name="add_money_successful">Money added successfully: %1$s</string>
+    <string name="add_money_failed">Add money failed: %1$s</string>
+    <string name="no_active_session_operation">No active session to perform this operation</string>
+    <string name="error_processing_response_cashier">Error processing response</string>
+
+    <!-- Navigation Strings -->
+    <string name="nav_cashier">Cashier Management</string>
 </resources>
