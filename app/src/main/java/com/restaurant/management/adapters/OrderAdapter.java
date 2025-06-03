@@ -231,13 +231,39 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
             }
         }
 
+        // Replace your formatAPIDate method with this fixed version
+
         private String formatAPIDate(String apiDateStr) {
             if (apiDateStr == null || apiDateStr.isEmpty()) {
                 return "N/A";
             }
 
+            // FIRST: Check if it's just time format (HH:MM or HH:MM:SS)
+            if (apiDateStr.matches("\\d{1,2}:\\d{2}(:\\d{2})?")) {
+                // It's just time, return as-is - DON'T try to parse as date
+                return apiDateStr;
+            }
+
+            // SECOND: Check if it's a short string that looks like time
+            if (apiDateStr.length() <= 8 && apiDateStr.contains(":") && !apiDateStr.contains("-")) {
+                // Probably time format, return as-is
+                return apiDateStr;
+            }
+
+            // THIRD: Try to parse as full datetime formats
             try {
-                // Parse the API date (UTC)
+                // Check if it's a short date format (no timezone)
+                if (apiDateStr.length() <= 19 && !apiDateStr.contains("Z")) {
+                    // Try parsing as simple date format
+                    SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US);
+                    Date date = simpleDateFormat.parse(apiDateStr);
+                    return DateUtils.getRelativeTimeSpanString(
+                            date.getTime(),
+                            System.currentTimeMillis(),
+                            DateUtils.MINUTE_IN_MILLIS).toString();
+                }
+
+                // Try the original API date format (with timezone)
                 Date date = apiDateFormat.parse(apiDateStr);
 
                 // Get time ago string for relative time
@@ -247,10 +273,71 @@ public class OrderAdapter extends RecyclerView.Adapter<OrderAdapter.OrderViewHol
                         DateUtils.MINUTE_IN_MILLIS);
 
                 return timeAgo.toString();
+
             } catch (ParseException e) {
                 Log.e(TAG, "Error parsing date: " + apiDateStr, e);
-                return apiDateStr; // Return original if parsing fails
+
+                // Try alternative parsing methods
+                try {
+                    // Try without timezone
+                    SimpleDateFormat alternativeFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US);
+                    Date date = alternativeFormat.parse(apiDateStr);
+                    return DateUtils.getRelativeTimeSpanString(
+                            date.getTime(),
+                            System.currentTimeMillis(),
+                            DateUtils.MINUTE_IN_MILLIS).toString();
+                } catch (ParseException e2) {
+                    Log.w(TAG, "All date parsing failed for: " + apiDateStr + ", returning as-is");
+                    // Return the original string if all parsing fails
+                    return apiDateStr;
+                }
             }
+        }
+
+        private String formatAPIDateRobust(String apiDateStr) {
+            if (apiDateStr == null || apiDateStr.isEmpty()) {
+                return "N/A";
+            }
+
+            // List of possible date formats from your API
+            String[] possibleFormats = {
+                    "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",  // Full ISO format with timezone
+                    "yyyy-MM-dd'T'HH:mm:ss'Z'",      // ISO format without milliseconds
+                    "yyyy-MM-dd'T'HH:mm:ss",         // ISO format without timezone
+                    "yyyy-MM-dd HH:mm:ss",           // Simple datetime
+                    "HH:mm:ss",                      // Time only
+                    "HH:mm"                          // Time only (short)
+            };
+
+            for (String formatPattern : possibleFormats) {
+                try {
+                    SimpleDateFormat formatter = new SimpleDateFormat(formatPattern, Locale.US);
+                    if (formatPattern.contains("Z")) {
+                        formatter.setTimeZone(TimeZone.getTimeZone("UTC"));
+                    }
+
+                    Date date = formatter.parse(apiDateStr);
+
+                    // For time-only formats, don't show relative time
+                    if (formatPattern.startsWith("HH:")) {
+                        return apiDateStr; // Just return the time as-is
+                    }
+
+                    // For full dates, show relative time
+                    return DateUtils.getRelativeTimeSpanString(
+                            date.getTime(),
+                            System.currentTimeMillis(),
+                            DateUtils.MINUTE_IN_MILLIS).toString();
+
+                } catch (ParseException e) {
+                    // Try next format
+                    continue;
+                }
+            }
+
+            // If all formats fail, log and return original
+            Log.w(TAG, "Could not parse date with any known format: " + apiDateStr);
+            return apiDateStr;
         }
 
         private String formatPriceWithCurrency(double price) {

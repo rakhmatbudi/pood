@@ -1,13 +1,13 @@
 package com.restaurant.management.helpers;
 
 import android.content.Context;
-import android.util.Log;
 
 import com.restaurant.management.R;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
 import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.models.OrderType;
+import com.restaurant.management.network.ApiClient;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -24,12 +24,12 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import retrofit2.Retrofit;
 
 public class OrderListApiHelper {
     private static final String ORDER_TYPES_API_URL = "https://api.pood.lol/order-types/";
     private static final String ORDER_STATUSES_API_URL = "https://api.pood.lol/order-statuses";
     private static final String ORDERS_API_URL = "https://api.pood.lol/orders";
-    private static final String TAG = "OrderListApiHelper";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private final Context context;
@@ -57,12 +57,20 @@ public class OrderListApiHelper {
 
     public OrderListApiHelper(Context context) {
         this.context = context;
-        this.client = new OkHttpClient();
+        this.client = createHttpClient(context);
+    }
+
+    private static OkHttpClient createHttpClient(Context context) {
+        try {
+            Retrofit retrofit = ApiClient.getClient(context);
+            return (OkHttpClient) retrofit.callFactory();
+        } catch (Exception e) {
+            return new OkHttpClient();
+        }
     }
 
     public void fetchOrders(long sessionId, OrdersCallback callback) {
         String apiUrl = ORDERS_API_URL + "/sessions/" + sessionId + "?t=" + System.currentTimeMillis();
-        Log.d(TAG, "Fetching orders from: " + apiUrl);
 
         String authToken = getAuthToken();
         Request.Builder requestBuilder = new Request.Builder()
@@ -79,7 +87,6 @@ public class OrderListApiHelper {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "API request failed", e);
                 callback.onError("Network error occurred");
             }
 
@@ -87,7 +94,6 @@ public class OrderListApiHelper {
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Response code: " + response.code());
 
                     if (!response.isSuccessful()) {
                         callback.onError("Unexpected response code: " + response.code());
@@ -112,7 +118,6 @@ public class OrderListApiHelper {
                     callback.onSuccess(orders);
 
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing response", e);
                     callback.onError("Error processing response: " + e.getMessage());
                 }
             }
@@ -134,7 +139,6 @@ public class OrderListApiHelper {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to fetch order statuses", e);
                 callback.onError("Failed to fetch order statuses");
             }
 
@@ -142,7 +146,6 @@ public class OrderListApiHelper {
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Order statuses response: " + responseBody);
 
                     if (response.isSuccessful()) {
                         JSONArray statusesArray = new JSONArray(responseBody);
@@ -162,7 +165,6 @@ public class OrderListApiHelper {
                         callback.onError("HTTP error: " + response.code());
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error parsing order statuses response", e);
                     callback.onError("Error parsing order statuses");
                 }
             }
@@ -184,8 +186,6 @@ public class OrderListApiHelper {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to fetch order types", e);
-                // Immediately call the error callback
                 if (callback != null) {
                     callback.onError("Failed to fetch order types: " + e.getMessage());
                 }
@@ -202,7 +202,6 @@ public class OrderListApiHelper {
                     }
 
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Order types response: " + responseBody);
 
                     // Try to parse as array first (direct array response)
                     try {
@@ -231,14 +230,12 @@ public class OrderListApiHelper {
                             }
                         }
                     } catch (JSONException e) {
-                        Log.e(TAG, "Error parsing order types response", e);
                         if (callback != null) {
                             callback.onError("Error parsing response");
                         }
                     }
 
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing order types response", e);
                     if (callback != null) {
                         callback.onError("Error processing response");
                     }
@@ -287,14 +284,12 @@ public class OrderListApiHelper {
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    Log.e(TAG, "API request failed", e);
                     callback.onError("Network error occurred");
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Response code: " + response.code());
 
                     try {
                         if (response.isSuccessful()) {
@@ -311,14 +306,12 @@ public class OrderListApiHelper {
                             handleErrorResponse(responseBody, callback);
                         }
                     } catch (JSONException e) {
-                        Log.e(TAG, "Error parsing response", e);
                         callback.onError("Error processing response: " + e.getMessage());
                     }
                 }
             });
 
         } catch (Exception e) {
-            Log.e(TAG, "Error creating order request", e);
             callback.onError("Error creating request: " + e.getMessage());
         }
     }
@@ -350,7 +343,6 @@ public class OrderListApiHelper {
             try {
                 order.setTotalAmount(Double.parseDouble(totalAmountStr));
             } catch (NumberFormatException e) {
-                Log.e(TAG, "Error parsing total amount: " + totalAmountStr, e);
                 order.setTotalAmount(0.0);
             }
 
@@ -358,7 +350,6 @@ public class OrderListApiHelper {
             try {
                 order.setFinalAmount(Double.parseDouble(finalAmountStr));
             } catch (NumberFormatException e) {
-                Log.e(TAG, "Error parsing final amount: " + finalAmountStr, e);
                 order.setFinalAmount(order.getTotalAmount());
             }
 
@@ -400,7 +391,6 @@ public class OrderListApiHelper {
 
             return order;
         } catch (Exception e) {
-            Log.e(TAG, "Error parsing order", e);
             return new Order();
         }
     }

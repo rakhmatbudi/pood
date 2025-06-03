@@ -105,7 +105,7 @@ public class EndSessionActivity extends AppCompatActivity {
             denominationInputs = new HashMap<>();
 
             // Initialize Retrofit API service
-            apiService = ApiClient.getClient().create(ApiService.class);
+            apiService = ApiClient.getClient(this).create(ApiService.class);
 
             // Set initial text values
             totalAmountTextView.setText("Total: 0");

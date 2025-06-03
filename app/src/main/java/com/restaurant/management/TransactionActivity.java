@@ -1,7 +1,6 @@
 package com.restaurant.management;
 
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.ExpandableListView;
 import android.widget.ProgressBar;
@@ -37,8 +36,6 @@ import retrofit2.Response;
 
 public class TransactionActivity extends AppCompatActivity {
 
-    private static final String TAG = "TransactionActivity";
-
     private ExpandableListView expandableListView;
     private TransactionExpandableListAdapter listAdapter;
     private List<CashierSession> sessionList;
@@ -61,7 +58,7 @@ public class TransactionActivity extends AppCompatActivity {
         }
 
         // Initialize API service
-        apiService = ApiClient.getClient().create(ApiService.class);
+        apiService = ApiClient.getClient(this).create(ApiService.class);
 
         // Initialize views
         expandableListView = findViewById(R.id.transactionExpandableListView);
@@ -80,14 +77,12 @@ public class TransactionActivity extends AppCompatActivity {
 
         expandableListView.setOnChildClickListener((parent, v, groupPosition, childPosition, id) -> {
             Transaction transaction = transactionMap.get(sessionList.get(groupPosition)).get(childPosition);
-            // Show order details when clicked
             showOrderDetails(transaction);
             return true;
         });
     }
 
     private void showOrderDetails(Transaction transaction) {
-        // Open OrderActivity with the order ID
         String message = String.format(Locale.getDefault(),
                 "Order #%d - Table %s - %s",
                 transaction.getOrderId(),
@@ -142,43 +137,15 @@ public class TransactionActivity extends AppCompatActivity {
         apiDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
         for (SessionWithPayments sessionData : sessionsData) {
-            // Extract data using the correct field names based on API response
-            int sessionId = sessionData.getCashierSessionId(); // or sessionData.id based on your model
+            int sessionId = sessionData.getCashierSessionId();
 
-            // Create a new CashierSession object
             CashierSession session = new CashierSession();
             session.setId(sessionId);
-
-            // Use the actual cashier name from the API
-            //session.setUserName(sessionData.getCashierName());
-
-            // Use the actual opening amount from the API
-            //double openingAmount = 0;
-            //try {
-            //    openingAmount = Double.parseDouble(sessionData.getOpeningAmount());
-            //} catch (NumberFormatException e) {
-            //    Log.e(TAG, "Error parsing opening amount: " + e.getMessage());
-            //}
-            //session.setStartAmount(openingAmount);
-
-            // Use the actual closing amount from the API
-            //double closingAmount = 0;
-            //try {
-            //    closingAmount = Double.parseDouble(sessionData.getClosingAmount());
-            //} catch (NumberFormatException e) {
-            //    Log.e(TAG, "Error parsing closing amount: " + e.getMessage());
-            //}
-            //session.setEndAmount(closingAmount);
-
-            // Parse the session start time (opened_at)
-
 
             if (sessionData.getCashierSessionOpenedAt() != null) {
                 Date startTime = sessionData.getCashierSessionOpenedAt();
                 session.setStartTime(startTime);
-                Log.d(TAG, "Parsed session opened time: " + startTime);
             }
-
 
             sessionList.add(session);
 
@@ -203,7 +170,6 @@ public class TransactionActivity extends AppCompatActivity {
                         String dateStr = payment.getPaymentDate();
                         paymentDate = paymentDateFormat.parse(dateStr);
                     } catch (ParseException e) {
-                        Log.e(TAG, "Date parsing error: " + e.getMessage());
                         paymentDate = new Date();
                     }
 
@@ -215,18 +181,15 @@ public class TransactionActivity extends AppCompatActivity {
                         for (PaymentData.OrderItemData itemData : itemsData) {
                             OrderItem orderItem = new OrderItem();
 
-                            // Set the basic properties
                             orderItem.setId(itemData.getItemId());
                             orderItem.setMenuItemId(itemData.getMenuItemId());
                             orderItem.setQuantity(itemData.getQuantity());
                             orderItem.setUnitPrice(itemData.getUnitPrice());
                             orderItem.setTotalPrice(itemData.getTotalPrice());
 
-                            // Explicitly set the menu item name from API
                             if (itemData.getMenuItemName() != null) {
                                 orderItem.setMenuItemName(itemData.getMenuItemName());
                             } else {
-                                // Fallback
                                 orderItem.setMenuItemName("Item #" + itemData.getMenuItemId());
                             }
 
@@ -246,7 +209,6 @@ public class TransactionActivity extends AppCompatActivity {
 
                     String customerName = payment.getCustomerName();
 
-                    // Create the transaction with all the data
                     Transaction transaction = new Transaction(
                             paymentId,
                             orderId,
@@ -262,7 +224,6 @@ public class TransactionActivity extends AppCompatActivity {
                 }
             }
 
-            // Add transactions list to map
             transactionMap.put(session, transactions);
         }
     }
@@ -299,7 +260,6 @@ public class TransactionActivity extends AppCompatActivity {
     }
 
     private void handleError(String message) {
-        Log.e(TAG, message);
         Toast.makeText(this, "Error loading transactions", Toast.LENGTH_SHORT).show();
         showLoading(false);
         showEmptyView(true);
