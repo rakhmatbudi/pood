@@ -4,6 +4,8 @@ import android.app.Dialog;
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
@@ -27,6 +29,12 @@ public class ItemDetailDialog extends Dialog {
 
     public interface OnItemAddListener {
         void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes);
+
+        // New method to handle custom price items
+        default void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice) {
+            // Default implementation calls the original method for backward compatibility
+            onItemAdd(menuItem, variantId, quantity, notes);
+        }
     }
 
     private ProductItem menuItem;
@@ -34,6 +42,7 @@ public class ItemDetailDialog extends Dialog {
     private int quantity = 1;
     private Long selectedVariantId = null;
     private double currentPrice;
+    private boolean isCustomItem = false;
 
     private TextView itemNameTextView;
     private TextView itemDescriptionTextView;
@@ -47,11 +56,19 @@ public class ItemDetailDialog extends Dialog {
     private Spinner variantSpinner;
     private View variantContainer;
 
+    // New views for custom price input
+    private View customPriceContainer;
+    private EditText customPriceEditText;
+    private TextView customPriceLabel;
+
     public ItemDetailDialog(@NonNull Context context, ProductItem menuItem, OnItemAddListener listener) {
         super(context);
         this.menuItem = menuItem;
         this.listener = listener;
         this.currentPrice = menuItem.getPrice();
+
+        // Check if this is a custom item
+        this.isCustomItem = "Custom".equalsIgnoreCase(menuItem.getName());
 
         // Debug log to check the item's variants
         if (menuItem.hasVariants()) {
@@ -62,6 +79,8 @@ public class ItemDetailDialog extends Dialog {
         } else {
             Log.d(TAG, "Constructor: Item has no variants");
         }
+
+        Log.d(TAG, "Constructor: Is custom item: " + isCustomItem);
     }
 
     @Override
@@ -92,6 +111,16 @@ public class ItemDetailDialog extends Dialog {
         variantContainer = findViewById(R.id.variant_container);
         variantSpinner = findViewById(R.id.variant_spinner);
 
+        // Find custom price views (may be null if not in layout yet)
+        customPriceContainer = findViewById(R.id.custom_price_container);
+        customPriceEditText = findViewById(R.id.custom_price_edit_text);
+        customPriceLabel = findViewById(R.id.custom_price_label);
+
+        // Log if custom price views are missing
+        if (customPriceContainer == null) {
+            Log.w(TAG, "Custom price container not found in layout - custom price feature disabled");
+        }
+
         if (variantContainer == null) {
             Log.e(TAG, "Variant container view not found in layout!");
         } else {
@@ -115,74 +144,91 @@ public class ItemDetailDialog extends Dialog {
             itemDescriptionTextView.setVisibility(View.GONE);
         }
 
-        // Set up variant spinner if there are variants
-        if (menuItem.hasVariants() && menuItem.getVariants().size() > 0) {
-            Log.d(TAG, "Item " + menuItem.getId() + " has " + menuItem.getVariants().size() + " variants - showing variant section");
-
-            // Debug each variant
-            for (Variant v : menuItem.getVariants()) {
-                Log.d(TAG, "Available variant: " + v.getName() + " (ID: " + v.getId() + "), Price: " + v.getPrice());
-            }
-
-            if (variantContainer != null) {
-                variantContainer.setVisibility(View.VISIBLE);
-
-                // Create the adapter for variants
-                List<String> variantLabels = new ArrayList<>();
-                variantLabels.add("Regular - " + formatPrice(menuItem.getPrice(),
-                        getContext().getString(R.string.currency_prefix))); // Default option
-
-                List<Variant> variants = menuItem.getVariants();
-                for (Variant variant : variants) {
-                    String formattedPrice = formatPrice(variant.getPrice(),
-                            getContext().getString(R.string.currency_prefix));
-                    variantLabels.add(variant.getName() + " - " + formattedPrice);
-                    Log.d(TAG, "Added variant to spinner: " + variant.getName() + " - " + formattedPrice);
-                }
-
-                ArrayAdapter<String> adapter = new ArrayAdapter<>(
-                        getContext(),
-                        android.R.layout.simple_spinner_item,
-                        variantLabels
-                );
-                adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-                variantSpinner.setAdapter(adapter);
-
-                // Handle variant selection
-                variantSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
-                    @Override
-                    public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                        if (position == 0) {
-                            // Regular price option
-                            selectedVariantId = null;
-                            currentPrice = menuItem.getPrice();
-                            Log.d(TAG, "Selected regular item (no variant) with price: " + currentPrice);
-                        } else {
-                            // Variant selected (position - 1 because we added "Regular" as first item)
-                            Variant selectedVariant = menuItem.getVariants().get(position - 1);
-                            selectedVariantId = selectedVariant.getId();
-                            currentPrice = selectedVariant.getPrice();
-                            Log.d(TAG, "Selected variant: " + selectedVariant.getName() +
-                                    " (ID: " + selectedVariantId + ") with price: " + currentPrice);
-                        }
-                        updatePriceDisplay();
-                    }
-
-                    @Override
-                    public void onNothingSelected(AdapterView<?> parent) {
-                        // If nothing is selected, use regular price
-                        selectedVariantId = null;
-                        currentPrice = menuItem.getPrice();
-                        updatePriceDisplay();
-                    }
-                });
+        // Handle custom item price input
+        if (isCustomItem) {
+            Log.d(TAG, "Setting up custom price input for custom item");
+            if (customPriceContainer != null) {
+                setupCustomPriceInput();
             } else {
-                Log.e(TAG, "Cannot show variants - variant container view is null");
+                Log.w(TAG, "Cannot setup custom price input - views not found in layout");
+                // Fallback: treat as regular item for now
+                isCustomItem = false;
             }
         } else {
-            Log.d(TAG, "Item " + menuItem.getId() + " has no variants - hiding variant section");
-            if (variantContainer != null) {
-                variantContainer.setVisibility(View.GONE);
+            // Hide custom price container for non-custom items
+            if (customPriceContainer != null) {
+                customPriceContainer.setVisibility(View.GONE);
+            }
+
+            // Set up variant spinner if there are variants
+            if (menuItem.hasVariants() && menuItem.getVariants().size() > 0) {
+                Log.d(TAG, "Item " + menuItem.getId() + " has " + menuItem.getVariants().size() + " variants - showing variant section");
+
+                // Debug each variant
+                for (Variant v : menuItem.getVariants()) {
+                    Log.d(TAG, "Available variant: " + v.getName() + " (ID: " + v.getId() + "), Price: " + v.getPrice());
+                }
+
+                if (variantContainer != null) {
+                    variantContainer.setVisibility(View.VISIBLE);
+
+                    // Create the adapter for variants
+                    List<String> variantLabels = new ArrayList<>();
+                    variantLabels.add("Regular - " + formatPrice(menuItem.getPrice(),
+                            getContext().getString(R.string.currency_prefix))); // Default option
+
+                    List<Variant> variants = menuItem.getVariants();
+                    for (Variant variant : variants) {
+                        String formattedPrice = formatPrice(variant.getPrice(),
+                                getContext().getString(R.string.currency_prefix));
+                        variantLabels.add(variant.getName() + " - " + formattedPrice);
+                        Log.d(TAG, "Added variant to spinner: " + variant.getName() + " - " + formattedPrice);
+                    }
+
+                    ArrayAdapter<String> adapter = new ArrayAdapter<>(
+                            getContext(),
+                            android.R.layout.simple_spinner_item,
+                            variantLabels
+                    );
+                    adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+                    variantSpinner.setAdapter(adapter);
+
+                    // Handle variant selection
+                    variantSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+                        @Override
+                        public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                            if (position == 0) {
+                                // Regular price option
+                                selectedVariantId = null;
+                                currentPrice = menuItem.getPrice();
+                                Log.d(TAG, "Selected regular item (no variant) with price: " + currentPrice);
+                            } else {
+                                // Variant selected (position - 1 because we added "Regular" as first item)
+                                Variant selectedVariant = menuItem.getVariants().get(position - 1);
+                                selectedVariantId = selectedVariant.getId();
+                                currentPrice = selectedVariant.getPrice();
+                                Log.d(TAG, "Selected variant: " + selectedVariant.getName() +
+                                        " (ID: " + selectedVariantId + ") with price: " + currentPrice);
+                            }
+                            updatePriceDisplay();
+                        }
+
+                        @Override
+                        public void onNothingSelected(AdapterView<?> parent) {
+                            // If nothing is selected, use regular price
+                            selectedVariantId = null;
+                            currentPrice = menuItem.getPrice();
+                            updatePriceDisplay();
+                        }
+                    });
+                } else {
+                    Log.e(TAG, "Cannot show variants - variant container view is null");
+                }
+            } else {
+                Log.d(TAG, "Item " + menuItem.getId() + " has no variants - hiding variant section");
+                if (variantContainer != null) {
+                    variantContainer.setVisibility(View.GONE);
+                }
             }
         }
 
@@ -206,16 +252,116 @@ public class ItemDetailDialog extends Dialog {
         });
 
         addButton.setOnClickListener(v -> {
+            if (isCustomItem && !isValidCustomPrice()) {
+                // Show error or prevent adding if custom price is invalid
+                Log.w(TAG, "Invalid custom price entered");
+                return;
+            }
+
             if (listener != null) {
                 String notes = notesEditText.getText().toString().trim();
-                Log.d(TAG, "Add button clicked with quantity: " + quantity +
-                        ", variant ID: " + (selectedVariantId != null ? selectedVariantId : "none"));
-                listener.onItemAdd(menuItem, selectedVariantId, quantity, notes);
+
+                if (isCustomItem) {
+                    // For custom items, pass the custom price
+                    Double customPrice = currentPrice;
+                    Log.d(TAG, "Add button clicked for CUSTOM item with quantity: " + quantity +
+                            ", custom price: " + customPrice + ", notes: " + notes);
+
+                    // Call the new method with custom price
+                    listener.onItemAdd(menuItem, selectedVariantId, quantity, notes, customPrice);
+                } else {
+                    // For regular items, use the original method
+                    Log.d(TAG, "Add button clicked for REGULAR item with quantity: " + quantity +
+                            ", variant ID: " + (selectedVariantId != null ? selectedVariantId : "none") +
+                            ", notes: " + notes);
+                    listener.onItemAdd(menuItem, selectedVariantId, quantity, notes);
+                }
             }
             dismiss();
         });
 
         cancelButton.setOnClickListener(v -> dismiss());
+    }
+
+    private void setupCustomPriceInput() {
+        if (customPriceContainer != null) {
+            customPriceContainer.setVisibility(View.VISIBLE);
+
+            // Hide variant container for custom items
+            if (variantContainer != null) {
+                variantContainer.setVisibility(View.GONE);
+            }
+
+            // Set up the custom price EditText
+            if (customPriceEditText != null) {
+                customPriceEditText.addTextChangedListener(new TextWatcher() {
+                    @Override
+                    public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+                    @Override
+                    public void onTextChanged(CharSequence s, int start, int before, int count) {}
+
+                    @Override
+                    public void afterTextChanged(Editable s) {
+                        String priceText = s.toString().trim();
+                        if (!priceText.isEmpty()) {
+                            try {
+                                double customPrice = Double.parseDouble(priceText);
+                                if (customPrice >= 0) {
+                                    currentPrice = customPrice;
+                                    Log.d(TAG, "Custom price updated to: " + currentPrice);
+                                    updatePriceDisplay();
+                                    enableAddButton(true);
+                                } else {
+                                    enableAddButton(false);
+                                }
+                            } catch (NumberFormatException e) {
+                                Log.w(TAG, "Invalid custom price format: " + priceText);
+                                enableAddButton(false);
+                            }
+                        } else {
+                            currentPrice = 0;
+                            updatePriceDisplay();
+                            enableAddButton(false);
+                        }
+                    }
+                });
+
+                // Set hint text
+                customPriceEditText.setHint("Enter price");
+
+                // Initially disable add button until valid price is entered
+                enableAddButton(false);
+            }
+
+            // Set label text
+            if (customPriceLabel != null) {
+                customPriceLabel.setText("Custom Price:");
+            }
+        } else {
+            Log.e(TAG, "Custom price container not found in layout!");
+        }
+    }
+
+    private boolean isValidCustomPrice() {
+        if (!isCustomItem) return true;
+
+        String priceText = customPriceEditText != null ? customPriceEditText.getText().toString().trim() : "";
+        if (priceText.isEmpty()) return false;
+
+        try {
+            double price = Double.parseDouble(priceText);
+            return price >= 0;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
+
+    private void enableAddButton(boolean enabled) {
+        if (addButton != null) {
+            addButton.setEnabled(enabled);
+            addButton.setAlpha(enabled ? 1.0f : 0.5f);
+        }
     }
 
     private void decreaseQuantity() {

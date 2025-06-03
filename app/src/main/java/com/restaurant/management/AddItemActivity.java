@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Collections;
+import java.util.Objects;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -335,14 +336,22 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         ItemDetailDialog dialog = new ItemDetailDialog(this, menuItem, new ItemDetailDialog.OnItemAddListener() {
             @Override
             public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes) {
-                // Add item to order
-                addItemToOrder(selectedItem, variantId, quantity, notes);
+                // Handle regular items (backward compatibility)
+                Log.d(TAG, "Adding regular item: " + selectedItem.getName());
+                addItemToOrder(selectedItem, variantId, quantity, notes, null);
+            }
+
+            @Override
+            public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes, Double customPrice) {
+                // Handle custom price items
+                Log.d(TAG, "Adding custom item: " + selectedItem.getName() + " with custom price: " + customPrice);
+                addItemToOrder(selectedItem, variantId, quantity, notes, customPrice);
             }
         });
         dialog.show();
     }
 
-    private void addItemToOrder(ProductItem menuItem, Long variantId, int quantity, String notes) {
+    private void addItemToOrder(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice) {
         if (quantity <= 0) {
             Toast.makeText(this, R.string.invalid_quantity, Toast.LENGTH_SHORT).show();
             return;
@@ -352,21 +361,38 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         progressBar.setVisibility(View.VISIBLE);
         menuItemsRecyclerView.setVisibility(View.GONE);
 
-        // Get the unit price based on whether a variant is selected
-        double unitPrice = menuItem.getPrice();
-        if (variantId != null) {
-            // Find the selected variant
+        // Get the unit price based on custom price, variant, or default price
+        double unitPrice;
+        String priceSource;
+
+        if (customPrice != null) {
+            // Use custom price for custom items
+            unitPrice = customPrice;
+            priceSource = "custom price";
+            Log.d(TAG, "Using custom price: " + unitPrice);
+        } else if (variantId != null) {
+            // Find the selected variant for regular items
+            unitPrice = menuItem.getPrice(); // fallback to default
+            priceSource = "variant price";
             for (Variant variant : menuItem.getVariants()) {
-                if (variant.getId() == variantId) {
+                if (Objects.equals(variant.getId(), variantId)) {
                     unitPrice = variant.getPrice();
-                    Log.d(TAG, "Using variant price: " + unitPrice);
+                    Log.d(TAG, "Using variant price: " + unitPrice + " for variant: " + variant.getName());
                     break;
                 }
             }
+        } else {
+            // Use default item price
+            unitPrice = menuItem.getPrice();
+            priceSource = "default price";
+            Log.d(TAG, "Using default price: " + unitPrice);
         }
 
         // Calculate the total price
         double totalPrice = unitPrice * quantity;
+
+        Log.d(TAG, String.format("Price calculation: %s (%.2f) x %d = %.2f",
+                priceSource, unitPrice, quantity, totalPrice));
 
         // Prepare the request body according to the specified structure
         JSONObject requestJson = new JSONObject();
@@ -388,6 +414,12 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             // Only add notes if not empty
             if (notes != null && !notes.isEmpty()) {
                 requestJson.put("notes", notes);
+            }
+
+            // Add custom price flag if this is a custom item
+            if (customPrice != null) {
+                requestJson.put("is_custom_price", true);
+                requestJson.put("original_price", menuItem.getPrice());
             }
 
             // Log the complete request JSON
@@ -449,9 +481,15 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                     menuItemsRecyclerView.setVisibility(View.VISIBLE);
 
                     if (response.isSuccessful()) {
-                        Toast.makeText(AddItemActivity.this,
-                                getString(R.string.item_added_successfully),
-                                Toast.LENGTH_SHORT).show();
+                        String successMessage;
+                        if (customPrice != null) {
+                            successMessage = getString(R.string.item_added_successfully) +
+                                    " (Custom price: " + String.format("%.0f", customPrice) + ")";
+                        } else {
+                            successMessage = getString(R.string.item_added_successfully);
+                        }
+
+                        Toast.makeText(AddItemActivity.this, successMessage, Toast.LENGTH_SHORT).show();
                         setResult(RESULT_OK);
                         finish();
                     } else {

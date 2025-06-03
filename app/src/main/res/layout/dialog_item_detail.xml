@@ -65,6 +65,40 @@
 
         </LinearLayout>
 
+        <!-- Custom Price Input Container -->
+        <LinearLayout
+            android:id="@+id/custom_price_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layout_marginBottom="8dp"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:id="@+id/custom_price_label"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Enter Custom Price:"
+                android:textSize="14sp"
+                android:layout_marginBottom="8dp" />
+
+            <EditText
+                android:id="@+id/custom_price_edit_text"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:inputType="numberDecimal"
+                android:hint="Enter price amount"
+                android:textSize="16sp"
+                android:padding="12dp"
+                android:background="@drawable/edit_text_background"
+                android:maxLines="1"
+                android:imeOptions="actionDone"
+                android:layout_marginBottom="8dp"
+                android:importantForAutofill="no" />
+
+        </LinearLayout>
+
         <TextView
             android:id="@+id/item_price_text_view"
             android:layout_width="match_parent"
