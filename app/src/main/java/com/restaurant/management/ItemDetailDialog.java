@@ -69,18 +69,6 @@ public class ItemDetailDialog extends Dialog {
 
         // Check if this is a custom item
         this.isCustomItem = "Custom".equalsIgnoreCase(menuItem.getName());
-
-        // Debug log to check the item's variants
-        if (menuItem.hasVariants()) {
-            Log.d(TAG, "Constructor: Item has " + menuItem.getVariants().size() + " variants");
-            for (Variant v : menuItem.getVariants()) {
-                Log.d(TAG, "Variant: " + v.getName() + ", ID: " + v.getId() + ", Price: " + v.getPrice());
-            }
-        } else {
-            Log.d(TAG, "Constructor: Item has no variants");
-        }
-
-        Log.d(TAG, "Constructor: Is custom item: " + isCustomItem);
     }
 
     @Override
@@ -88,8 +76,6 @@ public class ItemDetailDialog extends Dialog {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         setContentView(R.layout.dialog_item_detail);
-
-        Log.d(TAG, "Creating dialog for item: " + menuItem.getName());
 
         // Make dialog background transparent
         if (getWindow() != null) {
@@ -111,27 +97,10 @@ public class ItemDetailDialog extends Dialog {
         variantContainer = findViewById(R.id.variant_container);
         variantSpinner = findViewById(R.id.variant_spinner);
 
-        // Find custom price views (may be null if not in layout yet)
+        // Find custom price views
         customPriceContainer = findViewById(R.id.custom_price_container);
         customPriceEditText = findViewById(R.id.custom_price_edit_text);
         customPriceLabel = findViewById(R.id.custom_price_label);
-
-        // Log if custom price views are missing
-        if (customPriceContainer == null) {
-            Log.w(TAG, "Custom price container not found in layout - custom price feature disabled");
-        }
-
-        if (variantContainer == null) {
-            Log.e(TAG, "Variant container view not found in layout!");
-        } else {
-            Log.d(TAG, "Variant container found in layout");
-        }
-
-        if (variantSpinner == null) {
-            Log.e(TAG, "Variant spinner view not found in layout!");
-        } else {
-            Log.d(TAG, "Variant spinner found in layout");
-        }
 
         // Set menu item details
         itemNameTextView.setText(menuItem.getName());
@@ -146,11 +115,9 @@ public class ItemDetailDialog extends Dialog {
 
         // Handle custom item price input
         if (isCustomItem) {
-            Log.d(TAG, "Setting up custom price input for custom item");
             if (customPriceContainer != null) {
                 setupCustomPriceInput();
             } else {
-                Log.w(TAG, "Cannot setup custom price input - views not found in layout");
                 // Fallback: treat as regular item for now
                 isCustomItem = false;
             }
@@ -162,13 +129,6 @@ public class ItemDetailDialog extends Dialog {
 
             // Set up variant spinner if there are variants
             if (menuItem.hasVariants() && menuItem.getVariants().size() > 0) {
-                Log.d(TAG, "Item " + menuItem.getId() + " has " + menuItem.getVariants().size() + " variants - showing variant section");
-
-                // Debug each variant
-                for (Variant v : menuItem.getVariants()) {
-                    Log.d(TAG, "Available variant: " + v.getName() + " (ID: " + v.getId() + "), Price: " + v.getPrice());
-                }
-
                 if (variantContainer != null) {
                     variantContainer.setVisibility(View.VISIBLE);
 
@@ -182,7 +142,6 @@ public class ItemDetailDialog extends Dialog {
                         String formattedPrice = formatPrice(variant.getPrice(),
                                 getContext().getString(R.string.currency_prefix));
                         variantLabels.add(variant.getName() + " - " + formattedPrice);
-                        Log.d(TAG, "Added variant to spinner: " + variant.getName() + " - " + formattedPrice);
                     }
 
                     ArrayAdapter<String> adapter = new ArrayAdapter<>(
@@ -201,14 +160,11 @@ public class ItemDetailDialog extends Dialog {
                                 // Regular price option
                                 selectedVariantId = null;
                                 currentPrice = menuItem.getPrice();
-                                Log.d(TAG, "Selected regular item (no variant) with price: " + currentPrice);
                             } else {
                                 // Variant selected (position - 1 because we added "Regular" as first item)
                                 Variant selectedVariant = menuItem.getVariants().get(position - 1);
                                 selectedVariantId = selectedVariant.getId();
                                 currentPrice = selectedVariant.getPrice();
-                                Log.d(TAG, "Selected variant: " + selectedVariant.getName() +
-                                        " (ID: " + selectedVariantId + ") with price: " + currentPrice);
                             }
                             updatePriceDisplay();
                         }
@@ -221,11 +177,8 @@ public class ItemDetailDialog extends Dialog {
                             updatePriceDisplay();
                         }
                     });
-                } else {
-                    Log.e(TAG, "Cannot show variants - variant container view is null");
                 }
             } else {
-                Log.d(TAG, "Item " + menuItem.getId() + " has no variants - hiding variant section");
                 if (variantContainer != null) {
                     variantContainer.setVisibility(View.GONE);
                 }
@@ -241,20 +194,17 @@ public class ItemDetailDialog extends Dialog {
         // Set up click listeners
         decreaseButton.setOnClickListener(v -> {
             decreaseQuantity();
-            Log.d(TAG, "Decrease button clicked, quantity: " + quantity);
             updatePriceDisplay();
         });
 
         increaseButton.setOnClickListener(v -> {
             increaseQuantity();
-            Log.d(TAG, "Increase button clicked, quantity: " + quantity);
             updatePriceDisplay();
         });
 
         addButton.setOnClickListener(v -> {
             if (isCustomItem && !isValidCustomPrice()) {
                 // Show error or prevent adding if custom price is invalid
-                Log.w(TAG, "Invalid custom price entered");
                 return;
             }
 
@@ -264,16 +214,10 @@ public class ItemDetailDialog extends Dialog {
                 if (isCustomItem) {
                     // For custom items, pass the custom price
                     Double customPrice = currentPrice;
-                    Log.d(TAG, "Add button clicked for CUSTOM item with quantity: " + quantity +
-                            ", custom price: " + customPrice + ", notes: " + notes);
-
                     // Call the new method with custom price
                     listener.onItemAdd(menuItem, selectedVariantId, quantity, notes, customPrice);
                 } else {
                     // For regular items, use the original method
-                    Log.d(TAG, "Add button clicked for REGULAR item with quantity: " + quantity +
-                            ", variant ID: " + (selectedVariantId != null ? selectedVariantId : "none") +
-                            ", notes: " + notes);
                     listener.onItemAdd(menuItem, selectedVariantId, quantity, notes);
                 }
             }
@@ -309,14 +253,12 @@ public class ItemDetailDialog extends Dialog {
                                 double customPrice = Double.parseDouble(priceText);
                                 if (customPrice >= 0) {
                                     currentPrice = customPrice;
-                                    Log.d(TAG, "Custom price updated to: " + currentPrice);
                                     updatePriceDisplay();
                                     enableAddButton(true);
                                 } else {
                                     enableAddButton(false);
                                 }
                             } catch (NumberFormatException e) {
-                                Log.w(TAG, "Invalid custom price format: " + priceText);
                                 enableAddButton(false);
                             }
                         } else {
@@ -338,8 +280,6 @@ public class ItemDetailDialog extends Dialog {
             if (customPriceLabel != null) {
                 customPriceLabel.setText("Custom Price:");
             }
-        } else {
-            Log.e(TAG, "Custom price container not found in layout!");
         }
     }
 

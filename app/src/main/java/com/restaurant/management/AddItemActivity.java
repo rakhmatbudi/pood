@@ -170,7 +170,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
         // Simple URL to fetch all menu items
         String apiUrl = BASE_API_URL + "menu-items";
-        Log.d(TAG, "Fetching all menu items from: " + apiUrl);
 
         // Get the auth token
         String authToken = getAuthToken();
@@ -204,7 +203,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "API response received: " + response.code());
 
                     if (!response.isSuccessful()) {
                         throw new IOException("Unexpected response code: " + response.code());
@@ -212,7 +210,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<ProductItem> items = parseMenuItems(jsonResponse);
-                    Log.d(TAG, "Parsed " + items.size() + " menu items");
 
                     runOnUiThread(() -> {
                         // Store in both lists for filtering
@@ -250,13 +247,11 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             // Check if "data" is an array or an object
             if (jsonResponse.get("data") instanceof JSONArray) {
                 itemsArray = jsonResponse.getJSONArray("data");
-                Log.d(TAG, "Parsing array of items: " + itemsArray.length());
             } else {
                 // If "data" is a single object, create an array with just that object
                 JSONObject singleItem = jsonResponse.getJSONObject("data");
                 itemsArray = new JSONArray();
                 itemsArray.put(singleItem);
-                Log.d(TAG, "Parsing single item as array");
             }
 
             for (int i = 0; i < itemsArray.length(); i++) {
@@ -336,15 +331,13 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         ItemDetailDialog dialog = new ItemDetailDialog(this, menuItem, new ItemDetailDialog.OnItemAddListener() {
             @Override
             public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes) {
-                // Handle regular items (backward compatibility)
-                Log.d(TAG, "Adding regular item: " + selectedItem.getName());
+                // Handle regular items
                 addItemToOrder(selectedItem, variantId, quantity, notes, null);
             }
 
             @Override
             public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes, Double customPrice) {
                 // Handle custom price items
-                Log.d(TAG, "Adding custom item: " + selectedItem.getName() + " with custom price: " + customPrice);
                 addItemToOrder(selectedItem, variantId, quantity, notes, customPrice);
             }
         });
@@ -363,36 +356,26 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
         // Get the unit price based on custom price, variant, or default price
         double unitPrice;
-        String priceSource;
 
         if (customPrice != null) {
             // Use custom price for custom items
             unitPrice = customPrice;
-            priceSource = "custom price";
-            Log.d(TAG, "Using custom price: " + unitPrice);
         } else if (variantId != null) {
             // Find the selected variant for regular items
             unitPrice = menuItem.getPrice(); // fallback to default
-            priceSource = "variant price";
             for (Variant variant : menuItem.getVariants()) {
                 if (Objects.equals(variant.getId(), variantId)) {
                     unitPrice = variant.getPrice();
-                    Log.d(TAG, "Using variant price: " + unitPrice + " for variant: " + variant.getName());
                     break;
                 }
             }
         } else {
             // Use default item price
             unitPrice = menuItem.getPrice();
-            priceSource = "default price";
-            Log.d(TAG, "Using default price: " + unitPrice);
         }
 
         // Calculate the total price
         double totalPrice = unitPrice * quantity;
-
-        Log.d(TAG, String.format("Price calculation: %s (%.2f) x %d = %.2f",
-                priceSource, unitPrice, quantity, totalPrice));
 
         // Prepare the request body according to the specified structure
         JSONObject requestJson = new JSONObject();
@@ -422,9 +405,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 requestJson.put("original_price", menuItem.getPrice());
             }
 
-            // Log the complete request JSON
-            Log.d(TAG, "Request JSON: " + requestJson.toString());
-
         } catch (JSONException e) {
             Log.e(TAG, "Error creating request JSON", e);
             Toast.makeText(this, R.string.error_creating_request, Toast.LENGTH_SHORT).show();
@@ -435,11 +415,9 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
         // Build the URL for adding an item to the specified order
         String apiUrl = BASE_API_URL + "orders/" + orderId + "/items";
-        Log.d(TAG, "Sending request to: " + apiUrl);
 
         // Get the auth token
         String authToken = getAuthToken();
-        Log.d(TAG, "Using auth token: " + (authToken != null && !authToken.isEmpty() ? "Valid token present" : "No token or empty token"));
 
         // Create request with token and proper content type
         RequestBody body = RequestBody.create(JSON, requestJson.toString());
@@ -454,7 +432,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         }
 
         Request request = requestBuilder.build();
-        Log.d(TAG, "Request headers: " + request.headers().toString());
 
         // Execute the request
         client.newCall(request).enqueue(new Callback() {
@@ -473,8 +450,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             @Override
             public void onResponse(Call call, Response response) throws IOException {
                 String responseBody = response.body().string();
-                Log.d(TAG, "Add item response received: " + response.code());
-                Log.d(TAG, "Response body: " + responseBody);
 
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
@@ -510,15 +485,11 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                                 errorMessage = errorJson.toString();
                             }
 
-                            Log.e(TAG, "Error from server: " + errorMessage);
-
                             // Show a more detailed error message to help debugging
                             String displayMessage = getString(R.string.error_adding_item) +
                                     " (" + response.code() + "): " + errorMessage;
                             Toast.makeText(AddItemActivity.this, displayMessage, Toast.LENGTH_LONG).show();
                         } catch (JSONException e) {
-                            Log.e(TAG, "Could not parse error response", e);
-
                             // Show HTTP status code for non-JSON responses
                             String displayMessage = getString(R.string.error_adding_item) +
                                     " (HTTP " + response.code() + ")";
