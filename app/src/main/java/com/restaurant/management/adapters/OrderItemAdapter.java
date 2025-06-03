@@ -2,12 +2,14 @@ package com.restaurant.management.adapters;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Paint;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.CancelOrderItemActivity;
@@ -42,7 +44,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
     @Override
     public void onBindViewHolder(@NonNull OrderItemViewHolder holder, int position) {
         OrderItem item = orderItems.get(position);
-        holder.bind(item);
+        holder.bind(item, context);
 
         // Set click listener for the entire item
         holder.itemView.setOnClickListener(v -> {
@@ -94,15 +96,21 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
             itemStatusTextView = itemView.findViewById(R.id.item_status_text_view);
         }
 
-        void bind(OrderItem item) {
+        void bind(OrderItem item, Context context) {
+            // Check if item is cancelled
+            boolean isCancelled = item.getStatus() != null &&
+                    item.getStatus().equalsIgnoreCase("cancelled");
+
             if (itemNameTextView != null) {
                 itemNameTextView.setText(item.getMenuItemName());
+                applyStrikethroughEffect(itemNameTextView, isCancelled, context);
             }
 
             if (itemVariantTextView != null) {
                 if (item.getVariantName() != null && !item.getVariantName().isEmpty()) {
                     itemVariantTextView.setText(item.getVariantName());
                     itemVariantTextView.setVisibility(View.VISIBLE);
+                    applyStrikethroughEffect(itemVariantTextView, isCancelled, context);
                 } else {
                     itemVariantTextView.setVisibility(View.GONE);
                 }
@@ -110,16 +118,19 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
 
             if (itemQuantityTextView != null) {
                 itemQuantityTextView.setText(String.valueOf(item.getQuantity()));
+                applyStrikethroughEffect(itemQuantityTextView, isCancelled, context);
             }
 
             if (itemPriceTextView != null) {
                 itemPriceTextView.setText(formatPrice(item.getTotalPrice()));
+                applyStrikethroughEffect(itemPriceTextView, isCancelled, context);
             }
 
             if (itemNotesTextView != null) {
                 if (item.getNotes() != null && !item.getNotes().isEmpty()) {
                     itemNotesTextView.setText(item.getNotes());
                     itemNotesTextView.setVisibility(View.VISIBLE);
+                    applyStrikethroughEffect(itemNotesTextView, isCancelled, context);
                 } else {
                     itemNotesTextView.setVisibility(View.GONE);
                 }
@@ -148,6 +159,45 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
                 } else {
                     itemStatusTextView.setText("New");
                     itemStatusTextView.setTextColor(0xFF757575);
+                }
+
+                // Don't apply strikethrough to status text, but make it more prominent for cancelled items
+                if (isCancelled) {
+                    itemStatusTextView.setTextColor(0xFFE53935); // Red for cancelled
+                }
+            }
+
+            // Apply overall styling to the entire item view
+            if (isCancelled) {
+                itemView.setAlpha(0.6f); // Make entire item semi-transparent
+            } else {
+                itemView.setAlpha(1.0f); // Full opacity for active items
+            }
+        }
+
+        /**
+         * Apply or remove strikethrough effect and color changes to a TextView
+         */
+        private void applyStrikethroughEffect(TextView textView, boolean isCancelled, Context context) {
+            if (isCancelled) {
+                // Apply strikethrough
+                textView.setPaintFlags(textView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+
+                // Make text gray
+                if (context != null) {
+                    textView.setTextColor(ContextCompat.getColor(context, android.R.color.darker_gray));
+                } else {
+                    textView.setTextColor(0xFF757575); // Fallback gray color
+                }
+            } else {
+                // Remove strikethrough
+                textView.setPaintFlags(textView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+
+                // Restore normal text color
+                if (context != null) {
+                    textView.setTextColor(ContextCompat.getColor(context, android.R.color.black));
+                } else {
+                    textView.setTextColor(0xFF000000); // Fallback black color
                 }
             }
         }

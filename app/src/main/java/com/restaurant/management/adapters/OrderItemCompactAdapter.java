@@ -1,6 +1,7 @@
 package com.restaurant.management.adapters;
 
 import android.content.Context;
+import android.graphics.Paint;
 import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -8,6 +9,7 @@ import android.view.ViewGroup;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.R;
@@ -57,17 +59,64 @@ public class OrderItemCompactAdapter extends RecyclerView.Adapter<OrderItemCompa
         }
 
         void bind(OrderItem item) {
+            // Check if item is cancelled
+            boolean isCancelled = item.getStatus() != null &&
+                    item.getStatus().equalsIgnoreCase("cancelled");
+
             // Format item name with variant if available using getDisplayName()
             String displayName = item.getDisplayName();
-            Log.d(TAG, "Binding item: " + item.getMenuItemName() + " with variant: " + item.getVariantName() + " = " + displayName);
-            itemNameTextView.setText(displayName);
+
+            if (itemNameTextView != null) {
+                itemNameTextView.setText(displayName);
+                applyStrikethroughEffect(itemNameTextView, isCancelled);
+            }
 
             // Set quantity
-            quantityTextView.setText(String.valueOf(item.getQuantity()));
+            if (quantityTextView != null) {
+                quantityTextView.setText(String.valueOf(item.getQuantity()));
+                applyStrikethroughEffect(quantityTextView, isCancelled);
+            }
 
             // Format and set price
-            String formattedPrice = formatPriceWithCurrency(item.getTotalPrice());
-            priceTextView.setText(formattedPrice);
+            if (priceTextView != null) {
+                String formattedPrice = formatPriceWithCurrency(item.getTotalPrice());
+                priceTextView.setText(formattedPrice);
+                applyStrikethroughEffect(priceTextView, isCancelled);
+            }
+
+            // Apply overall styling to the entire item view
+            if (isCancelled) {
+                itemView.setAlpha(0.6f); // Make entire item semi-transparent
+            } else {
+                itemView.setAlpha(1.0f); // Full opacity for active items
+            }
+        }
+
+        /**
+         * Apply or remove strikethrough effect and color changes to a TextView
+         */
+        private void applyStrikethroughEffect(TextView textView, boolean isCancelled) {
+            if (isCancelled) {
+                // Apply strikethrough
+                textView.setPaintFlags(textView.getPaintFlags() | Paint.STRIKE_THRU_TEXT_FLAG);
+
+                // Make text gray
+                if (context != null) {
+                    textView.setTextColor(ContextCompat.getColor(context, android.R.color.darker_gray));
+                } else {
+                    textView.setTextColor(0xFF757575); // Fallback gray color
+                }
+            } else {
+                // Remove strikethrough
+                textView.setPaintFlags(textView.getPaintFlags() & (~Paint.STRIKE_THRU_TEXT_FLAG));
+
+                // Restore normal text color
+                if (context != null) {
+                    textView.setTextColor(ContextCompat.getColor(context, android.R.color.black));
+                } else {
+                    textView.setTextColor(0xFF000000); // Fallback black color
+                }
+            }
         }
 
         private String formatPriceWithCurrency(double price) {
