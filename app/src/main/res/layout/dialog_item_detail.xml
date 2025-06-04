@@ -99,6 +99,17 @@
 
         </LinearLayout>
 
+        <!-- Complimentary Checkbox -->
+        <CheckBox
+            android:id="@+id/complimentary_checkbox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/complimentary_item"
+            android:textSize="14sp"
+            android:layout_marginBottom="8dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp" />
+
         <TextView
             android:id="@+id/item_price_text_view"
             android:layout_width="match_parent"

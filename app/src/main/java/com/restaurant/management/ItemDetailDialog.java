@@ -12,6 +12,7 @@ import android.view.Window;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.Spinner;
 import android.widget.TextView;
@@ -30,10 +31,16 @@ public class ItemDetailDialog extends Dialog {
     public interface OnItemAddListener {
         void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes);
 
-        // New method to handle custom price items
-        default void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice) {
+        // New method to handle custom price items and complimentary items
+        default void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice, boolean isComplimentary) {
             // Default implementation calls the original method for backward compatibility
             onItemAdd(menuItem, variantId, quantity, notes);
+        }
+
+        // Overloaded method for custom price without complimentary flag (backward compatibility)
+        default void onItemAdd(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice) {
+            // Call the new method with complimentary flag set to false
+            onItemAdd(menuItem, variantId, quantity, notes, customPrice, false);
         }
     }
 
@@ -42,7 +49,9 @@ public class ItemDetailDialog extends Dialog {
     private int quantity = 1;
     private Long selectedVariantId = null;
     private double currentPrice;
+    private double originalPrice; // Store original price for when complimentary is unchecked
     private boolean isCustomItem = false;
+    private boolean isComplimentary = false;
 
     private TextView itemNameTextView;
     private TextView itemDescriptionTextView;
@@ -61,11 +70,15 @@ public class ItemDetailDialog extends Dialog {
     private EditText customPriceEditText;
     private TextView customPriceLabel;
 
+    // New views for complimentary checkbox
+    private CheckBox complimentaryCheckBox;
+
     public ItemDetailDialog(@NonNull Context context, ProductItem menuItem, OnItemAddListener listener) {
         super(context);
         this.menuItem = menuItem;
         this.listener = listener;
         this.currentPrice = menuItem.getPrice();
+        this.originalPrice = menuItem.getPrice(); // Store original price
 
         // Check if this is a custom item
         this.isCustomItem = "Custom".equalsIgnoreCase(menuItem.getName());
@@ -102,6 +115,9 @@ public class ItemDetailDialog extends Dialog {
         customPriceEditText = findViewById(R.id.custom_price_edit_text);
         customPriceLabel = findViewById(R.id.custom_price_label);
 
+        // Find complimentary checkbox
+        complimentaryCheckBox = findViewById(R.id.complimentary_checkbox);
+
         // Set menu item details
         itemNameTextView.setText(menuItem.getName());
 
@@ -112,6 +128,9 @@ public class ItemDetailDialog extends Dialog {
         } else {
             itemDescriptionTextView.setVisibility(View.GONE);
         }
+
+        // Set up complimentary checkbox
+        setupComplimentaryCheckbox();
 
         // Handle custom item price input
         if (isCustomItem) {
@@ -159,12 +178,17 @@ public class ItemDetailDialog extends Dialog {
                             if (position == 0) {
                                 // Regular price option
                                 selectedVariantId = null;
-                                currentPrice = menuItem.getPrice();
+                                originalPrice = menuItem.getPrice();
                             } else {
                                 // Variant selected (position - 1 because we added "Regular" as first item)
                                 Variant selectedVariant = menuItem.getVariants().get(position - 1);
                                 selectedVariantId = selectedVariant.getId();
-                                currentPrice = selectedVariant.getPrice();
+                                originalPrice = selectedVariant.getPrice();
+                            }
+
+                            // Update current price based on complimentary status
+                            if (!isComplimentary) {
+                                currentPrice = originalPrice;
                             }
                             updatePriceDisplay();
                         }
@@ -173,7 +197,10 @@ public class ItemDetailDialog extends Dialog {
                         public void onNothingSelected(AdapterView<?> parent) {
                             // If nothing is selected, use regular price
                             selectedVariantId = null;
-                            currentPrice = menuItem.getPrice();
+                            originalPrice = menuItem.getPrice();
+                            if (!isComplimentary) {
+                                currentPrice = originalPrice;
+                            }
                             updatePriceDisplay();
                         }
                     });
@@ -203,19 +230,19 @@ public class ItemDetailDialog extends Dialog {
         });
 
         addButton.setOnClickListener(v -> {
-            if (isCustomItem && !isValidCustomPrice()) {
-                // Show error or prevent adding if custom price is invalid
+            if (isCustomItem && !isComplimentary && !isValidCustomPrice()) {
+                // Show error or prevent adding if custom price is invalid (unless complimentary)
                 return;
             }
 
             if (listener != null) {
                 String notes = notesEditText.getText().toString().trim();
 
-                if (isCustomItem) {
-                    // For custom items, pass the custom price
+                if (isCustomItem || isComplimentary) {
+                    // For custom items or complimentary items, pass the custom price and complimentary status
                     Double customPrice = currentPrice;
-                    // Call the new method with custom price
-                    listener.onItemAdd(menuItem, selectedVariantId, quantity, notes, customPrice);
+                    // Call the new method with custom price and complimentary flag
+                    listener.onItemAdd(menuItem, selectedVariantId, quantity, notes, customPrice, isComplimentary);
                 } else {
                     // For regular items, use the original method
                     listener.onItemAdd(menuItem, selectedVariantId, quantity, notes);
@@ -225,6 +252,49 @@ public class ItemDetailDialog extends Dialog {
         });
 
         cancelButton.setOnClickListener(v -> dismiss());
+    }
+
+    private void setupComplimentaryCheckbox() {
+        if (complimentaryCheckBox != null) {
+            complimentaryCheckBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                isComplimentary = isChecked;
+
+                if (isChecked) {
+                    // When complimentary is checked, set price to 0
+                    currentPrice = 0.0;
+
+                    // Disable custom price input and variant selection for complimentary items
+                    if (customPriceContainer != null && isCustomItem) {
+                        customPriceEditText.setEnabled(false);
+                        customPriceEditText.setText("0");
+                    }
+                    if (variantSpinner != null) {
+                        variantSpinner.setEnabled(false);
+                    }
+                } else {
+                    // When complimentary is unchecked, restore original price
+                    if (isCustomItem) {
+                        // For custom items, restore to 0 and let user enter price
+                        currentPrice = 0.0;
+                        if (customPriceEditText != null) {
+                            customPriceEditText.setEnabled(true);
+                            customPriceEditText.setText("");
+                        }
+                    } else {
+                        // For regular items, restore original price
+                        currentPrice = originalPrice;
+                    }
+
+                    // Re-enable variant selection
+                    if (variantSpinner != null) {
+                        variantSpinner.setEnabled(true);
+                    }
+                }
+
+                updatePriceDisplay();
+                updateAddButtonState();
+            });
+        }
     }
 
     private void setupCustomPriceInput() {
@@ -247,24 +317,30 @@ public class ItemDetailDialog extends Dialog {
 
                     @Override
                     public void afterTextChanged(Editable s) {
+                        if (isComplimentary) {
+                            // Don't process price changes when complimentary is checked
+                            return;
+                        }
+
                         String priceText = s.toString().trim();
                         if (!priceText.isEmpty()) {
                             try {
                                 double customPrice = Double.parseDouble(priceText);
                                 if (customPrice >= 0) {
                                     currentPrice = customPrice;
+                                    originalPrice = customPrice; // Update original price for custom items
                                     updatePriceDisplay();
-                                    enableAddButton(true);
+                                    updateAddButtonState();
                                 } else {
-                                    enableAddButton(false);
+                                    updateAddButtonState();
                                 }
                             } catch (NumberFormatException e) {
-                                enableAddButton(false);
+                                updateAddButtonState();
                             }
                         } else {
                             currentPrice = 0;
                             updatePriceDisplay();
-                            enableAddButton(false);
+                            updateAddButtonState();
                         }
                     }
                 });
@@ -273,7 +349,7 @@ public class ItemDetailDialog extends Dialog {
                 customPriceEditText.setHint("Enter price");
 
                 // Initially disable add button until valid price is entered
-                enableAddButton(false);
+                updateAddButtonState();
             }
 
             // Set label text
@@ -295,6 +371,18 @@ public class ItemDetailDialog extends Dialog {
         } catch (NumberFormatException e) {
             return false;
         }
+    }
+
+    private void updateAddButtonState() {
+        boolean enabled = true;
+
+        if (isCustomItem && !isComplimentary) {
+            // For custom items that are not complimentary, require valid price
+            enabled = isValidCustomPrice();
+        }
+        // For complimentary items or regular items, always enable the button
+
+        enableAddButton(enabled);
     }
 
     private void enableAddButton(boolean enabled) {
@@ -327,7 +415,13 @@ public class ItemDetailDialog extends Dialog {
     private void updatePriceDisplay() {
         double totalPrice = currentPrice * quantity;
         String formattedPrice = formatPrice(totalPrice, getContext().getString(R.string.currency_prefix));
-        itemPriceTextView.setText(formattedPrice);
+
+        if (isComplimentary) {
+            // Show "FREE" or "Complimentary" text for complimentary items
+            itemPriceTextView.setText("FREE (" + formattedPrice + ")");
+        } else {
+            itemPriceTextView.setText(formattedPrice);
+        }
     }
 
     private String formatPrice(double price, String currencyPrefix) {

@@ -331,20 +331,26 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         ItemDetailDialog dialog = new ItemDetailDialog(this, menuItem, new ItemDetailDialog.OnItemAddListener() {
             @Override
             public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes) {
-                // Handle regular items
-                addItemToOrder(selectedItem, variantId, quantity, notes, null);
+                // Handle regular items (backward compatibility)
+                addItemToOrder(selectedItem, variantId, quantity, notes, null, false);
             }
 
             @Override
             public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes, Double customPrice) {
-                // Handle custom price items
-                addItemToOrder(selectedItem, variantId, quantity, notes, customPrice);
+                // Handle custom price items (backward compatibility)
+                addItemToOrder(selectedItem, variantId, quantity, notes, customPrice, false);
+            }
+
+            @Override
+            public void onItemAdd(ProductItem selectedItem, Long variantId, int quantity, String notes, Double customPrice, boolean isComplimentary) {
+                // Handle all items including complimentary items
+                addItemToOrder(selectedItem, variantId, quantity, notes, customPrice, isComplimentary);
             }
         });
         dialog.show();
     }
 
-    private void addItemToOrder(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice) {
+    private void addItemToOrder(ProductItem menuItem, Long variantId, int quantity, String notes, Double customPrice, boolean isComplimentary) {
         if (quantity <= 0) {
             Toast.makeText(this, R.string.invalid_quantity, Toast.LENGTH_SHORT).show();
             return;
@@ -354,10 +360,13 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         progressBar.setVisibility(View.VISIBLE);
         menuItemsRecyclerView.setVisibility(View.GONE);
 
-        // Get the unit price based on custom price, variant, or default price
+        // Get the unit price based on complimentary status, custom price, variant, or default price
         double unitPrice;
 
-        if (customPrice != null) {
+        if (isComplimentary) {
+            // Complimentary items always have 0 price
+            unitPrice = 0.0;
+        } else if (customPrice != null) {
             // Use custom price for custom items
             unitPrice = customPrice;
         } else if (variantId != null) {
@@ -377,6 +386,9 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         // Calculate the total price
         double totalPrice = unitPrice * quantity;
 
+        // Make final copies for lambda expression
+        final double finalUnitPrice = unitPrice;
+
         // Prepare the request body according to the specified structure
         JSONObject requestJson = new JSONObject();
         try {
@@ -389,7 +401,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             }
 
             requestJson.put("quantity", quantity);
-            requestJson.put("unit_price", unitPrice);
+            requestJson.put("unit_price", finalUnitPrice);
             requestJson.put("total_price", totalPrice);
             requestJson.put("status", "new");
             requestJson.put("kitchen_printed", false);
@@ -399,8 +411,14 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 requestJson.put("notes", notes);
             }
 
-            // Add custom price flag if this is a custom item
-            if (customPrice != null) {
+            // Add complimentary flag if this is a complimentary item
+            if (isComplimentary) {
+                requestJson.put("is_complimentary", true);
+                requestJson.put("original_price", getOriginalPrice(menuItem, variantId));
+            }
+
+            // Add custom price flag if this is a custom item (and not complimentary)
+            if (customPrice != null && !isComplimentary) {
                 requestJson.put("is_custom_price", true);
                 requestJson.put("original_price", menuItem.getPrice());
             }
@@ -456,14 +474,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                     menuItemsRecyclerView.setVisibility(View.VISIBLE);
 
                     if (response.isSuccessful()) {
-                        String successMessage;
-                        if (customPrice != null) {
-                            successMessage = getString(R.string.item_added_successfully) +
-                                    " (Custom price: " + String.format("%.0f", customPrice) + ")";
-                        } else {
-                            successMessage = getString(R.string.item_added_successfully);
-                        }
-
+                        String successMessage = buildSuccessMessage(isComplimentary, customPrice, finalUnitPrice);
                         Toast.makeText(AddItemActivity.this, successMessage, Toast.LENGTH_SHORT).show();
                         setResult(RESULT_OK);
                         finish();
@@ -499,6 +510,31 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 });
             }
         });
+    }
+
+    private double getOriginalPrice(ProductItem menuItem, Long variantId) {
+        if (variantId != null) {
+            // Find the selected variant's original price
+            for (Variant variant : menuItem.getVariants()) {
+                if (Objects.equals(variant.getId(), variantId)) {
+                    return variant.getPrice();
+                }
+            }
+        }
+        // Return default item price
+        return menuItem.getPrice();
+    }
+
+    private String buildSuccessMessage(boolean isComplimentary, Double customPrice, double unitPrice) {
+        String baseMessage = getString(R.string.item_added_successfully);
+
+        if (isComplimentary) {
+            return baseMessage + " (Complimentary - FREE)";
+        } else if (customPrice != null) {
+            return baseMessage + " (Custom price: " + String.format("%.0f", customPrice) + ")";
+        } else {
+            return baseMessage;
+        }
     }
 
     private String getAuthToken() {

@@ -338,4 +338,7 @@
 
     <!-- Navigation Strings -->
     <string name="nav_cashier">Cashier Management</string>
+
+    <string name="complimentary_item">Complimentary Item</string>
+
 </resources>
