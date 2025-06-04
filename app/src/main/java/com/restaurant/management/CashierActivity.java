@@ -144,13 +144,14 @@ public class CashierActivity extends AppCompatActivity {
                                     currentBalance = sessionData.getDouble("opening_amount");
                                 }
 
-                                sessionStatusTextView.setText("Active Session - Cashier: " + cashierName);
+                                // Set multi-line session status text
+                                sessionStatusTextView.setText("Active Session\nOpened By: " + cashierName);
                                 currentBalanceTextView.setText("Current Balance: " + currencyFormat.format(currentBalance));
                                 currentBalanceTextView.setVisibility(View.VISIBLE);
 
                             } catch (JSONException e) {
                                 Log.e(TAG, "Error parsing session data", e);
-                                sessionStatusTextView.setText("Active Session - Details unavailable");
+                                sessionStatusTextView.setText("Active Session\nDetails unavailable");
                                 currentBalanceTextView.setVisibility(View.GONE);
                             }
                         } else {
