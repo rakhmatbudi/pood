@@ -312,8 +312,8 @@
     <!-- Cashier Activity Strings -->
     <string name="cashier_management">Cashier Management</string>
     <string name="close_session">Close Session</string>
-    <string name="withdraw_money">Withdraw Money</string>
-    <string name="add_money">Add Money</string>
+    <string name="withdraw_money">Withdraw</string>
+    <string name="add_money">Top Up</string>
     <string name="current_balance">Current Balance: %1$s</string>
     <string name="no_active_session_cashier">No Active Session</string>
     <string name="checking_session_status_cashier">Checking session status...</string>
