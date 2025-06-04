@@ -120,12 +120,13 @@
                             android:text="Open Session"
                             android:textSize="16sp"
                             android:textStyle="bold"
-                            android:background="?attr/colorPrimary"
+                            android:background="@drawable/rounded_button_primary"
                             android:textColor="@android:color/white"
                             android:drawableStart="@android:drawable/ic_media_play"
                             android:paddingStart="16dp"
                             android:paddingEnd="16dp"
                             android:gravity="center"
+                            android:elevation="2dp"
                             tools:text="Close Session" />
 
                     </LinearLayout>
