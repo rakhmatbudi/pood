@@ -3,7 +3,6 @@ package com.restaurant.management;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -32,7 +31,6 @@ import okhttp3.Response;
 
 public class CashierActivity extends AppCompatActivity {
 
-    private static final String TAG = "CashierActivity";
     private static final String API_URL_CHECK_SESSION = "https://api.pood.lol/cashier-sessions/current";
     private static final String API_URL_TRANSACTION = "https://api.pood.lol/cashier-sessions/%d/transaction";
 
@@ -107,13 +105,12 @@ public class CashierActivity extends AppCompatActivity {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to check cashier session", e);
                 runOnUiThread(() -> {
                     loadingProgressBar.setVisibility(View.GONE);
                     sessionStatusTextView.setText("Error checking session status");
                     updateUIForSessionStatus(false);
                     Toast.makeText(CashierActivity.this,
-                            "Failed to check session: " + e.getMessage(),
+                            "Network error. Please check your connection.",
                             Toast.LENGTH_SHORT).show();
                 });
             }
@@ -122,8 +119,6 @@ public class CashierActivity extends AppCompatActivity {
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Session check response: " + responseBody);
-
                     JSONObject jsonObject = new JSONObject(responseBody);
                     final boolean sessionActive = "success".equals(jsonObject.getString("status")) &&
                             jsonObject.has("data") && !jsonObject.isNull("data");
@@ -150,7 +145,6 @@ public class CashierActivity extends AppCompatActivity {
                                 currentBalanceTextView.setVisibility(View.VISIBLE);
 
                             } catch (JSONException e) {
-                                Log.e(TAG, "Error parsing session data", e);
                                 sessionStatusTextView.setText("Active Session\nDetails unavailable");
                                 currentBalanceTextView.setVisibility(View.GONE);
                             }
@@ -163,7 +157,6 @@ public class CashierActivity extends AppCompatActivity {
                     });
 
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing session response", e);
                     runOnUiThread(() -> {
                         loadingProgressBar.setVisibility(View.GONE);
                         sessionStatusTextView.setText("Error checking session status");
@@ -342,25 +335,20 @@ public class CashierActivity extends AppCompatActivity {
                     .post(requestBody)
                     .build();
 
-            Log.d(TAG, "Withdrawal request URL: " + apiUrl);
-            Log.d(TAG, "Withdrawal request body: " + requestJson.toString());
-
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    Log.e(TAG, "Withdrawal request failed", e);
                     runOnUiThread(() -> {
                         loadingProgressBar.setVisibility(View.GONE);
                         Toast.makeText(CashierActivity.this,
-                                "Withdrawal failed: " + e.getMessage(),
-                                Toast.LENGTH_LONG).show();
+                                "Network error. Please try again.",
+                                Toast.LENGTH_SHORT).show();
                     });
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Withdrawal response: " + responseBody);
 
                     runOnUiThread(() -> {
                         loadingProgressBar.setVisibility(View.GONE);
@@ -369,7 +357,7 @@ public class CashierActivity extends AppCompatActivity {
                             try {
                                 JSONObject jsonResponse = new JSONObject(responseBody);
                                 if ("success".equals(jsonResponse.getString("status"))) {
-                                    String message = jsonResponse.optString("message", "Transaction completed successfully");
+                                    String message = jsonResponse.optString("message", "Withdrawal completed successfully");
                                     Toast.makeText(CashierActivity.this,
                                             message,
                                             Toast.LENGTH_SHORT).show();
@@ -380,23 +368,22 @@ public class CashierActivity extends AppCompatActivity {
                                     checkCashierSession(); // Refresh to get updated balance from server
                                 } else {
                                     String message = jsonResponse.optString("message", "Withdrawal failed");
-                                    Toast.makeText(CashierActivity.this, message, Toast.LENGTH_LONG).show();
+                                    Toast.makeText(CashierActivity.this, message, Toast.LENGTH_SHORT).show();
                                 }
                             } catch (JSONException e) {
-                                Log.e(TAG, "Error parsing withdrawal response", e);
                                 Toast.makeText(CashierActivity.this,
-                                        "Error processing withdrawal response",
-                                        Toast.LENGTH_LONG).show();
+                                        "Error processing withdrawal",
+                                        Toast.LENGTH_SHORT).show();
                             }
                         } else {
                             try {
                                 JSONObject errorResponse = new JSONObject(responseBody);
                                 String errorMessage = errorResponse.optString("message", "Withdrawal failed");
-                                Toast.makeText(CashierActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                                Toast.makeText(CashierActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                             } catch (JSONException e) {
                                 Toast.makeText(CashierActivity.this,
-                                        "Withdrawal failed with code: " + response.code(),
-                                        Toast.LENGTH_LONG).show();
+                                        "Withdrawal failed. Please try again.",
+                                        Toast.LENGTH_SHORT).show();
                             }
                         }
                     });
@@ -404,7 +391,6 @@ public class CashierActivity extends AppCompatActivity {
             });
 
         } catch (JSONException e) {
-            Log.e(TAG, "Error creating withdrawal request", e);
             loadingProgressBar.setVisibility(View.GONE);
             Toast.makeText(this, "Error creating withdrawal request", Toast.LENGTH_SHORT).show();
         }
@@ -431,25 +417,20 @@ public class CashierActivity extends AppCompatActivity {
                     .post(requestBody)
                     .build();
 
-            Log.d(TAG, "Add money request URL: " + apiUrl);
-            Log.d(TAG, "Add money request body: " + requestJson.toString());
-
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    Log.e(TAG, "Add money request failed", e);
                     runOnUiThread(() -> {
                         loadingProgressBar.setVisibility(View.GONE);
                         Toast.makeText(CashierActivity.this,
-                                "Add money failed: " + e.getMessage(),
-                                Toast.LENGTH_LONG).show();
+                                "Network error. Please try again.",
+                                Toast.LENGTH_SHORT).show();
                     });
                 }
 
                 @Override
                 public void onResponse(Call call, Response response) throws IOException {
                     String responseBody = response.body().string();
-                    Log.d(TAG, "Add money response: " + responseBody);
 
                     runOnUiThread(() -> {
                         loadingProgressBar.setVisibility(View.GONE);
@@ -458,7 +439,7 @@ public class CashierActivity extends AppCompatActivity {
                             try {
                                 JSONObject jsonResponse = new JSONObject(responseBody);
                                 if ("success".equals(jsonResponse.getString("status"))) {
-                                    String message = jsonResponse.optString("message", "Transaction completed successfully");
+                                    String message = jsonResponse.optString("message", "Money added successfully");
                                     Toast.makeText(CashierActivity.this,
                                             message,
                                             Toast.LENGTH_SHORT).show();
@@ -469,23 +450,22 @@ public class CashierActivity extends AppCompatActivity {
                                     checkCashierSession(); // Refresh to get updated balance from server
                                 } else {
                                     String message = jsonResponse.optString("message", "Add money failed");
-                                    Toast.makeText(CashierActivity.this, message, Toast.LENGTH_LONG).show();
+                                    Toast.makeText(CashierActivity.this, message, Toast.LENGTH_SHORT).show();
                                 }
                             } catch (JSONException e) {
-                                Log.e(TAG, "Error parsing add money response", e);
                                 Toast.makeText(CashierActivity.this,
-                                        "Error processing add money response",
-                                        Toast.LENGTH_LONG).show();
+                                        "Error processing request",
+                                        Toast.LENGTH_SHORT).show();
                             }
                         } else {
                             try {
                                 JSONObject errorResponse = new JSONObject(responseBody);
                                 String errorMessage = errorResponse.optString("message", "Add money failed");
-                                Toast.makeText(CashierActivity.this, errorMessage, Toast.LENGTH_LONG).show();
+                                Toast.makeText(CashierActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                             } catch (JSONException e) {
                                 Toast.makeText(CashierActivity.this,
-                                        "Add money failed with code: " + response.code(),
-                                        Toast.LENGTH_LONG).show();
+                                        "Operation failed. Please try again.",
+                                        Toast.LENGTH_SHORT).show();
                             }
                         }
                     });
@@ -493,9 +473,8 @@ public class CashierActivity extends AppCompatActivity {
             });
 
         } catch (JSONException e) {
-            Log.e(TAG, "Error creating add money request", e);
             loadingProgressBar.setVisibility(View.GONE);
-            Toast.makeText(this, "Error creating add money request", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Error creating request", Toast.LENGTH_SHORT).show();
         }
     }
 }
