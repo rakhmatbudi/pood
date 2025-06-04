@@ -169,33 +169,37 @@
                             <Button
                                 android:id="@+id/withdraw_money_button"
                                 android:layout_width="0dp"
-                                android:layout_height="wrap_content"
+                                android:layout_height="48dp"
                                 android:layout_weight="1"
                                 android:layout_marginEnd="8dp"
                                 android:text="Withdraw"
                                 android:textSize="14sp"
-                                android:background="#FF9800"
+                                android:textStyle="bold"
+                                android:background="@drawable/rounded_button_orange"
                                 android:textColor="@android:color/white"
                                 android:drawableStart="@android:drawable/ic_menu_upload"
                                 android:paddingStart="16dp"
                                 android:paddingEnd="16dp"
-                                android:gravity="center" />
+                                android:gravity="center"
+                                android:elevation="2dp" />
 
                             <!-- Add Money Button -->
                             <Button
                                 android:id="@+id/add_money_button"
                                 android:layout_width="0dp"
-                                android:layout_height="wrap_content"
+                                android:layout_height="48dp"
                                 android:layout_weight="1"
                                 android:layout_marginStart="8dp"
                                 android:text="Top Up"
                                 android:textSize="14sp"
-                                android:background="#4CAF50"
+                                android:textStyle="bold"
+                                android:background="@drawable/rounded_button_green"
                                 android:textColor="@android:color/white"
                                 android:drawableStart="@android:drawable/ic_menu_add"
                                 android:paddingStart="16dp"
                                 android:paddingEnd="16dp"
-                                android:gravity="center" />
+                                android:gravity="center"
+                                android:elevation="2dp" />
 
                         </LinearLayout>
 
