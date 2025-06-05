@@ -24,6 +24,14 @@ import androidx.appcompat.widget.Toolbar;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.helpers.PaymentApiHelper;
 import com.restaurant.management.helpers.PaymentUIHelper;
@@ -47,6 +55,12 @@ public class PaymentActivity extends AppCompatActivity implements
 
     private static final int BLUETOOTH_PERMISSION_REQUEST = 104;
     private static final String TAG = "PaymentActivity";
+
+    private double taxRate = 0;
+    private String taxDescription = "Pajak Restoran (PB1)";
+    private double serviceRate = 0;
+    private String serviceDescription = "Service Charge";
+    private boolean ratesLoaded = false;
 
     // Thermal printer constants
     private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
@@ -126,6 +140,9 @@ public class PaymentActivity extends AppCompatActivity implements
         // Initialize Bluetooth
         initializeBluetooth();
 
+        // Fetch tax and service rates from API
+        fetchTaxAndServiceRates();
+
         // Get data from intent and validate
         if (!getAndValidateIntentData()) {
             return;
@@ -161,6 +178,85 @@ public class PaymentActivity extends AppCompatActivity implements
         discountSpinner = findViewById(R.id.discount_spinner);
         discountAmountTextView = findViewById(R.id.discount_amount_text_view);
         discountedTotalTextView = findViewById(R.id.discounted_total_text_view);
+    }
+
+    private void fetchTaxAndServiceRates() {
+        new Thread(() -> {
+            try {
+                URL url = new URL("https://api.pood.lol/taxes/rates");
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    parseRatesResponse(response.toString());
+                } else {
+                    runOnUiThread(() -> {
+                        setDefaultRates();
+                    });
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    setDefaultRates();
+                });
+            }
+        }).start();
+    }
+
+    private void parseRatesResponse(String jsonResponse) {
+        try {
+            JSONObject root = new JSONObject(jsonResponse);
+            String status = root.getString("status");
+
+            if ("success".equals(status)) {
+                JSONArray dataArray = root.getJSONArray("data");
+
+                for (int i = 0; i < dataArray.length(); i++) {
+                    JSONObject item = dataArray.getJSONObject(i);
+                    int id = item.getInt("id");
+                    String description = item.getString("description");
+                    double amount = item.getDouble("amount");
+
+                    if (id == 1) { // Tax
+                        taxRate = amount / 100.0; // Convert percentage to decimal
+                        taxDescription = description;
+                    } else if (id == 2) { // Service Charge
+                        serviceRate = amount / 100.0; // Convert percentage to decimal
+                        serviceDescription = description;
+                    }
+                }
+
+                runOnUiThread(() -> {
+                    ratesLoaded = true;
+                });
+            } else {
+                runOnUiThread(() -> {
+                    setDefaultRates();
+                });
+            }
+        } catch (JSONException e) {
+            runOnUiThread(() -> {
+                setDefaultRates();
+            });
+        }
+    }
+
+    private void setDefaultRates() {
+        taxRate = 0.10; // 10% default
+        taxDescription = "Tax";
+        serviceRate = 0.02; // 2% default
+        serviceDescription = "Service Charge";
+        ratesLoaded = true;
     }
 
     private boolean getAndValidateIntentData() {
@@ -487,6 +583,11 @@ public class PaymentActivity extends AppCompatActivity implements
     }
 
     private void printReceipt() {
+        // Check if rates are loaded, if not wait a bit or use defaults
+        if (!ratesLoaded) {
+            setDefaultRates();
+        }
+
         if (!checkBluetoothAndEnable()) {
             // If Bluetooth not available, just finish
             finishPaymentActivity();
@@ -695,15 +796,63 @@ public class PaymentActivity extends AppCompatActivity implements
         outputStream.write(ESC_BOLD_OFF);
         printLine(SEPARATOR_LINE);
 
-        // Original amount
+        // Calculate base amount (before tax and service)
+        double baseAmount = originalAmount;
+
+        // If discount was applied, show original breakdown
         if (selectedDiscount != null && selectedDiscount.getId() != -1) {
-            printLine(formatTotalLine("Subtotal:", formatCurrency(originalAmount)));
+            // Calculate base amount before discount, tax, and service
+            double totalRate = 1 + taxRate + serviceRate; // 1.0 + tax rate + service rate
+            baseAmount = originalAmount / totalRate;
+
+            printLine(formatTotalLine("Subtotal:", formatCurrency(baseAmount)));
+
+            // Show tax and service on original amount
+            if (taxRate > 0.01) {
+                double taxAmount = baseAmount * taxRate;
+                String taxLabel = String.format("%s (%.0f%%):", taxDescription, taxRate * 100);
+                printLine(formatTotalLine(taxLabel, formatCurrency(taxAmount)));
+            }
+
+            if (serviceRate > 0.01) {
+                double serviceAmount = baseAmount * serviceRate;
+                String serviceLabel = String.format("%s (%.0f%%):", serviceDescription, serviceRate * 100);
+                printLine(formatTotalLine(serviceLabel, formatCurrency(serviceAmount)));
+            }
+
+            printLine(formatTotalLine("Before Discount:", formatCurrency(originalAmount)));
             printLine(formatTotalLine("Discount:", "-" + formatCurrency(discountedAmount)));
             printLine(formatTotalLine("(" + selectedDiscount.getName() + ")", ""));
+        } else {
+            // No discount applied - show normal breakdown
+            // Calculate base amount without tax and service
+            double totalRate = 1 + taxRate + serviceRate;
+            baseAmount = finalAmount / totalRate;
+
+            printLine(formatTotalLine("Subtotal:", formatCurrency(baseAmount)));
+
+            // Show tax and service charges
+            if (taxRate > 0.01) {
+                double taxAmount = baseAmount * taxRate;
+                String taxLabel = String.format("%s (%.0f%%):", taxDescription, taxRate * 100);
+                printLine(formatTotalLine(taxLabel, formatCurrency(taxAmount)));
+            }
+
+            if (serviceRate > 0.01) {
+                double serviceAmount = baseAmount * serviceRate;
+                String serviceLabel = String.format("%s (%.0f%%):", serviceDescription, serviceRate * 100);
+                printLine(formatTotalLine(serviceLabel, formatCurrency(serviceAmount)));
+            }
         }
 
+        printLine(SEPARATOR_LINE);
+
         // Final amount
-        printLine(formatTotalLine("Total Amount:", formatCurrency(finalAmount)));
+        outputStream.write(ESC_BOLD_ON);
+        printLine(formatTotalLine("TOTAL AMOUNT:", formatCurrency(finalAmount)));
+        outputStream.write(ESC_BOLD_OFF);
+
+        outputStream.write(ESC_FEED_LINE);
 
         // Payment method
         printLine(formatTotalLine("Payment Method:", selectedPaymentMethod.toUpperCase()));

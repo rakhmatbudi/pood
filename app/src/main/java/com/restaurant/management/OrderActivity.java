@@ -671,8 +671,9 @@ public class OrderActivity extends AppCompatActivity {
         outputStream.write(ESC_ALIGN_CENTER);
         printLine(SEPARATOR_LINE);
         outputStream.write(ESC_FEED_LINE);
-        printLine("This bill is not receipt.");
-        printLine("Receipt printed after payment");
+        printLine("Please check the bill thoroughly before making payment.");
+        printLine("Receipt will be provided when.");
+        printLine("payment is settled.");
         outputStream.write(ESC_FEED_LINE);
         printLine("Follow us on social media:");
         printLine("@cafeserendipityjagakarsa");
