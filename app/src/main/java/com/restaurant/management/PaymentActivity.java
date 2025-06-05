@@ -206,11 +206,11 @@ public class PaymentActivity extends AppCompatActivity implements
                     isUpdatingDiscount = false;
                     setLoadingState(false);
 
-                    // Update order information
-                    if (response.orderNumber != null) {
+                    // Update order information from API response
+                    if (response.orderNumber != null && !response.orderNumber.isEmpty()) {
                         orderNumber = response.orderNumber;
                     }
-                    if (response.tableNumber != null) {
+                    if (response.tableNumber != null && !response.tableNumber.isEmpty()) {
                         tableNumber = response.tableNumber;
                     }
 

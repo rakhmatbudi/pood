@@ -26,6 +26,14 @@ import com.restaurant.management.helpers.OrderUiHelper;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
@@ -42,6 +50,12 @@ public class OrderActivity extends AppCompatActivity {
     private static final int BLUETOOTH_ENABLE_REQUEST = 102;
     private static final int BLUETOOTH_PERMISSION_REQUEST = 103;
     private static final String TAG = "OrderActivity";
+
+    private double taxRate = 0;
+    private String taxDescription = "Pajak Restoran (PB1)";
+    private double serviceRate = 0;
+    private String serviceDescription = "Service Charge";
+    private boolean ratesLoaded = false;
 
     // Thermal printer constants
     private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
@@ -90,6 +104,9 @@ public class OrderActivity extends AppCompatActivity {
         initializeViews();
         setupClickListeners();
         initializeBluetooth();
+
+        // Fetch tax and service rates from API
+        fetchTaxAndServiceRates();
 
         orderId = getIntent().getLongExtra("order_id", -1);
         sessionId = getIntent().getLongExtra("session_id", -1);
@@ -152,6 +169,87 @@ public class OrderActivity extends AppCompatActivity {
         }
     }
 
+    private void fetchTaxAndServiceRates() {
+        new Thread(() -> {
+            try {
+                URL url = new URL("https://api.pood.lol/taxes/rates");
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+
+                    parseRatesResponse(response.toString());
+                } else {
+                    runOnUiThread(() -> {
+                        // Use default values if API fails
+                        setDefaultRates();
+                    });
+                }
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    // Use default values if API fails
+                    setDefaultRates();
+                });
+            }
+        }).start();
+    }
+
+    private void parseRatesResponse(String jsonResponse) {
+        try {
+            JSONObject root = new JSONObject(jsonResponse);
+            String status = root.getString("status");
+
+            if ("success".equals(status)) {
+                JSONArray dataArray = root.getJSONArray("data");
+
+                for (int i = 0; i < dataArray.length(); i++) {
+                    JSONObject item = dataArray.getJSONObject(i);
+                    int id = item.getInt("id");
+                    String description = item.getString("description");
+                    double amount = item.getDouble("amount");
+
+                    if (id == 1) { // Tax
+                        taxRate = amount / 100.0; // Convert percentage to decimal
+                        taxDescription = description;
+                    } else if (id == 2) { // Service Charge
+                        serviceRate = amount / 100.0; // Convert percentage to decimal
+                        serviceDescription = description;
+                    }
+                }
+
+                runOnUiThread(() -> {
+                    ratesLoaded = true;
+                });
+            } else {
+                runOnUiThread(() -> {
+                    setDefaultRates();
+                });
+            }
+        } catch (JSONException e) {
+            runOnUiThread(() -> {
+                setDefaultRates();
+            });
+        }
+    }
+
+    private void setDefaultRates() {
+        taxRate = 0.10; // 10% default
+        taxDescription = "Tax";
+        serviceRate = 0.02; // 2% default
+        serviceDescription = "Service Charge";
+        ratesLoaded = true;
+    }
+
     // Thermal Printing Implementation
     private void printBill() {
         try {
@@ -160,7 +258,11 @@ public class OrderActivity extends AppCompatActivity {
                 return;
             }
 
-            // Set flag for after permissions are granted
+            // Check if rates are loaded, if not wait a bit or use defaults
+            if (!ratesLoaded) {
+                setDefaultRates();
+            }
+
             pendingBillPrint = true;
             pendingCheckerPrint = false;
 
@@ -168,7 +270,7 @@ public class OrderActivity extends AppCompatActivity {
                 return;
             }
 
-            showPrinterSelection(true); // true for bill
+            showPrinterSelection(true);
 
         } catch (Exception e) {
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
@@ -526,13 +628,33 @@ public class OrderActivity extends AppCompatActivity {
         double subtotal = order.getTotalAmount();
         double finalAmount = order.getFinalAmount();
 
-        // Calculate tax and service charge from the difference
-        double additionalCharges = finalAmount - subtotal;
-
         printLine(formatTotalLine("Subtotal:", formatCurrency(subtotal)));
 
-        if (additionalCharges > 0) {
-            printLine(formatTotalLine("Additional Charges:", formatCurrency(additionalCharges)));
+        // Calculate tax and service charge using API rates
+        double taxAmount = subtotal * taxRate;
+        double serviceAmount = subtotal * serviceRate;
+
+        // Verify our calculation matches the final amount and adjust if needed
+        double calculatedTotal = subtotal + taxAmount + serviceAmount;
+        double difference = finalAmount - subtotal;
+
+        // If there's a significant difference, distribute it proportionally
+        if (Math.abs(calculatedTotal - finalAmount) > 0.01 && (taxAmount + serviceAmount) > 0) {
+            double ratio = difference / (taxAmount + serviceAmount);
+            taxAmount *= ratio;
+            serviceAmount *= ratio;
+        }
+
+        // Print tax if greater than 0
+        if (taxAmount > 0.01) {
+            String taxLabel = String.format("%s (%.0f%%):", taxDescription, taxRate * 100);
+            printLine(formatTotalLine(taxLabel, formatCurrency(taxAmount)));
+        }
+
+        // Print service charge if greater than 0
+        if (serviceAmount > 0.01) {
+            String serviceLabel = String.format("%s (%.0f%%):", serviceDescription, serviceRate * 100);
+            printLine(formatTotalLine(serviceLabel, formatCurrency(serviceAmount)));
         }
 
         printLine(SEPARATOR_LINE);
