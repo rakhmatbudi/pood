@@ -22,6 +22,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.navigation.NavigationView;
 import com.restaurant.management.adapters.CashierSessionAdapter;
 import com.restaurant.management.models.CashierSession;
+import com.restaurant.management.adapters.PromoAdapter;
+import com.restaurant.management.helpers.PromoApiHelper;
+import com.restaurant.management.models.Promo;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -58,6 +61,14 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     private ProgressBar loadingProgressBar;
     private TextView noPastSessionsTextView;
 
+    private RecyclerView promosRecyclerView;
+    private TextView noPromosTextView;
+    private ProgressBar promosProgressBar;
+    private TextView promosHeaderTextView;
+    private List<Promo> promos = new ArrayList<>();
+    private PromoApiHelper promoApiHelper;
+    private PromoAdapter promoAdapter;
+
     private int userId;
     private String userName;
     private List<CashierSession> cashierSessions = new ArrayList<>();
@@ -81,6 +92,8 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             sessionStatusTextView = findViewById(R.id.session_status_text_view);
             openSessionButton = findViewById(R.id.open_session_button);
             endSessionButton = findViewById(R.id.end_session_button);
+
+            initializePromoComponents();
 
             // Try to find the RecyclerView components, but don't crash if not found
             pastSessionsRecyclerView = findViewById(R.id.past_sessions_recycler_view);
@@ -184,6 +197,103 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             Toast.makeText(this,
                     getString(R.string.error_initializing, e.getMessage()),
                     Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void loadPromos() {
+        if (promosProgressBar != null) {
+            promosProgressBar.setVisibility(View.VISIBLE);
+        }
+
+        if (promosRecyclerView != null) {
+            promosRecyclerView.setVisibility(View.GONE);
+        }
+
+        if (noPromosTextView != null) {
+            noPromosTextView.setVisibility(View.GONE);
+        }
+
+        promoApiHelper.fetchActivePromos(new PromoApiHelper.PromoCallback() {
+            @Override
+            public void onSuccess(List<Promo> fetchedPromos) {
+                runOnUiThread(() -> {
+                    if (promosProgressBar != null) {
+                        promosProgressBar.setVisibility(View.GONE);
+                    }
+
+                    promos.clear();
+                    promos.addAll(fetchedPromos);
+
+                    if (promos.isEmpty()) {
+                        if (promosRecyclerView != null) {
+                            promosRecyclerView.setVisibility(View.GONE);
+                        }
+                        if (noPromosTextView != null) {
+                            noPromosTextView.setVisibility(View.VISIBLE);
+                            noPromosTextView.setText("No active promotions available");
+                        }
+                    } else {
+                        if (promosRecyclerView != null) {
+                            promosRecyclerView.setVisibility(View.VISIBLE);
+                            promoAdapter.notifyDataSetChanged();
+                        }
+                        if (noPromosTextView != null) {
+                            noPromosTextView.setVisibility(View.GONE);
+                        }
+                    }
+
+                    // Update header text with count
+                    if (promosHeaderTextView != null) {
+                        String headerText = "Promotions (" + promos.size() + ")";
+                        promosHeaderTextView.setText(headerText);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                runOnUiThread(() -> {
+                    if (promosProgressBar != null) {
+                        promosProgressBar.setVisibility(View.GONE);
+                    }
+
+                    if (promosRecyclerView != null) {
+                        promosRecyclerView.setVisibility(View.GONE);
+                    }
+
+                    if (noPromosTextView != null) {
+                        noPromosTextView.setVisibility(View.VISIBLE);
+                        noPromosTextView.setText("Failed to load promotions: " + message);
+                    }
+
+                    Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    private void initializePromoComponents() {
+        // Initialize API helper
+        promoApiHelper = new PromoApiHelper(this);
+
+        // Find promo views (only if they exist in your layout)
+        promosRecyclerView = findViewById(R.id.promos_recycler_view);
+        noPromosTextView = findViewById(R.id.no_promos_text_view);
+        promosProgressBar = findViewById(R.id.promos_progress_bar);
+        promosHeaderTextView = findViewById(R.id.promos_header_text_view);
+
+        // Setup promos RecyclerView if it exists
+        if (promosRecyclerView != null) {
+            promosRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
+            promoAdapter = new PromoAdapter(this, promos);
+            promoAdapter.setOnPromoClickListener(promo -> {
+                // Handle promo click
+                Toast.makeText(this, "Clicked on: " + promo.getDisplayName(), Toast.LENGTH_SHORT).show();
+            });
+            promosRecyclerView.setAdapter(promoAdapter);
+
+            // Load promos
+            loadPromos();
         }
     }
 

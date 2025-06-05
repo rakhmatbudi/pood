@@ -341,4 +341,10 @@
 
     <string name="complimentary_item">Complimentary Item</string>
 
+    <string name="current_promotions">Current Promotions</string>
+    <string name="no_promotions_available">No promotions available</string>
+    <string name="promo_image_description">Promotion image</string>
+    <string name="quick_actions">Quick Actions</string>
+    <string name="products">Products</string>
+
 </resources>
