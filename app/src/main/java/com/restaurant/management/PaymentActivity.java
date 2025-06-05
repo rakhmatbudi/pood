@@ -1,6 +1,12 @@
 package com.restaurant.management;
 
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -12,8 +18,11 @@ import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.helpers.PaymentApiHelper;
@@ -22,12 +31,39 @@ import com.restaurant.management.models.Discount;
 import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.RoundingConfig;
 
+import java.io.IOException;
+import java.io.OutputStream;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 
 public class PaymentActivity extends AppCompatActivity implements
         PaymentUIHelper.DiscountSelectionListener,
         PaymentUIHelper.PaymentMethodSelectionListener {
+
+    private static final int BLUETOOTH_PERMISSION_REQUEST = 104;
+    private static final String TAG = "PaymentActivity";
+
+    // Thermal printer constants
+    private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    private static final int CHAR_WIDTH = 32;
+
+    // ESC/POS Commands
+    private static final byte[] ESC_INIT = {0x1B, 0x40};
+    private static final byte[] ESC_ALIGN_CENTER = {0x1B, 0x61, 0x01};
+    private static final byte[] ESC_ALIGN_LEFT = {0x1B, 0x61, 0x00};
+    private static final byte[] ESC_ALIGN_RIGHT = {0x1B, 0x61, 0x02};
+    private static final byte[] ESC_BOLD_ON = {0x1B, 0x45, 0x01};
+    private static final byte[] ESC_BOLD_OFF = {0x1B, 0x45, 0x00};
+    private static final byte[] ESC_DOUBLE_HEIGHT = {0x1B, 0x21, 0x10};
+    private static final byte[] ESC_NORMAL_SIZE = {0x1B, 0x21, 0x00};
+    private static final byte[] ESC_CUT_PAPER = {0x1D, 0x56, 0x42, 0x00};
+    private static final byte[] ESC_FEED_LINE = {0x0A};
+    private static final String SEPARATOR_LINE = "--------------------------------";
 
     // Helper classes
     private PaymentApiHelper apiHelper;
@@ -66,6 +102,11 @@ public class PaymentActivity extends AppCompatActivity implements
     private RoundingConfig roundingConfig;
     private boolean isUpdatingDiscount = false;
 
+    // Thermal printer fields
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothSocket bluetoothSocket;
+    private OutputStream outputStream;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -82,6 +123,9 @@ public class PaymentActivity extends AppCompatActivity implements
         // Initialize views
         initializeViews();
 
+        // Initialize Bluetooth
+        initializeBluetooth();
+
         // Get data from intent and validate
         if (!getAndValidateIntentData()) {
             return;
@@ -89,6 +133,10 @@ public class PaymentActivity extends AppCompatActivity implements
 
         // Call the checkout API to get the most current order information
         callCheckoutAPI();
+    }
+
+    private void initializeBluetooth() {
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
     }
 
     private void setupToolbar() {
@@ -420,6 +468,316 @@ public class PaymentActivity extends AppCompatActivity implements
     private void showPaymentSuccessAndFinish() {
         Toast.makeText(this, R.string.payment_success, Toast.LENGTH_SHORT).show();
 
+        // Ask user if they want to print receipt
+        showReceiptPrintDialog();
+    }
+
+    private void showReceiptPrintDialog() {
+        new AlertDialog.Builder(this)
+                .setTitle("Print Receipt")
+                .setMessage("Payment successful! Would you like to print a receipt?")
+                .setPositiveButton("Print Receipt", (dialog, which) -> {
+                    printReceipt();
+                })
+                .setNegativeButton("Skip", (dialog, which) -> {
+                    finishPaymentActivity();
+                })
+                .setCancelable(false)
+                .show();
+    }
+
+    private void printReceipt() {
+        if (!checkBluetoothAndEnable()) {
+            // If Bluetooth not available, just finish
+            finishPaymentActivity();
+            return;
+        }
+
+        showPrinterSelection();
+    }
+
+    private boolean checkBluetoothAndEnable() {
+        try {
+            if (bluetoothAdapter == null) {
+                Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+
+            // Check runtime permissions for Android 12+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (!hasBluetoothPermissions()) {
+                    requestBluetoothPermissions();
+                    return false;
+                }
+            } else {
+                if (!hasLocationPermission()) {
+                    requestLocationPermission();
+                    return false;
+                }
+            }
+
+            if (!bluetoothAdapter.isEnabled()) {
+                Toast.makeText(this, "Please enable Bluetooth and try again", Toast.LENGTH_LONG).show();
+                return false;
+            }
+
+            return true;
+
+        } catch (SecurityException e) {
+            Toast.makeText(this, "Bluetooth permission required", Toast.LENGTH_SHORT).show();
+            return false;
+        } catch (Exception e) {
+            Toast.makeText(this, "Bluetooth error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            return false;
+        }
+    }
+
+    private boolean hasBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    private boolean hasLocationPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.BLUETOOTH_SCAN
+                    },
+                    BLUETOOTH_PERMISSION_REQUEST);
+        }
+    }
+
+    private void requestLocationPermission() {
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                BLUETOOTH_PERMISSION_REQUEST);
+    }
+
+    private void showPrinterSelection() {
+        try {
+            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+
+            if (pairedDevices.isEmpty()) {
+                Toast.makeText(this, "No paired printers found. Skipping receipt printing.", Toast.LENGTH_LONG).show();
+                finishPaymentActivity();
+                return;
+            }
+
+            String[] deviceNames = new String[pairedDevices.size()];
+            BluetoothDevice[] devices = new BluetoothDevice[pairedDevices.size()];
+
+            int i = 0;
+            for (BluetoothDevice device : pairedDevices) {
+                String deviceName = device.getName() != null ? device.getName() : "Unknown Device";
+                deviceNames[i] = deviceName + "\n" + device.getAddress();
+                devices[i] = device;
+                i++;
+            }
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Select Receipt Printer")
+                    .setItems(deviceNames, (dialog, which) -> {
+                        connectAndPrintReceipt(devices[which]);
+                    })
+                    .setNegativeButton("Skip", (dialog, which) -> {
+                        finishPaymentActivity();
+                    })
+                    .setCancelable(false)
+                    .show();
+
+        } catch (SecurityException e) {
+            Toast.makeText(this, "Bluetooth permission required", Toast.LENGTH_SHORT).show();
+            finishPaymentActivity();
+        } catch (Exception e) {
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            finishPaymentActivity();
+        }
+    }
+
+    private void connectAndPrintReceipt(BluetoothDevice device) {
+        new Thread(() -> {
+            try {
+                connectToPrinter(device);
+                printThermalReceipt();
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Receipt printed successfully", Toast.LENGTH_SHORT).show();
+                    finishPaymentActivity();
+                });
+            } catch (IOException e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Failed to print receipt: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    finishPaymentActivity();
+                });
+            } finally {
+                disconnectPrinter();
+            }
+        }).start();
+    }
+
+    private void connectToPrinter(BluetoothDevice device) throws IOException {
+        bluetoothSocket = device.createRfcommSocketToServiceRecord(PRINTER_UUID);
+        bluetoothSocket.connect();
+        outputStream = bluetoothSocket.getOutputStream();
+    }
+
+    private void printThermalReceipt() throws IOException {
+        // Initialize printer
+        outputStream.write(ESC_INIT);
+
+        // Print header
+        printReceiptHeader();
+
+        // Print restaurant info
+        printReceiptRestaurantInfo();
+
+        // Print receipt details
+        printReceiptDetails();
+
+        // Print payment info
+        printReceiptPaymentInfo();
+
+        // Print footer
+        printReceiptFooter();
+
+        // Cut paper
+        outputStream.write(ESC_FEED_LINE);
+        outputStream.write(ESC_FEED_LINE);
+        outputStream.write(ESC_CUT_PAPER);
+        outputStream.flush();
+    }
+
+    private void printReceiptHeader() throws IOException {
+        outputStream.write(ESC_ALIGN_CENTER);
+        outputStream.write(ESC_DOUBLE_HEIGHT);
+        outputStream.write(ESC_BOLD_ON);
+        printLine("PAYMENT RECEIPT");
+        outputStream.write(ESC_NORMAL_SIZE);
+        outputStream.write(ESC_BOLD_OFF);
+        outputStream.write(ESC_FEED_LINE);
+    }
+
+    private void printReceiptRestaurantInfo() throws IOException {
+        outputStream.write(ESC_ALIGN_CENTER);
+        printLine("Serendipity");
+        printLine("Jalan Durian Barat III no 10");
+        printLine("Jakarta, Indonesia");
+        printLine("Phone: +62821234568276");
+        printLine("@cafeserendipityjagakarsa");
+        outputStream.write(ESC_FEED_LINE);
+        printLine(SEPARATOR_LINE);
+        outputStream.write(ESC_FEED_LINE);
+    }
+
+    private void printReceiptDetails() throws IOException {
+        outputStream.write(ESC_ALIGN_LEFT);
+        printLine("Receipt #: " + System.currentTimeMillis());
+        printLine("Order #: " + orderNumber);
+        printLine("Table: " + tableNumber);
+        printLine("Date: " + formatDateTime(new Date()));
+        outputStream.write(ESC_FEED_LINE);
+        printLine(SEPARATOR_LINE);
+        outputStream.write(ESC_FEED_LINE);
+    }
+
+    private void printReceiptPaymentInfo() throws IOException {
+        outputStream.write(ESC_ALIGN_LEFT);
+        outputStream.write(ESC_BOLD_ON);
+        printLine("PAYMENT DETAILS:");
+        outputStream.write(ESC_BOLD_OFF);
+        printLine(SEPARATOR_LINE);
+
+        // Original amount
+        if (selectedDiscount != null && selectedDiscount.getId() != -1) {
+            printLine(formatTotalLine("Subtotal:", formatCurrency(originalAmount)));
+            printLine(formatTotalLine("Discount:", "-" + formatCurrency(discountedAmount)));
+            printLine(formatTotalLine("(" + selectedDiscount.getName() + ")", ""));
+        }
+
+        // Final amount
+        printLine(formatTotalLine("Total Amount:", formatCurrency(finalAmount)));
+
+        // Payment method
+        printLine(formatTotalLine("Payment Method:", selectedPaymentMethod.toUpperCase()));
+
+        // Amount paid
+        printLine(formatTotalLine("Amount Paid:", formatCurrency(amountPaid)));
+
+        // Change
+        double change = amountPaid - finalAmount;
+        if (change > 0) {
+            printLine(formatTotalLine("Change:", formatCurrency(change)));
+        }
+
+        printLine(SEPARATOR_LINE);
+
+        // Grand total with emphasis
+        outputStream.write(ESC_BOLD_ON);
+        outputStream.write(ESC_DOUBLE_HEIGHT);
+        printLine(formatTotalLine("PAID:", formatCurrency(finalAmount)));
+        outputStream.write(ESC_NORMAL_SIZE);
+        outputStream.write(ESC_BOLD_OFF);
+        outputStream.write(ESC_FEED_LINE);
+    }
+
+    private void printReceiptFooter() throws IOException {
+        outputStream.write(ESC_ALIGN_CENTER);
+        printLine(SEPARATOR_LINE);
+        outputStream.write(ESC_FEED_LINE);
+        printLine("PAYMENT COMPLETED");
+        printLine("Thank you for dining with us!");
+        outputStream.write(ESC_FEED_LINE);
+        printLine("Please keep this receipt");
+        printLine("for your records");
+        outputStream.write(ESC_FEED_LINE);
+        printLine("Follow us on social media:");
+        printLine("@cafeserendipityjagakarsa");
+        outputStream.write(ESC_FEED_LINE);
+        printLine("Printed: " + formatDateTime(new Date()));
+    }
+
+    private void printLine(String text) throws IOException {
+        outputStream.write(text.getBytes("UTF-8"));
+        outputStream.write(ESC_FEED_LINE);
+    }
+
+    private String formatTotalLine(String label, String amount) {
+        int labelWidth = CHAR_WIDTH - amount.length();
+        return String.format("%-" + labelWidth + "s%s", label, amount);
+    }
+
+    private String formatCurrency(double amount) {
+        return String.format(Locale.getDefault(), "%,.0f", amount);
+    }
+
+    private String formatDateTime(Date date) {
+        return new SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(date);
+    }
+
+    private void disconnectPrinter() {
+        try {
+            if (outputStream != null) {
+                outputStream.close();
+                outputStream = null;
+            }
+            if (bluetoothSocket != null) {
+                bluetoothSocket.close();
+                bluetoothSocket = null;
+            }
+        } catch (IOException e) {
+            // Silent cleanup
+        }
+    }
+
+    private void finishPaymentActivity() {
         try {
             Intent resultIntent = new Intent();
             resultIntent.putExtra("payment_method", selectedPaymentMethod);
@@ -445,6 +803,29 @@ public class PaymentActivity extends AppCompatActivity implements
         }
     }
 
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == BLUETOOTH_PERMISSION_REQUEST) {
+            boolean allPermissionsGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allPermissionsGranted = false;
+                    break;
+                }
+            }
+
+            if (allPermissionsGranted) {
+                Toast.makeText(this, "Permissions granted. Retrying print...", Toast.LENGTH_SHORT).show();
+                printReceipt();
+            } else {
+                Toast.makeText(this, "Bluetooth permissions are required for printing", Toast.LENGTH_LONG).show();
+                finishPaymentActivity();
+            }
+        }
+    }
+
     private void setLoadingState(boolean isLoading) {
         uiHelper.setLoadingState(progressBar, contentView, processPaymentButton, cancelButton, isLoading);
     }
@@ -458,6 +839,12 @@ public class PaymentActivity extends AppCompatActivity implements
     public boolean onSupportNavigateUp() {
         onBackPressed();
         return true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        disconnectPrinter();
     }
 
     // PaymentUIHelper.DiscountSelectionListener implementation

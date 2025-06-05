@@ -10,7 +10,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
@@ -81,9 +80,6 @@ public class OrderActivity extends AppCompatActivity {
     private boolean pendingBillPrint = false;
     private boolean pendingCheckerPrint = false;
 
-    // Test mode - set to true to simulate printing without real printer
-    private static final boolean TEST_MODE = false;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -123,13 +119,9 @@ public class OrderActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progress_bar);
         contentLayout = findViewById(R.id.content_layout);
 
-        // Initialize print buttons with null checks
+        // Initialize print buttons
         printBillButton = findViewById(R.id.print_bill_button);
         printCheckerButton = findViewById(R.id.print_checker_button);
-
-        // Log button initialization for debugging
-        Log.d(TAG, "Print Bill Button: " + (printBillButton != null ? "Found" : "NOT FOUND"));
-        Log.d(TAG, "Print Checker Button: " + (printCheckerButton != null ? "Found" : "NOT FOUND"));
 
         uiHelper.initializeViews(findViewById(android.R.id.content));
     }
@@ -140,7 +132,6 @@ public class OrderActivity extends AppCompatActivity {
             // Disable print buttons if Bluetooth not supported
             if (printBillButton != null) printBillButton.setEnabled(false);
             if (printCheckerButton != null) printCheckerButton.setEnabled(false);
-            Log.w(TAG, "Bluetooth not supported on this device");
         }
     }
 
@@ -151,112 +142,65 @@ public class OrderActivity extends AppCompatActivity {
                 v -> showCancelOrderDialog()
         );
 
-        // Add print button listeners with null checks
+        // Add print button listeners
         if (printBillButton != null) {
-            Log.d(TAG, "Setting up Print Bill button listener");
-            printBillButton.setOnClickListener(v -> {
-                Log.d(TAG, "Print Bill button clicked");
-                printBill();
-            });
-        } else {
-            Log.w(TAG, "Print Bill button not found in layout");
+            printBillButton.setOnClickListener(v -> printBill());
         }
 
         if (printCheckerButton != null) {
-            Log.d(TAG, "Setting up Print Checker button listener");
-            printCheckerButton.setOnClickListener(v -> {
-                Log.d(TAG, "Print Checker button clicked");
-                printChecker();
-            });
-        } else {
-            Log.w(TAG, "Print Checker button not found in layout");
+            printCheckerButton.setOnClickListener(v -> printChecker());
         }
     }
 
     // Thermal Printing Implementation
     private void printBill() {
-        Log.d(TAG, "=== Print Bill Started ===");
-
         try {
-            Log.d(TAG, "Step 1: Checking if order is null");
             if (order == null) {
-                Log.e(TAG, "Order is null - returning");
                 Toast.makeText(this, "Order data not available", Toast.LENGTH_SHORT).show();
                 return;
             }
-
-            Log.d(TAG, "Step 2: Order available: " + order.getOrderNumber());
 
             // Set flag for after permissions are granted
             pendingBillPrint = true;
             pendingCheckerPrint = false;
 
-            Log.d(TAG, "Step 3: Calling checkBluetoothAndEnable()");
-            boolean bluetoothResult = checkBluetoothAndEnable();
-            Log.d(TAG, "Step 4: Bluetooth check result: " + bluetoothResult);
-
-            if (!bluetoothResult) {
-                Log.d(TAG, "Bluetooth check failed - will retry after permissions");
+            if (!checkBluetoothAndEnable()) {
                 return;
             }
 
-            Log.d(TAG, "Step 5: Bluetooth check passed, calling showPrinterSelection");
             showPrinterSelection(true); // true for bill
-            Log.d(TAG, "Step 6: showPrinterSelection completed");
 
         } catch (Exception e) {
-            Log.e(TAG, "EXCEPTION in printBill: " + e.getClass().getSimpleName() + " - " + e.getMessage(), e);
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
-
-        Log.d(TAG, "=== Print Bill Ended ===");
     }
 
     private void printChecker() {
-        Log.d(TAG, "=== Print Checker Started ===");
-
         try {
-            Log.d(TAG, "Step 1: Checking if order is null");
             if (order == null) {
-                Log.e(TAG, "Order is null - returning");
                 Toast.makeText(this, "Order data not available", Toast.LENGTH_SHORT).show();
                 return;
             }
-
-            Log.d(TAG, "Step 2: Order available: " + order.getOrderNumber());
 
             // Set flag for after permissions are granted
             pendingBillPrint = false;
             pendingCheckerPrint = true;
 
-            Log.d(TAG, "Step 3: Calling checkBluetoothAndEnable()");
-            boolean bluetoothResult = checkBluetoothAndEnable();
-            Log.d(TAG, "Step 4: Bluetooth check result: " + bluetoothResult);
-
-            if (!bluetoothResult) {
-                Log.d(TAG, "Bluetooth check failed - will retry after permissions");
+            if (!checkBluetoothAndEnable()) {
                 return;
             }
 
-            Log.d(TAG, "Step 5: Bluetooth check passed, calling showPrinterSelection");
             showPrinterSelection(false); // false for checker
-            Log.d(TAG, "Step 6: showPrinterSelection completed");
 
         } catch (Exception e) {
-            Log.e(TAG, "EXCEPTION in printChecker: " + e.getClass().getSimpleName() + " - " + e.getMessage(), e);
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
         }
-
-        Log.d(TAG, "=== Print Checker Ended ===");
     }
 
     private boolean checkBluetoothAndEnable() {
-        Log.d(TAG, "Checking Bluetooth availability");
-
         try {
             // Check if Bluetooth is supported
             if (bluetoothAdapter == null) {
-                Log.e(TAG, "Bluetooth adapter is null");
                 Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_SHORT).show();
                 return false;
             }
@@ -264,14 +208,12 @@ public class OrderActivity extends AppCompatActivity {
             // Check runtime permissions for Android 12+ (API 31+)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 if (!hasBluetoothPermissions()) {
-                    Log.d(TAG, "Missing Bluetooth permissions for Android 12+");
                     requestBluetoothPermissions();
                     return false;
                 }
             } else {
                 // For older Android versions, check location permission (required for Bluetooth discovery)
                 if (!hasLocationPermission()) {
-                    Log.d(TAG, "Missing location permission for Bluetooth");
                     requestLocationPermission();
                     return false;
                 }
@@ -279,21 +221,17 @@ public class OrderActivity extends AppCompatActivity {
 
             // Check if Bluetooth is enabled
             if (!bluetoothAdapter.isEnabled()) {
-                Log.d(TAG, "Bluetooth not enabled, requesting enable");
                 Intent enableBluetoothIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
                 startActivityForResult(enableBluetoothIntent, BLUETOOTH_ENABLE_REQUEST);
                 return false;
             }
 
-            Log.d(TAG, "Bluetooth is available and enabled");
             return true;
 
         } catch (SecurityException e) {
-            Log.e(TAG, "Security exception - missing Bluetooth permissions", e);
             Toast.makeText(this, "Bluetooth permission required", Toast.LENGTH_SHORT).show();
             return false;
         } catch (Exception e) {
-            Log.e(TAG, "Unexpected error checking Bluetooth", e);
             Toast.makeText(this, "Bluetooth error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
             return false;
         }
@@ -330,30 +268,8 @@ public class OrderActivity extends AppCompatActivity {
     }
 
     private void showPrinterSelection(boolean isBill) {
-        Log.d(TAG, "Showing printer selection for: " + (isBill ? "Bill" : "Checker"));
-
         try {
-            // TEST MODE: Simulate successful printing
-            if (TEST_MODE) {
-                Log.d(TAG, "TEST MODE: Simulating printer selection and printing");
-
-                new AlertDialog.Builder(this)
-                        .setTitle("TEST MODE")
-                        .setMessage("Simulate printing " + (isBill ? "Bill" : "Kitchen Checker") + "?")
-                        .setPositiveButton("Yes, Print", (dialog, which) -> {
-                            if (isBill) {
-                                simulateBillPrinting();
-                            } else {
-                                simulateCheckerPrinting();
-                            }
-                        })
-                        .setNegativeButton("Cancel", null)
-                        .show();
-                return;
-            }
-
             Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
-            Log.d(TAG, "Found " + pairedDevices.size() + " paired devices");
 
             if (pairedDevices.isEmpty()) {
                 Toast.makeText(this, "No paired printers found. Please pair a printer first.", Toast.LENGTH_LONG).show();
@@ -368,7 +284,6 @@ public class OrderActivity extends AppCompatActivity {
                 String deviceName = device.getName() != null ? device.getName() : "Unknown Device";
                 deviceNames[i] = deviceName + "\n" + device.getAddress();
                 devices[i] = device;
-                Log.d(TAG, "Device " + i + ": " + deviceNames[i]);
                 i++;
             }
 
@@ -377,149 +292,20 @@ public class OrderActivity extends AppCompatActivity {
             new AlertDialog.Builder(this)
                     .setTitle(title)
                     .setItems(deviceNames, (dialog, which) -> {
-                        Log.d(TAG, "Selected device: " + deviceNames[which]);
                         if (isBill) {
                             connectAndPrintBill(devices[which]);
                         } else {
                             connectAndPrintChecker(devices[which]);
                         }
                     })
-                    .setNegativeButton("Cancel", (dialog, which) -> {
-                        Log.d(TAG, "User cancelled printer selection");
-                    })
+                    .setNegativeButton("Cancel", null)
                     .show();
 
         } catch (SecurityException e) {
-            Log.e(TAG, "Security exception in printer selection", e);
             Toast.makeText(this, "Bluetooth permission required", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
-            Log.e(TAG, "Error showing printer selection", e);
             Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
-    }
-
-    // Test mode simulation methods
-    private void simulateBillPrinting() {
-        Log.d(TAG, "=== SIMULATING BILL PRINTING ===");
-
-        // Simulate printing delay
-        new Thread(() -> {
-            try {
-                Thread.sleep(2000); // Simulate 2 second printing time
-
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "✅ TEST: Bill printed successfully!", Toast.LENGTH_LONG).show();
-                    Log.d(TAG, "TEST MODE: Bill printing simulation completed");
-                });
-
-            } catch (InterruptedException e) {
-                Log.e(TAG, "Simulation interrupted", e);
-            }
-        }).start();
-
-        // Show immediate feedback
-        Toast.makeText(this, "🖨️ TEST: Printing bill...", Toast.LENGTH_SHORT).show();
-
-        // Log what would be printed
-        logSimulatedBillContent();
-    }
-
-    private void simulateCheckerPrinting() {
-        Log.d(TAG, "=== SIMULATING CHECKER PRINTING ===");
-
-        // Simulate printing delay
-        new Thread(() -> {
-            try {
-                Thread.sleep(1500); // Simulate 1.5 second printing time
-
-                runOnUiThread(() -> {
-                    Toast.makeText(this, "✅ TEST: Kitchen checker printed successfully!", Toast.LENGTH_LONG).show();
-                    Log.d(TAG, "TEST MODE: Checker printing simulation completed");
-                });
-
-            } catch (InterruptedException e) {
-                Log.e(TAG, "Simulation interrupted", e);
-            }
-        }).start();
-
-        // Show immediate feedback
-        Toast.makeText(this, "🖨️ TEST: Printing kitchen checker...", Toast.LENGTH_SHORT).show();
-
-        // Log what would be printed
-        logSimulatedCheckerContent();
-    }
-
-    private void logSimulatedBillContent() {
-        Log.d(TAG, "========== SIMULATED BILL CONTENT ==========");
-        Log.d(TAG, "              RESTAURANT BILL");
-        Log.d(TAG, "");
-        Log.d(TAG, "          Your Restaurant Name");
-        Log.d(TAG, "        Jl. Restaurant Address");
-        Log.d(TAG, "         Jakarta, Indonesia");
-        Log.d(TAG, "        Phone: +62-21-1234567");
-        Log.d(TAG, "");
-        Log.d(TAG, "Order #: " + (order != null ? order.getOrderNumber() : "N/A"));
-        Log.d(TAG, "Table: " + (order != null ? order.getTableNumber() : "N/A"));
-        if (order != null && order.getCustomerName() != null) {
-            Log.d(TAG, "Customer: " + order.getCustomerName());
-        }
-        Log.d(TAG, "Date: " + formatDateTime(new Date()));
-        Log.d(TAG, "");
-        Log.d(TAG, "ITEMS:");
-        Log.d(TAG, "--------------------------------");
-
-        if (order != null && order.getItems() != null) {
-            for (OrderItem item : order.getItems()) {
-                Log.d(TAG, item.getDisplayName());
-                Log.d(TAG, String.format("  %d x Rp.%,.0f = Rp.%,.0f",
-                        item.getQuantity(), item.getUnitPrice(), item.getTotalPrice()));
-                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
-                    Log.d(TAG, "  Note: " + item.getNotes());
-                }
-            }
-        } else {
-            Log.d(TAG, "No items available");
-        }
-
-        Log.d(TAG, "--------------------------------");
-        if (order != null) {
-            Log.d(TAG, String.format("Subtotal: Rp.%,.0f", order.getTotalAmount()));
-            double additionalCharges = order.getFinalAmount() - order.getTotalAmount();
-            if (additionalCharges > 0) {
-                Log.d(TAG, String.format("Additional Charges: Rp.%,.0f", additionalCharges));
-            }
-            Log.d(TAG, String.format("TOTAL: Rp.%,.0f", order.getFinalAmount()));
-        }
-        Log.d(TAG, "");
-        Log.d(TAG, "     Thank you for dining with us!");
-        Log.d(TAG, "=========================================");
-    }
-
-    private void logSimulatedCheckerContent() {
-        Log.d(TAG, "======== SIMULATED CHECKER CONTENT =========");
-        Log.d(TAG, "           KITCHEN CHECKER");
-        Log.d(TAG, "");
-        Log.d(TAG, "Order #: " + (order != null ? order.getOrderNumber() : "N/A"));
-        Log.d(TAG, "Table: " + (order != null ? order.getTableNumber() : "N/A"));
-        Log.d(TAG, "Time: " + formatDateTime(new Date()));
-        Log.d(TAG, "");
-        Log.d(TAG, "ITEMS TO PREPARE:");
-        Log.d(TAG, "--------------------------------");
-
-        if (order != null && order.getItems() != null) {
-            for (OrderItem item : order.getItems()) {
-                Log.d(TAG, item.getQuantity() + "x " + item.getDisplayName());
-                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
-                    Log.d(TAG, "Note: " + item.getNotes());
-                }
-                Log.d(TAG, "");
-            }
-        } else {
-            Log.d(TAG, "No items to prepare");
-        }
-
-        Log.d(TAG, "** KITCHEN COPY **");
-        Log.d(TAG, "=========================================");
     }
 
     private void connectAndPrintBill(BluetoothDevice device) {
@@ -529,7 +315,6 @@ public class OrderActivity extends AppCompatActivity {
                 printThermalBill();
                 runOnUiThread(() -> Toast.makeText(this, "Bill printed successfully", Toast.LENGTH_SHORT).show());
             } catch (IOException e) {
-                Log.e(TAG, "Error printing bill", e);
                 runOnUiThread(() -> Toast.makeText(this, "Failed to print bill: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             } finally {
                 disconnectPrinter();
@@ -544,7 +329,6 @@ public class OrderActivity extends AppCompatActivity {
                 printKitchenChecker();
                 runOnUiThread(() -> Toast.makeText(this, "Kitchen checker printed successfully", Toast.LENGTH_SHORT).show());
             } catch (IOException e) {
-                Log.e(TAG, "Error printing checker", e);
                 runOnUiThread(() -> Toast.makeText(this, "Failed to print checker: " + e.getMessage(), Toast.LENGTH_SHORT).show());
             } finally {
                 disconnectPrinter();
@@ -804,7 +588,7 @@ public class OrderActivity extends AppCompatActivity {
                 bluetoothSocket = null;
             }
         } catch (IOException e) {
-            Log.e(TAG, "Error disconnecting printer", e);
+            // Silent cleanup
         }
     }
 
@@ -849,11 +633,9 @@ public class OrderActivity extends AppCompatActivity {
             }
 
             if (allPermissionsGranted) {
-                Log.d(TAG, "Bluetooth permissions granted, retrying print action");
                 Toast.makeText(this, "Permissions granted. Retrying print...", Toast.LENGTH_SHORT).show();
                 retryPendingPrintAction();
             } else {
-                Log.d(TAG, "Bluetooth permissions denied");
                 Toast.makeText(this, "Bluetooth permissions are required for printing", Toast.LENGTH_LONG).show();
                 // Reset pending flags
                 pendingBillPrint = false;
