@@ -2,10 +2,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.restaurant.management">
 
-    <!-- Add internet permission -->
+    <!-- Existing permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Bluetooth permissions for thermal printer -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+
+    <!-- For Android 12+ (API level 31+) -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+
+    <!-- Hardware features -->
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+
+    <!-- Optional: If you want to exclude devices without Bluetooth -->
+    <!-- <uses-feature android:name="android.hardware.bluetooth" android:required="true" /> -->
     <application
         android:allowBackup="true"
         android:icon="@mipmap/pood_logo_short"
@@ -96,7 +113,6 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="com.restaurant.management.DashboardActivity" />
         </activity>
-
 
         <activity
             android:name="com.restaurant.management.ReconciliationActivity"
