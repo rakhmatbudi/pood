@@ -40,31 +40,66 @@
       "lines": [
         {
           "type": "text",
-          "content": "Serendipity"
+          "content": "Serendipity",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         },
         {
           "type": "text",
-          "content": "Jalan Durian Barat III no 10"
+          "content": "Jalan Durian Barat III no 10",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         },
         {
           "type": "text",
-          "content": "Jakarta, Indonesia"
+          "content": "Jakarta, Indonesia",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         },
         {
           "type": "text",
-          "content": "Phone: +62821234568276"
+          "content": "Phone: +62821234568276",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         },
         {
           "type": "text",
-          "content": "@cafeserendipityjagakarsa"
+          "content": "@cafeserendipityjagakarsa",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         },
         {
           "type": "text",
-          "content": ""
+          "content": "",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         },
         {
           "type": "separator",
-          "content": "--------------------------------"
+          "content": "--------------------------------",
+          "formatting": {
+            "align": "center",
+            "bold": false,
+            "double_height": false
+          }
         }
       ],
       "spacing_after": 1
@@ -270,7 +305,7 @@
         },
         {
           "type": "text",
-          "content": "Receipt will be provided when."
+          "content": "Receipt will be provided when"
         },
         {
           "type": "text",

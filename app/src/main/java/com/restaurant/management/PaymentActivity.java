@@ -783,7 +783,7 @@ public class PaymentActivity extends AppCompatActivity implements
                 finalAmount,
                 discountedAmount,
                 discountName,
-                paymentMethodForPrint, // ← Now uses correct description
+                paymentMethodForPrint,
                 amountPaid,
                 taxRate,
                 taxDescription,

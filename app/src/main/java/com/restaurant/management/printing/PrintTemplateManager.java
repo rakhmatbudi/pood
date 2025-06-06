@@ -156,12 +156,15 @@ public class PrintTemplateManager {
      * Execute a template section
      */
     private void executeSection(OutputStream outputStream, PrintTemplate.Section section, Map<String, Object> data) throws IOException {
-        // Apply section formatting
+        // Apply section formatting first
         applyFormatting(outputStream, section.getFormatting());
+
+        Log.d(TAG, "Executing section: " + section.getName() +
+                " with formatting: align=" + section.getFormatting().getAlign());
 
         // Process each line in the section
         for (PrintTemplate.Line line : section.getLines()) {
-            executeLine(outputStream, line, data);
+            executeLine(outputStream, line, data, section.getFormatting()); // Pass section formatting
         }
 
         // Add section spacing
@@ -170,12 +173,46 @@ public class PrintTemplateManager {
         }
     }
 
-    /**
-     * Execute a template line
-     */
-    private void executeLine(OutputStream outputStream, PrintTemplate.Line line, Map<String, Object> data) throws IOException {
+    private PrintTemplate.Formatting mergeFormatting(PrintTemplate.Formatting sectionFormatting, PrintTemplate.Formatting lineFormatting) {
+        if (lineFormatting == null && sectionFormatting == null) {
+            return new PrintTemplate.Formatting(); // Default formatting
+        }
+
+        if (lineFormatting == null) {
+            return sectionFormatting;
+        }
+
+        if (sectionFormatting == null) {
+            return lineFormatting;
+        }
+
+        // Create merged formatting
+        PrintTemplate.Formatting merged = new PrintTemplate.Formatting();
+
+        // Line formatting overrides section formatting, but use section as fallback
+        merged.setAlign(lineFormatting.getAlign() != null && !lineFormatting.getAlign().equals("left") ?
+                lineFormatting.getAlign() : sectionFormatting.getAlign());
+        merged.setBold(lineFormatting.isBold() || sectionFormatting.isBold());
+        merged.setDoubleHeight(lineFormatting.isDoubleHeight() || sectionFormatting.isDoubleHeight());
+
+        return merged;
+    }
+
+    private void executeConditional(OutputStream outputStream, PrintTemplate.Line line, Map<String, Object> data, PrintTemplate.Formatting parentFormatting) throws IOException {
+        String condition = line.getCondition();
+        if (evaluateCondition(condition, data)) {
+            for (PrintTemplate.Line subLine : line.getSubLines()) {
+                executeLine(outputStream, subLine, data, parentFormatting); // Pass parent formatting
+            }
+        }
+    }
+
+    private void executeLine(OutputStream outputStream, PrintTemplate.Line line, Map<String, Object> data, PrintTemplate.Formatting sectionFormatting) throws IOException {
+        // Determine effective formatting (line formatting overrides section formatting)
+        PrintTemplate.Formatting effectiveFormatting = mergeFormatting(sectionFormatting, line.getFormatting());
+
         // Apply line formatting
-        applyFormatting(outputStream, line.getFormatting());
+        applyFormatting(outputStream, effectiveFormatting);
 
         if (line.getType().equals("text")) {
             // Simple text line
@@ -193,7 +230,7 @@ public class PrintTemplateManager {
             executeItemsLoop(outputStream, line, data);
         } else if (line.getType().equals("conditional")) {
             // Conditional content
-            executeConditional(outputStream, line, data);
+            executeConditional(outputStream, line, data, effectiveFormatting); // Pass formatting
         } else if (line.getType().equals("total_line")) {
             // Formatted total line
             executeTotalLine(outputStream, line, data);
@@ -203,6 +240,14 @@ public class PrintTemplateManager {
         outputStream.write(ESC_NORMAL_SIZE);
         outputStream.write(ESC_BOLD_OFF);
     }
+
+    /**
+     * Execute a template line
+     */
+    private void executeLine(OutputStream outputStream, PrintTemplate.Line line, Map<String, Object> data) throws IOException {
+        executeLine(outputStream, line, data, null); // No section formatting
+    }
+
 
     /**
      * Execute items loop
@@ -259,29 +304,40 @@ public class PrintTemplateManager {
      * Apply formatting commands
      */
     private void applyFormatting(OutputStream outputStream, PrintTemplate.Formatting formatting) throws IOException {
-        if (formatting == null) return;
+        if (formatting == null) {
+            Log.d(TAG, "No formatting to apply");
+            return;
+        }
+
+        Log.d(TAG, "Applying formatting: align=" + formatting.getAlign() +
+                ", bold=" + formatting.isBold() + ", doubleHeight=" + formatting.isDoubleHeight());
 
         // Alignment
         switch (formatting.getAlign()) {
             case "center":
                 outputStream.write(ESC_ALIGN_CENTER);
+                Log.d(TAG, "Applied CENTER alignment");
                 break;
             case "right":
                 outputStream.write(ESC_ALIGN_RIGHT);
+                Log.d(TAG, "Applied RIGHT alignment");
                 break;
             default:
                 outputStream.write(ESC_ALIGN_LEFT);
+                Log.d(TAG, "Applied LEFT alignment");
                 break;
         }
 
         // Bold
         if (formatting.isBold()) {
             outputStream.write(ESC_BOLD_ON);
+            Log.d(TAG, "Applied BOLD");
         }
 
         // Size
         if (formatting.isDoubleHeight()) {
             outputStream.write(ESC_DOUBLE_HEIGHT);
+            Log.d(TAG, "Applied DOUBLE HEIGHT");
         }
     }
 
