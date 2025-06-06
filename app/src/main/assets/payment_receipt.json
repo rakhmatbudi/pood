@@ -1,0 +1,301 @@
+{
+  "cut_paper": true,
+  "sections": [
+    {
+      "name": "header",
+      "formatting": {
+        "align": "center",
+        "bold": true,
+        "double_height": true
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "PAYMENT RECEIPT",
+          "formatting": {
+            "align": "center",
+            "bold": true,
+            "double_height": true
+          }
+        },
+        {
+          "type": "text",
+          "content": "",
+          "formatting": {
+            "align": "left",
+            "bold": false,
+            "double_height": false
+          }
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "restaurant_info",
+      "formatting": {
+        "align": "center",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "Serendipity"
+        },
+        {
+          "type": "text",
+          "content": "Jalan Durian Barat III no 10"
+        },
+        {
+          "type": "text",
+          "content": "Jakarta, Indonesia"
+        },
+        {
+          "type": "text",
+          "content": "Phone: +62821234568276"
+        },
+        {
+          "type": "text",
+          "content": "@cafeserendipityjagakarsa"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "receipt_info",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "Receipt #: {{receipt_number}}"
+        },
+        {
+          "type": "text",
+          "content": "Order #: {{order_number}}"
+        },
+        {
+          "type": "text",
+          "content": "Table: {{table_number}}"
+        },
+        {
+          "type": "text",
+          "content": "Date: {{current_time}}"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "payment_details",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "PAYMENT DETAILS:",
+          "formatting": {
+            "bold": true
+          }
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------",
+          "formatting": {
+            "bold": false
+          }
+        },
+        {
+          "type": "total_line",
+          "label": "Subtotal:",
+          "amount": "{{base_amount}}",
+          "char_width": 32
+        },
+        {
+          "type": "conditional",
+          "condition": "has_tax",
+          "sub_lines": [
+            {
+              "type": "total_line",
+              "label": "{{tax_description}} ({{tax_rate}}%):",
+              "amount": "{{tax_amount}}",
+              "char_width": 32
+            }
+          ]
+        },
+        {
+          "type": "conditional",
+          "condition": "has_service",
+          "sub_lines": [
+            {
+              "type": "total_line",
+              "label": "{{service_description}} ({{service_rate}}%):",
+              "amount": "{{service_amount}}",
+              "char_width": 32
+            }
+          ]
+        },
+        {
+          "type": "conditional",
+          "condition": "has_discount",
+          "sub_lines": [
+            {
+              "type": "total_line",
+              "label": "Before Discount:",
+              "amount": "{{original_amount}}",
+              "char_width": 32
+            },
+            {
+              "type": "total_line",
+              "label": "Discount:",
+              "amount": "-{{discount_amount}}",
+              "char_width": 32
+            },
+            {
+              "type": "total_line",
+              "label": "({{discount_name}})",
+              "amount": "",
+              "char_width": 32
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        },
+        {
+          "type": "total_line",
+          "label": "TOTAL AMOUNT:",
+          "amount": "{{final_amount}}",
+          "char_width": 32,
+          "formatting": {
+            "bold": true
+          }
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "total_line",
+          "label": "Payment Method:",
+          "amount": "{{payment_method}}",
+          "char_width": 32
+        },
+        {
+          "type": "total_line",
+          "label": "Amount Paid:",
+          "amount": "{{amount_paid}}",
+          "char_width": 32
+        },
+        {
+          "type": "conditional",
+          "condition": "has_change",
+          "sub_lines": [
+            {
+              "type": "total_line",
+              "label": "Change:",
+              "amount": "{{change}}",
+              "char_width": 32
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        },
+        {
+          "type": "total_line",
+          "label": "PAID:",
+          "amount": "{{final_amount}}",
+          "char_width": 32,
+          "formatting": {
+            "bold": true,
+            "double_height": true
+          }
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "footer",
+      "formatting": {
+        "align": "center",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "PAYMENT COMPLETED"
+        },
+        {
+          "type": "text",
+          "content": "Thank you for dining with us!"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "Please keep this receipt"
+        },
+        {
+          "type": "text",
+          "content": "for your records"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "Follow us on social media:"
+        },
+        {
+          "type": "text",
+          "content": "@cafeserendipityjagakarsa"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "Printed: {{current_time}}"
+        }
+      ],
+      "spacing_after": 0
+    }
+  ]
+}

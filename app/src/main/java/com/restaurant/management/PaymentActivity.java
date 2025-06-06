@@ -38,6 +38,7 @@ import com.restaurant.management.helpers.PaymentUIHelper;
 import com.restaurant.management.models.Discount;
 import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.RoundingConfig;
+import com.restaurant.management.printing.PrintTemplateManager;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -82,6 +83,9 @@ public class PaymentActivity extends AppCompatActivity implements
     // Helper classes
     private PaymentApiHelper apiHelper;
     private PaymentUIHelper uiHelper;
+
+    // Printing component
+    private PrintTemplateManager templateManager;
 
     // UI Components
     private TextView orderNumberTextView;
@@ -142,6 +146,9 @@ public class PaymentActivity extends AppCompatActivity implements
 
         // Fetch tax and service rates from API
         fetchTaxAndServiceRates();
+
+        // Initialize template manager
+        templateManager = new PrintTemplateManager(this);
 
         // Get data from intent and validate
         if (!getAndValidateIntentData()) {
@@ -731,168 +738,34 @@ public class PaymentActivity extends AppCompatActivity implements
     }
 
     private void printThermalReceipt() throws IOException {
-        // Initialize printer
-        outputStream.write(ESC_INIT);
+        // Check if rates are loaded, if not wait a bit or use defaults
+        if (!ratesLoaded) {
+            setDefaultRates();
+        }
 
-        // Print header
-        printReceiptHeader();
-
-        // Print restaurant info
-        printReceiptRestaurantInfo();
-
-        // Print receipt details
-        printReceiptDetails();
-
-        // Print payment info
-        printReceiptPaymentInfo();
-
-        // Print footer
-        printReceiptFooter();
-
-        // Cut paper
-        outputStream.write(ESC_FEED_LINE);
-        outputStream.write(ESC_FEED_LINE);
-        outputStream.write(ESC_CUT_PAPER);
-        outputStream.flush();
-    }
-
-    private void printReceiptHeader() throws IOException {
-        outputStream.write(ESC_ALIGN_CENTER);
-        outputStream.write(ESC_DOUBLE_HEIGHT);
-        outputStream.write(ESC_BOLD_ON);
-        printLine("PAYMENT RECEIPT");
-        outputStream.write(ESC_NORMAL_SIZE);
-        outputStream.write(ESC_BOLD_OFF);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private void printReceiptRestaurantInfo() throws IOException {
-        outputStream.write(ESC_ALIGN_CENTER);
-        printLine("Serendipity");
-        printLine("Jalan Durian Barat III no 10");
-        printLine("Jakarta, Indonesia");
-        printLine("Phone: +62821234568276");
-        printLine("@cafeserendipityjagakarsa");
-        outputStream.write(ESC_FEED_LINE);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private void printReceiptDetails() throws IOException {
-        outputStream.write(ESC_ALIGN_LEFT);
-        printLine("Receipt #: " + System.currentTimeMillis());
-        printLine("Order #: " + orderNumber);
-        printLine("Table: " + tableNumber);
-        printLine("Date: " + formatDateTime(new Date()));
-        outputStream.write(ESC_FEED_LINE);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private void printReceiptPaymentInfo() throws IOException {
-        outputStream.write(ESC_ALIGN_LEFT);
-        outputStream.write(ESC_BOLD_ON);
-        printLine("PAYMENT DETAILS:");
-        outputStream.write(ESC_BOLD_OFF);
-        printLine(SEPARATOR_LINE);
-
-        // Calculate base amount (before tax and service)
-        double baseAmount = originalAmount;
-
-        // If discount was applied, show original breakdown
+        // Get discount info
+        String discountName = null;
         if (selectedDiscount != null && selectedDiscount.getId() != -1) {
-            // Calculate base amount before discount, tax, and service
-            double totalRate = 1 + taxRate + serviceRate; // 1.0 + tax rate + service rate
-            baseAmount = originalAmount / totalRate;
-
-            printLine(formatTotalLine("Subtotal:", formatCurrency(baseAmount)));
-
-            // Show tax and service on original amount
-            if (taxRate > 0.01) {
-                double taxAmount = baseAmount * taxRate;
-                String taxLabel = String.format("%s (%.0f%%):", taxDescription, taxRate * 100);
-                printLine(formatTotalLine(taxLabel, formatCurrency(taxAmount)));
-            }
-
-            if (serviceRate > 0.01) {
-                double serviceAmount = baseAmount * serviceRate;
-                String serviceLabel = String.format("%s (%.0f%%):", serviceDescription, serviceRate * 100);
-                printLine(formatTotalLine(serviceLabel, formatCurrency(serviceAmount)));
-            }
-
-            printLine(formatTotalLine("Before Discount:", formatCurrency(originalAmount)));
-            printLine(formatTotalLine("Discount:", "-" + formatCurrency(discountedAmount)));
-            printLine(formatTotalLine("(" + selectedDiscount.getName() + ")", ""));
-        } else {
-            // No discount applied - show normal breakdown
-            // Calculate base amount without tax and service
-            double totalRate = 1 + taxRate + serviceRate;
-            baseAmount = finalAmount / totalRate;
-
-            printLine(formatTotalLine("Subtotal:", formatCurrency(baseAmount)));
-
-            // Show tax and service charges
-            if (taxRate > 0.01) {
-                double taxAmount = baseAmount * taxRate;
-                String taxLabel = String.format("%s (%.0f%%):", taxDescription, taxRate * 100);
-                printLine(formatTotalLine(taxLabel, formatCurrency(taxAmount)));
-            }
-
-            if (serviceRate > 0.01) {
-                double serviceAmount = baseAmount * serviceRate;
-                String serviceLabel = String.format("%s (%.0f%%):", serviceDescription, serviceRate * 100);
-                printLine(formatTotalLine(serviceLabel, formatCurrency(serviceAmount)));
-            }
+            discountName = selectedDiscount.getName();
         }
 
-        printLine(SEPARATOR_LINE);
-
-        // Final amount
-        outputStream.write(ESC_BOLD_ON);
-        printLine(formatTotalLine("TOTAL AMOUNT:", formatCurrency(finalAmount)));
-        outputStream.write(ESC_BOLD_OFF);
-
-        outputStream.write(ESC_FEED_LINE);
-
-        // Payment method
-        printLine(formatTotalLine("Payment Method:", selectedPaymentMethod.toUpperCase()));
-
-        // Amount paid
-        printLine(formatTotalLine("Amount Paid:", formatCurrency(amountPaid)));
-
-        // Change
-        double change = amountPaid - finalAmount;
-        if (change > 0) {
-            printLine(formatTotalLine("Change:", formatCurrency(change)));
-        }
-
-        printLine(SEPARATOR_LINE);
-
-        // Grand total with emphasis
-        outputStream.write(ESC_BOLD_ON);
-        outputStream.write(ESC_DOUBLE_HEIGHT);
-        printLine(formatTotalLine("PAID:", formatCurrency(finalAmount)));
-        outputStream.write(ESC_NORMAL_SIZE);
-        outputStream.write(ESC_BOLD_OFF);
-        outputStream.write(ESC_FEED_LINE);
+        // Use template manager to print receipt
+        templateManager.printPaymentReceipt(
+                outputStream,
+                orderNumber,
+                tableNumber,
+                originalAmount,
+                finalAmount,
+                discountedAmount,
+                discountName,
+                selectedPaymentMethod,
+                amountPaid,
+                taxRate,
+                taxDescription,
+                serviceRate,
+                serviceDescription
+        );
     }
-
-    private void printReceiptFooter() throws IOException {
-        outputStream.write(ESC_ALIGN_CENTER);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-        printLine("PAYMENT COMPLETED");
-        printLine("Thank you for dining with us!");
-        outputStream.write(ESC_FEED_LINE);
-        printLine("Please keep this receipt");
-        printLine("for your records");
-        outputStream.write(ESC_FEED_LINE);
-        printLine("Follow us on social media:");
-        printLine("@cafeserendipityjagakarsa");
-        outputStream.write(ESC_FEED_LINE);
-        printLine("Printed: " + formatDateTime(new Date()));
-    }
-
     private void printLine(String text) throws IOException {
         outputStream.write(text.getBytes("UTF-8"));
         outputStream.write(ESC_FEED_LINE);

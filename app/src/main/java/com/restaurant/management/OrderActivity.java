@@ -25,6 +25,7 @@ import com.restaurant.management.helpers.OrderApiHelper;
 import com.restaurant.management.helpers.OrderUiHelper;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
+import com.restaurant.management.printing.PrintTemplateManager;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -51,6 +52,7 @@ public class OrderActivity extends AppCompatActivity {
     private static final int BLUETOOTH_PERMISSION_REQUEST = 103;
     private static final String TAG = "OrderActivity";
 
+    private PrintTemplateManager templateManager;
     private double taxRate = 0;
     private String taxDescription = "Pajak Restoran (PB1)";
     private double serviceRate = 0;
@@ -104,6 +106,9 @@ public class OrderActivity extends AppCompatActivity {
         initializeViews();
         setupClickListeners();
         initializeBluetooth();
+
+        // Initialize template manager
+        templateManager = new PrintTemplateManager(this);
 
         // Fetch tax and service rates from API
         fetchTaxAndServiceRates();
@@ -445,294 +450,18 @@ public class OrderActivity extends AppCompatActivity {
     }
 
     private void printThermalBill() throws IOException {
-        // Initialize printer
-        outputStream.write(ESC_INIT);
+        // Check if rates are loaded, if not wait a bit or use defaults
+        if (!ratesLoaded) {
+            setDefaultRates();
+        }
 
-        // Print header
-        printBillHeader();
-
-        // Print restaurant info
-        printRestaurantInfo();
-
-        // Print order info
-        printOrderInfo();
-
-        // Print items
-        printOrderItems();
-
-        // Print totals
-        printBillTotals();
-
-        // Print footer
-        printBillFooter();
-
-        // Cut paper
-        outputStream.write(ESC_FEED_LINE);
-        outputStream.write(ESC_FEED_LINE);
-        outputStream.write(ESC_CUT_PAPER);
-        outputStream.flush();
+        // Use template manager to print bill
+        templateManager.printCustomerBill(outputStream, order, taxRate, taxDescription, serviceRate, serviceDescription);
     }
 
     private void printKitchenChecker() throws IOException {
-        // Initialize printer
-        outputStream.write(ESC_INIT);
-
-        // Print header
-        outputStream.write(ESC_ALIGN_CENTER);
-        outputStream.write(ESC_DOUBLE_HEIGHT);
-        outputStream.write(ESC_BOLD_ON);
-        printLine("KITCHEN CHECKER");
-        outputStream.write(ESC_NORMAL_SIZE);
-        outputStream.write(ESC_BOLD_OFF);
-        outputStream.write(ESC_FEED_LINE);
-
-        // Print order info
-        outputStream.write(ESC_ALIGN_LEFT);
-        printLine("Order #: " + order.getOrderNumber());
-        printLine("Table: " + order.getTableNumber());
-        if (order.getCustomerName() != null && !order.getCustomerName().isEmpty()) {
-            printLine("Customer: " + order.getCustomerName());
-        }
-        printLine("Time: " + formatDateTime(new Date()));
-        outputStream.write(ESC_FEED_LINE);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-
-        // Print items for kitchen
-        outputStream.write(ESC_BOLD_ON);
-        printLine("ITEMS TO PREPARE:");
-        outputStream.write(ESC_BOLD_OFF);
-        printLine(SEPARATOR_LINE);
-
-        List<OrderItem> items = order.getItems();
-        if (items != null && !items.isEmpty()) {
-            for (OrderItem item : items) {
-                outputStream.write(ESC_BOLD_ON);
-                // Use the helper method to get clean display name
-                String itemDisplayName = getDisplayNameWithoutNull(item);
-                printLine(item.getQuantity() + "x " + itemDisplayName);
-                outputStream.write(ESC_BOLD_OFF);
-
-                // Only show notes if they exist and are not null/empty
-                if (hasValidNotes(item)) {
-                    printLine("Notes: " + item.getNotes());
-                }
-                outputStream.write(ESC_FEED_LINE);
-            }
-        } else {
-            printLine("No items in this order");
-        }
-
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_ALIGN_CENTER);
-        printLine("** KITCHEN COPY **");
-
-        // Cut paper
-        outputStream.write(ESC_FEED_LINE);
-        outputStream.write(ESC_FEED_LINE);
-        outputStream.write(ESC_CUT_PAPER);
-        outputStream.flush();
-    }
-
-    private void printBillHeader() throws IOException {
-        outputStream.write(ESC_ALIGN_CENTER);
-        outputStream.write(ESC_DOUBLE_HEIGHT);
-        outputStream.write(ESC_BOLD_ON);
-        printLine("CUSTOMER BILL");
-        outputStream.write(ESC_NORMAL_SIZE);
-        outputStream.write(ESC_BOLD_OFF);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private void printRestaurantInfo() throws IOException {
-        outputStream.write(ESC_ALIGN_CENTER);
-        printLine("Serendipity");
-        printLine("Jalan Durian Barat III no 10");
-        printLine("Jakarta, Indonesia");
-        printLine("Phone: +62821234568276");
-        printLine("@cafeserendipityjagakarsa");
-        outputStream.write(ESC_FEED_LINE);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private void printOrderInfo() throws IOException {
-        outputStream.write(ESC_ALIGN_LEFT);
-        printLine("Order #: " + order.getOrderNumber());
-        printLine("Table: " + order.getTableNumber());
-
-        if (order.getCustomerName() != null && !order.getCustomerName().isEmpty()) {
-            printLine("Customer: " + order.getCustomerName());
-        }
-
-        if (order.getCreatedAt() != null && !order.getCreatedAt().isEmpty()) {
-            printLine("Date: " + order.getCreatedAt());
-        }
-
-        printLine("Server ID: " + order.getServerId());
-
-        if (order.getOrderTypeName() != null && !order.getOrderTypeName().isEmpty()) {
-            printLine("Type: " + order.getOrderTypeName());
-        }
-
-        outputStream.write(ESC_FEED_LINE);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private boolean hasValidNotes(OrderItem item) {
-        String notes = item.getNotes();
-
-        // Check if notes is null
-        if (notes == null) {
-            return false;
-        }
-
-        // Trim whitespace
-        notes = notes.trim();
-
-        // Check if empty after trimming
-        if (notes.isEmpty()) {
-            return false;
-        }
-
-        // Check if it's the string "null" (sometimes APIs return this)
-        if ("null".equalsIgnoreCase(notes)) {
-            return false;
-        }
-
-        // If we get here, we have valid notes
-        return true;
-    }
-
-    private void printOrderItems() throws IOException {
-        outputStream.write(ESC_ALIGN_LEFT);
-        outputStream.write(ESC_BOLD_ON);
-        printLine("ITEMS:");
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_BOLD_OFF);
-
-        List<OrderItem> items = order.getItems();
-        if (items != null && !items.isEmpty()) {
-            for (OrderItem item : items) {
-                // Item name with variant - handle null variants
-                String itemName = getDisplayNameWithoutNull(item);
-
-                if (itemName.length() > CHAR_WIDTH) {
-                    for (int i = 0; i < itemName.length(); i += CHAR_WIDTH) {
-                        int end = Math.min(i + CHAR_WIDTH, itemName.length());
-                        printLine(itemName.substring(i, end));
-                    }
-                } else {
-                    printLine(itemName);
-                }
-
-                // Quantity and price
-                String qtyPrice = String.format("%d x Rp.%,.0f = Rp.%,.0f",
-                        item.getQuantity(),
-                        item.getUnitPrice(),
-                        item.getTotalPrice());
-
-                outputStream.write(ESC_ALIGN_RIGHT);
-                printLine(qtyPrice);
-                outputStream.write(ESC_ALIGN_LEFT);
-
-                // Only show notes if they exist and are not null/empty
-                if (hasValidNotes(item)) {
-                    printLine("Note: " + item.getNotes());
-                }
-
-                outputStream.write(ESC_FEED_LINE);
-            }
-        } else {
-            printLine("No items in this order");
-            outputStream.write(ESC_FEED_LINE);
-        }
-
-        printLine(SEPARATOR_LINE);
-    }
-
-    private String getDisplayNameWithoutNull(OrderItem item) {
-        // Now use the fixed getDisplayName() method from OrderItem
-        return item.getDisplayName();
-    }
-
-    private void printBillTotals() throws IOException {
-        outputStream.write(ESC_ALIGN_LEFT);
-
-        double subtotal = order.getTotalAmount();
-        double finalAmount = order.getFinalAmount();
-
-        printLine(formatTotalLine("Subtotal:", formatCurrency(subtotal)));
-
-        // Calculate tax and service charge using API rates
-        double taxAmount = subtotal * taxRate;
-        double serviceAmount = subtotal * serviceRate;
-
-        // Verify our calculation matches the final amount and adjust if needed
-        double calculatedTotal = subtotal + taxAmount + serviceAmount;
-        double difference = finalAmount - subtotal;
-
-        // If there's a significant difference, distribute it proportionally
-        if (Math.abs(calculatedTotal - finalAmount) > 0.01 && (taxAmount + serviceAmount) > 0) {
-            double ratio = difference / (taxAmount + serviceAmount);
-            taxAmount *= ratio;
-            serviceAmount *= ratio;
-        }
-
-        // Print tax if greater than 0
-        if (taxAmount > 0.01) {
-            String taxLabel = String.format("%s (%.0f%%):", taxDescription, taxRate * 100);
-            printLine(formatTotalLine(taxLabel, formatCurrency(taxAmount)));
-        }
-
-        // Print service charge if greater than 0
-        if (serviceAmount > 0.01) {
-            String serviceLabel = String.format("%s (%.0f%%):", serviceDescription, serviceRate * 100);
-            printLine(formatTotalLine(serviceLabel, formatCurrency(serviceAmount)));
-        }
-
-        printLine(SEPARATOR_LINE);
-
-        outputStream.write(ESC_BOLD_ON);
-        outputStream.write(ESC_DOUBLE_HEIGHT);
-        printLine(formatTotalLine("TOTAL:", formatCurrency(finalAmount)));
-        outputStream.write(ESC_NORMAL_SIZE);
-        outputStream.write(ESC_BOLD_OFF);
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private void printBillFooter() throws IOException {
-        outputStream.write(ESC_ALIGN_CENTER);
-        printLine(SEPARATOR_LINE);
-        outputStream.write(ESC_FEED_LINE);
-        printLine("Please check the bill thoroughly before making payment.");
-        printLine("Receipt will be provided when.");
-        printLine("payment is settled.");
-        outputStream.write(ESC_FEED_LINE);
-        printLine("Follow us on social media:");
-        printLine("@cafeserendipityjagakarsa");
-        outputStream.write(ESC_FEED_LINE);
-        printLine("Printed: " + formatDateTime(new Date()));
-    }
-
-    // Helper methods
-    private void printLine(String text) throws IOException {
-        outputStream.write(text.getBytes("UTF-8"));
-        outputStream.write(ESC_FEED_LINE);
-    }
-
-    private String formatTotalLine(String label, String amount) {
-        int labelWidth = CHAR_WIDTH - amount.length();
-        return String.format("%-" + labelWidth + "s%s", label, amount);
-    }
-
-    private String formatCurrency(double amount) {
-        return String.format(Locale.getDefault(), "%,.0f", amount);
-    }
-
-    private String formatDateTime(Date date) {
-        return new SimpleDateFormat("dd/MM/yy HH:mm", Locale.getDefault()).format(date);
+        // Use template manager to print kitchen checker
+        templateManager.printKitchenChecker(outputStream, order);
     }
 
     private void disconnectPrinter() {

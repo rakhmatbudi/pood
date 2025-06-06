@@ -1,0 +1,153 @@
+{
+  "cut_paper": true,
+  "sections": [
+    {
+      "name": "header",
+      "formatting": {
+        "align": "center",
+        "bold": true,
+        "double_height": true
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "KITCHEN CHECKER",
+          "formatting": {
+            "align": "center",
+            "bold": true,
+            "double_height": true
+          }
+        },
+        {
+          "type": "text",
+          "content": "",
+          "formatting": {
+            "align": "left",
+            "bold": false,
+            "double_height": false
+          }
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "order_info",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "Order #: {{order_number}}"
+        },
+        {
+          "type": "text",
+          "content": "Table: {{table_number}}"
+        },
+        {
+          "type": "conditional",
+          "condition": "has_customer_name",
+          "sub_lines": [
+            {
+              "type": "text",
+              "content": "Customer: {{customer_name}}"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "content": "Time: {{current_time}}"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "items",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "ITEMS TO PREPARE:",
+          "formatting": {
+            "bold": true
+          }
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------",
+          "formatting": {
+            "bold": false
+          }
+        },
+        {
+          "type": "items_loop",
+          "empty_text": "No items in this order",
+          "sub_lines": [
+            {
+              "type": "text",
+              "content": "{{item_quantity}}x {{item_name}}",
+              "formatting": {
+                "bold": true
+              }
+            },
+            {
+              "type": "conditional",
+              "condition": "has_notes",
+              "formatting": {
+                "bold": false
+              },
+              "sub_lines": [
+                {
+                  "type": "text",
+                  "content": "Notes: {{item_notes}}"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "content": ""
+            }
+          ]
+        }
+      ],
+      "spacing_after": 0
+    },
+    {
+      "name": "footer",
+      "formatting": {
+        "align": "center",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        },
+        {
+          "type": "text",
+          "content": "** KITCHEN COPY **"
+        }
+      ],
+      "spacing_after": 0
+    }
+  ]
+}

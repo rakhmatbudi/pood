@@ -1,0 +1,303 @@
+{
+  "cut_paper": true,
+  "sections": [
+    {
+      "name": "header",
+      "formatting": {
+        "align": "center",
+        "bold": true,
+        "double_height": true
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "CUSTOMER BILL",
+          "formatting": {
+            "align": "center",
+            "bold": true,
+            "double_height": true
+          }
+        },
+        {
+          "type": "text",
+          "content": "",
+          "formatting": {
+            "align": "left",
+            "bold": false,
+            "double_height": false
+          }
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "restaurant_info",
+      "formatting": {
+        "align": "center",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "Serendipity"
+        },
+        {
+          "type": "text",
+          "content": "Jalan Durian Barat III no 10"
+        },
+        {
+          "type": "text",
+          "content": "Jakarta, Indonesia"
+        },
+        {
+          "type": "text",
+          "content": "Phone: +62821234568276"
+        },
+        {
+          "type": "text",
+          "content": "@cafeserendipityjagakarsa"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "order_info",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "Order #: {{order_number}}"
+        },
+        {
+          "type": "text",
+          "content": "Table: {{table_number}}"
+        },
+        {
+          "type": "conditional",
+          "condition": "has_customer_name",
+          "sub_lines": [
+            {
+              "type": "text",
+              "content": "Customer: {{customer_name}}"
+            }
+          ]
+        },
+        {
+          "type": "conditional",
+          "condition": "has_created_at",
+          "sub_lines": [
+            {
+              "type": "text",
+              "content": "Date: {{created_at}}"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "content": "Server ID: {{server_id}}"
+        },
+        {
+          "type": "conditional",
+          "condition": "has_order_type",
+          "sub_lines": [
+            {
+              "type": "text",
+              "content": "Type: {{order_type}}"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "items",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "text",
+          "content": "ITEMS:",
+          "formatting": {
+            "bold": true
+          }
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------",
+          "formatting": {
+            "bold": false
+          }
+        },
+        {
+          "type": "items_loop",
+          "empty_text": "No items in this order",
+          "sub_lines": [
+            {
+              "type": "text",
+              "content": "{{item_name}}"
+            },
+            {
+              "type": "text",
+              "content": "{{item_quantity}} x Rp.{{item_price}} = Rp.{{item_total}}",
+              "formatting": {
+                "align": "right"
+              }
+            },
+            {
+              "type": "conditional",
+              "condition": "has_notes",
+              "formatting": {
+                "align": "left"
+              },
+              "sub_lines": [
+                {
+                  "type": "text",
+                  "content": "Note: {{item_notes}}"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "content": ""
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        }
+      ],
+      "spacing_after": 0
+    },
+    {
+      "name": "totals",
+      "formatting": {
+        "align": "left",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "total_line",
+          "label": "Subtotal:",
+          "amount": "{{subtotal}}",
+          "char_width": 32
+        },
+        {
+          "type": "conditional",
+          "condition": "has_tax",
+          "sub_lines": [
+            {
+              "type": "total_line",
+              "label": "{{tax_description}} ({{tax_rate}}%):",
+              "amount": "{{tax_amount}}",
+              "char_width": 32
+            }
+          ]
+        },
+        {
+          "type": "conditional",
+          "condition": "has_service",
+          "sub_lines": [
+            {
+              "type": "total_line",
+              "label": "{{service_description}} ({{service_rate}}%):",
+              "amount": "{{service_amount}}",
+              "char_width": 32
+            }
+          ]
+        },
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        },
+        {
+          "type": "total_line",
+          "label": "TOTAL:",
+          "amount": "{{final_amount}}",
+          "char_width": 32,
+          "formatting": {
+            "bold": true,
+            "double_height": true
+          }
+        }
+      ],
+      "spacing_after": 1
+    },
+    {
+      "name": "footer",
+      "formatting": {
+        "align": "center",
+        "bold": false,
+        "double_height": false
+      },
+      "lines": [
+        {
+          "type": "separator",
+          "content": "--------------------------------"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "Please check the bill thoroughly before making payment."
+        },
+        {
+          "type": "text",
+          "content": "Receipt will be provided when."
+        },
+        {
+          "type": "text",
+          "content": "payment is settled."
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "Follow us on social media:"
+        },
+        {
+          "type": "text",
+          "content": "@cafeserendipityjagakarsa"
+        },
+        {
+          "type": "text",
+          "content": ""
+        },
+        {
+          "type": "text",
+          "content": "Printed: {{current_time}}"
+        }
+      ],
+      "spacing_after": 0
+    }
+  ]
+}
