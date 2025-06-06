@@ -1,22 +1,46 @@
 package com.restaurant.management.models;
 
+import com.google.gson.annotations.SerializedName;
+
 /**
  * Model class for order items from the API
  */
 public class OrderItem {
     private long id;
+
+    @SerializedName("order_id")
     private long orderId;
+
+    @SerializedName("menu_item_id")
     private long menuItemId;
+
+    @SerializedName("menu_item_name")
     private String menuItemName;
+
+    @SerializedName("variant_id")
     private Long variantId;
+
+    @SerializedName("variant_name")
     private String variantName;
+
     private int quantity;
+
+    @SerializedName("unit_price")
     private double unitPrice;
+
+    @SerializedName("total_price")
     private double totalPrice;
+
     private String notes;
     private String status;
+
+    @SerializedName("kitchen_printed")
     private boolean kitchenPrinted;
+
+    @SerializedName("created_at")
     private String createdAt;
+
+    @SerializedName("updated_at")
     private String updatedAt;
 
     public OrderItem() {
@@ -136,17 +160,27 @@ public class OrderItem {
         this.variantName = variantName;
     }
 
-    // Method to get display name with variant
+    // Method to get display name with variant - handles null properly
     public String getDisplayName() {
-        String name = menuItemName != null ? menuItemName : "";
-        if (variantName != null && !variantName.isEmpty()) {
+        String name = menuItemName != null ? menuItemName : "Unknown Item";
+
+        // Only add variant if it exists and is not null/empty
+        if (variantName != null && !variantName.trim().isEmpty()) {
             name += " (" + variantName + ")";
         }
+
         return name;
     }
 
     @Override
     public String toString() {
-        return quantity + "x " + menuItemName + (notes != null && !notes.isEmpty() ? " (" + notes + ")" : "");
+        String result = quantity + "x " + menuItemName;
+
+        // Only add notes if they exist and are not null/empty
+        if (notes != null && !notes.trim().isEmpty()) {
+            result += " (" + notes + ")";
+        }
+
+        return result;
     }
 }

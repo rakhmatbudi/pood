@@ -96,6 +96,26 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
             itemStatusTextView = itemView.findViewById(R.id.item_status_text_view);
         }
 
+        private boolean hasValidNotes(OrderItem item) {
+            String notes = item.getNotes();
+
+            if (notes == null) {
+                return false;
+            }
+
+            notes = notes.trim();
+
+            if (notes.isEmpty()) {
+                return false;
+            }
+
+            if ("null".equalsIgnoreCase(notes)) {
+                return false;
+            }
+
+            return true;
+        }
+
         void bind(OrderItem item, Context context) {
             // Check if item is cancelled
             boolean isCancelled = item.getStatus() != null &&
@@ -127,7 +147,7 @@ public class OrderItemAdapter extends RecyclerView.Adapter<OrderItemAdapter.Orde
             }
 
             if (itemNotesTextView != null) {
-                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
+                if (hasValidNotes(item)) {
                     itemNotesTextView.setText(item.getNotes());
                     itemNotesTextView.setVisibility(View.VISIBLE);
                     applyStrikethroughEffect(itemNotesTextView, isCancelled, context);

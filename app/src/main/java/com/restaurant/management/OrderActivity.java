@@ -508,11 +508,14 @@ public class OrderActivity extends AppCompatActivity {
         if (items != null && !items.isEmpty()) {
             for (OrderItem item : items) {
                 outputStream.write(ESC_BOLD_ON);
-                printLine(item.getQuantity() + "x " + item.getDisplayName());
+                // Use the helper method to get clean display name
+                String itemDisplayName = getDisplayNameWithoutNull(item);
+                printLine(item.getQuantity() + "x " + itemDisplayName);
                 outputStream.write(ESC_BOLD_OFF);
 
-                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
-                    printLine("Note: " + item.getNotes());
+                // Only show notes if they exist and are not null/empty
+                if (hasValidNotes(item)) {
+                    printLine("Notes: " + item.getNotes());
                 }
                 outputStream.write(ESC_FEED_LINE);
             }
@@ -577,6 +580,31 @@ public class OrderActivity extends AppCompatActivity {
         outputStream.write(ESC_FEED_LINE);
     }
 
+    private boolean hasValidNotes(OrderItem item) {
+        String notes = item.getNotes();
+
+        // Check if notes is null
+        if (notes == null) {
+            return false;
+        }
+
+        // Trim whitespace
+        notes = notes.trim();
+
+        // Check if empty after trimming
+        if (notes.isEmpty()) {
+            return false;
+        }
+
+        // Check if it's the string "null" (sometimes APIs return this)
+        if ("null".equalsIgnoreCase(notes)) {
+            return false;
+        }
+
+        // If we get here, we have valid notes
+        return true;
+    }
+
     private void printOrderItems() throws IOException {
         outputStream.write(ESC_ALIGN_LEFT);
         outputStream.write(ESC_BOLD_ON);
@@ -587,8 +615,9 @@ public class OrderActivity extends AppCompatActivity {
         List<OrderItem> items = order.getItems();
         if (items != null && !items.isEmpty()) {
             for (OrderItem item : items) {
-                // Item name with variant
-                String itemName = item.getDisplayName();
+                // Item name with variant - handle null variants
+                String itemName = getDisplayNameWithoutNull(item);
+
                 if (itemName.length() > CHAR_WIDTH) {
                     for (int i = 0; i < itemName.length(); i += CHAR_WIDTH) {
                         int end = Math.min(i + CHAR_WIDTH, itemName.length());
@@ -608,7 +637,8 @@ public class OrderActivity extends AppCompatActivity {
                 printLine(qtyPrice);
                 outputStream.write(ESC_ALIGN_LEFT);
 
-                if (item.getNotes() != null && !item.getNotes().isEmpty()) {
+                // Only show notes if they exist and are not null/empty
+                if (hasValidNotes(item)) {
                     printLine("Note: " + item.getNotes());
                 }
 
@@ -620,6 +650,11 @@ public class OrderActivity extends AppCompatActivity {
         }
 
         printLine(SEPARATOR_LINE);
+    }
+
+    private String getDisplayNameWithoutNull(OrderItem item) {
+        // Now use the fixed getDisplayName() method from OrderItem
+        return item.getDisplayName();
     }
 
     private void printBillTotals() throws IOException {
