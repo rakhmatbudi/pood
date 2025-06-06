@@ -52,7 +52,7 @@
                 tools:text="Rp 150,000" />
         </LinearLayout>
 
-        <!-- Second row: Payment Time and Order Items -->
+        <!-- Second row: Payment Time, Order Items, and Print Button -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -86,6 +86,20 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 tools:text="1x Fried Rice, 2x Ice Tea..." />
+
+            <!-- Print Button - Added here in the second row -->
+            <ImageButton
+                android:id="@+id/printButton"
+                android:layout_width="32dp"
+                android:layout_height="32dp"
+                android:layout_marginStart="8dp"
+                android:background="?android:attr/selectableItemBackgroundBorderless"
+                android:src="@drawable/ic_print"
+                android:contentDescription="@string/reprint_receipt"
+                android:padding="6dp"
+                android:scaleType="fitCenter"
+                android:tint="#757575" />
+
         </LinearLayout>
 
     </LinearLayout>

@@ -17,6 +17,7 @@ import android.widget.RadioGroup;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.util.Log;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -737,6 +738,25 @@ public class PaymentActivity extends AppCompatActivity implements
         outputStream = bluetoothSocket.getOutputStream();
     }
 
+    private String getPaymentMethodForPrint() {
+        // If selectedPaymentMethod is already set from onPaymentMethodSelected, use it
+        if (selectedPaymentMethod != null && !selectedPaymentMethod.isEmpty() &&
+                !selectedPaymentMethod.equals("cash") && !selectedPaymentMethod.equals("card")) {
+            return selectedPaymentMethod;
+        }
+
+        // Otherwise, try to find the payment method by ID
+        if (paymentMethods != null && selectedPaymentMethodId != null) {
+            for (PaymentMethod method : paymentMethods) {
+                if (method.getId().equals(selectedPaymentMethodId)) {
+                    return method.getDescription();
+                }
+            }
+        }
+
+        return "Cash Sales"; // Ultimate fallback
+    }
+
     private void printThermalReceipt() throws IOException {
         // Check if rates are loaded, if not wait a bit or use defaults
         if (!ratesLoaded) {
@@ -749,6 +769,11 @@ public class PaymentActivity extends AppCompatActivity implements
             discountName = selectedDiscount.getName();
         }
 
+        // Get the payment method description for printing
+        String paymentMethodForPrint = getPaymentMethodForPrint();
+
+        Log.d("PaymentActivity", "Printing receipt with payment method: '" + paymentMethodForPrint + "'");
+
         // Use template manager to print receipt
         templateManager.printPaymentReceipt(
                 outputStream,
@@ -758,7 +783,7 @@ public class PaymentActivity extends AppCompatActivity implements
                 finalAmount,
                 discountedAmount,
                 discountName,
-                selectedPaymentMethod,
+                paymentMethodForPrint, // ← Now uses correct description
                 amountPaid,
                 taxRate,
                 taxDescription,
@@ -893,10 +918,15 @@ public class PaymentActivity extends AppCompatActivity implements
     // PaymentUIHelper.PaymentMethodSelectionListener implementation
     @Override
     public void onPaymentMethodSelected(PaymentMethod method) {
-        selectedPaymentMethod = method.getCode();
+        // Store the description (not the code) for printing
+        selectedPaymentMethod = method.getDescription(); // This will be "Cash Sales", "EDC BRI", etc.
         selectedPaymentMethodId = method.getId();
 
-        if ("cash".equalsIgnoreCase(method.getCode())) {
+        Log.d("PaymentActivity", "Selected payment method: '" + selectedPaymentMethod + "' (ID: " + selectedPaymentMethodId + ")");
+
+        // Check if it's cash payment (case insensitive)
+        String description = method.getDescription().toLowerCase();
+        if (description.contains("cash")) {
             amountPaidEditText.setEnabled(true);
             updateAmountPaidWithRounding();
         } else {

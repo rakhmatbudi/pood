@@ -346,5 +346,7 @@
     <string name="promo_image_description">Promotion image</string>
     <string name="quick_actions">Quick Actions</string>
     <string name="products">Products</string>
+    <string name="reprint_receipt">Reprint Receipt</string>
+
 
 </resources>

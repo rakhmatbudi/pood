@@ -1,14 +1,38 @@
 package com.restaurant.management;
 
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ExpandableListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
+import android.content.pm.PackageManager;
+import android.os.Build;
 
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import com.restaurant.management.printing.PrintTemplateManager;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.util.Set;
+import java.util.UUID;
+
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.restaurant.management.adapters.TransactionExpandableListAdapter;
 import com.restaurant.management.models.CashierSession;
@@ -19,7 +43,10 @@ import com.restaurant.management.models.SessionWithPayments;
 import com.restaurant.management.models.PaymentData;
 import com.restaurant.management.network.ApiClient;
 import com.restaurant.management.network.ApiService;
+import com.restaurant.management.printing.PrintTemplateManager;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -28,14 +55,24 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TimeZone;
+import java.util.UUID;
 
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class TransactionActivity extends AppCompatActivity {
+public class TransactionActivity extends AppCompatActivity implements TransactionExpandableListAdapter.OnPrintClickListener {
 
+    private static final int BLUETOOTH_PERMISSION_REQUEST = 105;
+    private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+
+    private PrintTemplateManager templateManager;
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothSocket bluetoothSocket;
+    private OutputStream outputStream;
+    private Transaction pendingPrintTransaction = null;
     private ExpandableListView expandableListView;
     private TransactionExpandableListAdapter listAdapter;
     private List<CashierSession> sessionList;
@@ -59,6 +96,10 @@ public class TransactionActivity extends AppCompatActivity {
 
         // Initialize API service
         apiService = ApiClient.getClient(this).create(ApiService.class);
+
+        // Initialize printing components
+        templateManager = new PrintTemplateManager(this);
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
 
         // Initialize views
         expandableListView = findViewById(R.id.transactionExpandableListView);
@@ -90,6 +131,222 @@ public class TransactionActivity extends AppCompatActivity {
                 formatCurrency(transaction.getAmount()));
 
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onPrintClick(Transaction transaction) {
+        pendingPrintTransaction = transaction;
+        reprintReceipt(transaction);
+    }
+
+    private void reprintReceipt(Transaction transaction) {
+        if (transaction == null) {
+            Toast.makeText(this, "Transaction data not available", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (!checkBluetoothAndEnable()) {
+            return;
+        }
+
+        showPrinterSelection(transaction);
+    }
+
+    private boolean checkBluetoothAndEnable() {
+        try {
+            if (bluetoothAdapter == null) {
+                Toast.makeText(this, "Bluetooth not supported", Toast.LENGTH_SHORT).show();
+                return false;
+            }
+
+            // Check runtime permissions for Android 12+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (!hasBluetoothPermissions()) {
+                    requestBluetoothPermissions();
+                    return false;
+                }
+            } else {
+                if (!hasLocationPermission()) {
+                    requestLocationPermission();
+                    return false;
+                }
+            }
+
+            if (!bluetoothAdapter.isEnabled()) {
+                Toast.makeText(this, "Please enable Bluetooth and try again", Toast.LENGTH_LONG).show();
+                return false;
+            }
+
+            return true;
+
+        } catch (SecurityException e) {
+            Toast.makeText(this, "Bluetooth permission required", Toast.LENGTH_SHORT).show();
+            return false;
+        } catch (Exception e) {
+            Toast.makeText(this, "Bluetooth error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            return false;
+        }
+    }
+
+    private boolean hasBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            return ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED &&
+                    ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED;
+        }
+        return true;
+    }
+
+    private boolean hasLocationPermission() {
+        return ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void requestBluetoothPermissions() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.BLUETOOTH_SCAN
+                    },
+                    BLUETOOTH_PERMISSION_REQUEST);
+        }
+    }
+
+    private void requestLocationPermission() {
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                BLUETOOTH_PERMISSION_REQUEST);
+    }
+
+    private void showPrinterSelection(Transaction transaction) {
+        try {
+            Set<BluetoothDevice> pairedDevices = bluetoothAdapter.getBondedDevices();
+
+            if (pairedDevices.isEmpty()) {
+                Toast.makeText(this, "No paired printers found. Please pair a printer first.", Toast.LENGTH_LONG).show();
+                return;
+            }
+
+            String[] deviceNames = new String[pairedDevices.size()];
+            BluetoothDevice[] devices = new BluetoothDevice[pairedDevices.size()];
+
+            int i = 0;
+            for (BluetoothDevice device : pairedDevices) {
+                String deviceName = device.getName() != null ? device.getName() : "Unknown Device";
+                deviceNames[i] = deviceName + "\n" + device.getAddress();
+                devices[i] = device;
+                i++;
+            }
+
+            new AlertDialog.Builder(this)
+                    .setTitle("Select Printer for Receipt Reprint")
+                    .setItems(deviceNames, (dialog, which) -> {
+                        connectAndPrintReceipt(devices[which], transaction);
+                    })
+                    .setNegativeButton("Cancel", null)
+                    .show();
+
+        } catch (SecurityException e) {
+            Toast.makeText(this, "Bluetooth permission required", Toast.LENGTH_SHORT).show();
+        } catch (Exception e) {
+            Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void connectAndPrintReceipt(BluetoothDevice device, Transaction transaction) {
+        new Thread(() -> {
+            try {
+                connectToPrinter(device);
+                printTransactionReceipt(transaction);
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Receipt reprinted successfully", Toast.LENGTH_SHORT).show();
+                });
+            } catch (IOException e) {
+                runOnUiThread(() -> {
+                    Toast.makeText(this, "Failed to reprint receipt: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            } finally {
+                disconnectPrinter();
+            }
+        }).start();
+    }
+
+    private void connectToPrinter(BluetoothDevice device) throws IOException {
+        bluetoothSocket = device.createRfcommSocketToServiceRecord(PRINTER_UUID);
+        bluetoothSocket.connect();
+        outputStream = bluetoothSocket.getOutputStream();
+    }
+
+    private void printTransactionReceipt(Transaction transaction) throws IOException {
+        // Use the template manager to print receipt
+        // We'll use default tax and service rates, or you could fetch them from API
+        double taxRate = 0.10; // 10% default
+        String taxDescription = "Tax";
+        double serviceRate = 0.02; // 2% default
+        String serviceDescription = "Service Charge";
+
+        // Calculate original amount (before discount if any)
+        double originalAmount = transaction.getAmount();
+        double finalAmount = transaction.getAmount();
+        double discountAmount = 0.0;
+        String discountName = null;
+
+        templateManager.printPaymentReceipt(
+                outputStream,
+                String.valueOf(transaction.getOrderId()),
+                transaction.getTableNumber(),
+                originalAmount,
+                finalAmount,
+                discountAmount,
+                discountName,
+                transaction.getPaymentMethod(),
+                transaction.getAmount(), // Amount paid same as final amount
+                taxRate,
+                taxDescription,
+                serviceRate,
+                serviceDescription
+        );
+    }
+
+    private void disconnectPrinter() {
+        try {
+            if (outputStream != null) {
+                outputStream.close();
+                outputStream = null;
+            }
+            if (bluetoothSocket != null) {
+                bluetoothSocket.close();
+                bluetoothSocket = null;
+            }
+        } catch (IOException e) {
+            // Silent cleanup
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode == BLUETOOTH_PERMISSION_REQUEST) {
+            boolean allPermissionsGranted = true;
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allPermissionsGranted = false;
+                    break;
+                }
+            }
+
+            if (allPermissionsGranted) {
+                Toast.makeText(this, "Permissions granted. Retrying print...", Toast.LENGTH_SHORT).show();
+                if (pendingPrintTransaction != null) {
+                    reprintReceipt(pendingPrintTransaction);
+                    pendingPrintTransaction = null;
+                }
+            } else {
+                Toast.makeText(this, "Bluetooth permissions are required for printing", Toast.LENGTH_LONG).show();
+                pendingPrintTransaction = null;
+            }
+        }
     }
 
     private void fetchTransactions() {
@@ -235,7 +492,9 @@ public class TransactionActivity extends AppCompatActivity {
         }
 
         showEmptyView(false);
-        listAdapter = new TransactionExpandableListAdapter(this, sessionList, transactionMap);
+
+        // Updated constructor call - pass 'this' as the print click listener
+        listAdapter = new TransactionExpandableListAdapter(this, sessionList, transactionMap, this);
         expandableListView.setAdapter(listAdapter);
 
         // Expand all groups initially
@@ -274,5 +533,11 @@ public class TransactionActivity extends AppCompatActivity {
     public boolean onSupportNavigateUp() {
         onBackPressed();
         return true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        disconnectPrinter();
     }
 }

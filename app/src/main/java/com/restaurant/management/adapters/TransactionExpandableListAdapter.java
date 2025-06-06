@@ -6,6 +6,7 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.BaseExpandableListAdapter;
+import android.widget.ImageButton;
 import android.widget.TextView;
 
 import com.restaurant.management.R;
@@ -26,16 +27,32 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
     private SimpleDateFormat dateFormat;
     private SimpleDateFormat timeFormat;
     private SimpleDateFormat timeOnlyFormat; // Add a new format for time only
+    private OnPrintClickListener printClickListener;
 
+    // Interface for print button clicks
+    public interface OnPrintClickListener {
+        void onPrintClick(Transaction transaction);
+    }
+
+    // Updated constructor to include print click listener
     public TransactionExpandableListAdapter(Context context,
                                             List<CashierSession> sessionList,
-                                            Map<CashierSession, List<Transaction>> transactionMap) {
+                                            Map<CashierSession, List<Transaction>> transactionMap,
+                                            OnPrintClickListener printClickListener) {
         this.context = context;
         this.sessionList = sessionList;
         this.transactionMap = transactionMap;
+        this.printClickListener = printClickListener;
         this.dateFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
         this.timeFormat = new SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault());
         this.timeOnlyFormat = new SimpleDateFormat("HH:mm", Locale.getDefault()); // Format for time only
+    }
+
+    // Keep existing constructor for backward compatibility
+    public TransactionExpandableListAdapter(Context context,
+                                            List<CashierSession> sessionList,
+                                            Map<CashierSession, List<Transaction>> transactionMap) {
+        this(context, sessionList, transactionMap, null);
     }
 
     @Override
@@ -122,6 +139,9 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         TextView tvPaymentTime = convertView.findViewById(R.id.tvPaymentTime);
         TextView tvOrderItems = convertView.findViewById(R.id.tvOrderItems);
 
+        // Try to find print button - it might not exist in your current layout
+        ImageButton printButton = convertView.findViewById(R.id.printButton);
+
         // Update this line to include customer name if available
         String orderInfo;
         if (transaction.getCustomerName() != null && !transaction.getCustomerName().isEmpty()) {
@@ -142,6 +162,15 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
         // Format and display order items
         String formattedItems = formatOrderItems(transaction.getOrderItems());
         tvOrderItems.setText(formattedItems);
+
+        // Set up print button if it exists and listener is available
+        if (printButton != null && printClickListener != null) {
+            printButton.setVisibility(View.VISIBLE);
+            printButton.setOnClickListener(v -> printClickListener.onPrintClick(transaction));
+        } else if (printButton != null) {
+            // Hide print button if no listener is set
+            printButton.setVisibility(View.GONE);
+        }
 
         return convertView;
     }
@@ -189,6 +218,7 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
 
         return result;
     }
+
     @Override
     public boolean isChildSelectable(int groupPosition, int childPosition) {
         return true;
