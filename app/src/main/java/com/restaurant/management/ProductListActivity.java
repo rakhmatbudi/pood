@@ -27,10 +27,9 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.adapters.ProductAdapter;
+import com.restaurant.management.database.MenuItemDatabase;
 import com.restaurant.management.models.Product;
-import com.restaurant.management.models.ProductResponse;
-import com.restaurant.management.network.ApiClient;
-import com.restaurant.management.network.ApiService;
+import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.utils.ProductFilter;
 import com.restaurant.management.utils.TableItemDecoration;
 
@@ -38,10 +37,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
-
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ProductListActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener, ProductAdapter.OnProductClickListener {
 
@@ -51,7 +48,8 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     private ProgressBar progressBar;
     private List<Product> productList = new ArrayList<>();
     private List<Product> filteredProductList = new ArrayList<>();
-    private ApiService apiService;
+    private MenuItemDatabase database;
+    private ExecutorService executorService;
     private TextView emptyView;
 
     // Filter components
@@ -100,11 +98,12 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         // Initialize filter mechanics
         initializeFilterListeners();
 
-        // Initialize API service
-        apiService = ApiClient.getClient(this).create(ApiService.class);
+        // Initialize database and executor
+        database = new MenuItemDatabase(this);
+        executorService = Executors.newSingleThreadExecutor();
 
-        // Load products
-        loadProducts();
+        // Load products from database
+        loadProductsFromDatabase();
     }
 
     private void initializeDrawer(Toolbar toolbar) {
@@ -230,72 +229,113 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         }
     }
 
-    private void loadProducts() {
-        Log.d("ProductListActivity", "Loading products...");
+    private void loadProductsFromDatabase() {
+        Log.d("ProductListActivity", "Loading products from database...");
         showLoading(true);
 
-        Call<ProductResponse> call = apiService.getProducts();
-        call.enqueue(new Callback<ProductResponse>() {
-            @Override
-            public void onResponse(Call<ProductResponse> call, Response<ProductResponse> response) {
-                showLoading(false);
-                Log.d("ProductListActivity", "API Response Code: " + response.code());
+        // Execute database query in background thread
+        executorService.execute(() -> {
+            try {
+                // Get menu items from database
+                List<ProductItem> menuItems = database.getAllMenuItems();
+                Log.d("ProductListActivity", "Database returned " + menuItems.size() + " menu items");
 
-                if (response.isSuccessful() && response.body() != null) {
-                    ProductResponse productResponse = response.body();
+                // Convert ProductItems to Products
+                List<Product> products = convertMenuItemsToProducts(menuItems);
 
-                    if ("success".equals(productResponse.getStatus()) && productResponse.getData() != null) {
-                        productList = productResponse.getData();
-                        Log.d("ProductListActivity", "Response data size: " + productList.size());
+                // Update UI on main thread
+                runOnUiThread(() -> {
+                    showLoading(false);
+
+                    if (products != null && !products.isEmpty()) {
+                        productList = products;
+                        Log.d("ProductListActivity", "Converted to " + productList.size() + " products");
 
                         // Initialize filter with full product list
                         productFilter = new ProductFilter(productList);
 
                         // Extract and populate category dropdown
-                        Set<String> categories = ProductFilter.extractCategories(productList);
+                        Set<String> categories = extractCategoriesFromProducts(productList);
                         setupCategoryDropdown(categories);
 
                         // Apply initial filter (show all)
                         applyFilter();
 
-                        // Show empty view if the list is empty
-                        if (productList.isEmpty()) {
-                            showEmptyView(true);
-                            emptyView.setText(R.string.no_products);
-                        } else {
-                            showEmptyView(false);
-                        }
+                        showEmptyView(false);
                     } else {
-                        Log.e("ProductListActivity", "API returned success=false or null data");
-                        showError("Error: API returned invalid data");
+                        Log.w("ProductListActivity", "No products found in database");
                         showEmptyView(true);
-                        emptyView.setText(R.string.no_products);
+                        emptyView.setText("No products available. Please sync data.");
                     }
-                } else {
-                    String errorMsg = "API Error: " + response.code();
-                    try {
-                        if (response.errorBody() != null) {
-                            errorMsg += " - " + response.errorBody().string();
-                        }
-                    } catch (Exception e) {
-                        Log.e("ProductListActivity", "Error reading error body", e);
-                    }
-                    Log.e("ProductListActivity", errorMsg);
-                    showError(errorMsg);
-                    showEmptyView(true);
-                    emptyView.setText(R.string.no_products);
-                }
-            }
+                });
 
-            @Override
-            public void onFailure(Call<ProductResponse> call, Throwable t) {
-                showLoading(false);
-                showEmptyView(true);
-                emptyView.setText(R.string.no_products);
-                Log.e("ProductListActivity", "API call failed", t);
-                showError("Network Error: " + t.getMessage());
+            } catch (Exception e) {
+                Log.e("ProductListActivity", "Error loading products from database", e);
+
+                // Show error on main thread
+                runOnUiThread(() -> {
+                    showLoading(false);
+                    showEmptyView(true);
+                    emptyView.setText("Error loading products from database");
+                    showError("Database Error: " + e.getMessage());
+                });
             }
         });
+    }
+
+    private Set<String> extractCategoriesFromProducts(List<Product> products) {
+        Set<String> categories = new TreeSet<>();
+
+        for (Product product : products) {
+            String categoryName = product.getCategoryName();
+            if (categoryName != null && !categoryName.trim().isEmpty()) {
+                categories.add(categoryName.trim());
+            }
+        }
+
+        Log.d("ProductListActivity", "Extracted categories: " + categories.toString());
+        return categories;
+    }
+
+    private List<Product> convertMenuItemsToProducts(List<ProductItem> menuItems) {
+        List<Product> products = new ArrayList<>();
+
+        if (menuItems == null) {
+            return products;
+        }
+
+        for (ProductItem menuItem : menuItems) {
+            // Skip inactive items
+            if (!menuItem.isActive()) {
+                continue;
+            }
+
+            Product product = new Product();
+
+            // Map fields from ProductItem to Product
+            product.setId(menuItem.getId());
+            product.setName(menuItem.getName());
+            product.setDescription(menuItem.getDescription());
+            product.setPrice(String.valueOf(menuItem.getPrice())); // Convert double to String
+            product.setActive(menuItem.isActive());
+            product.setImagePath(menuItem.getImageUrl()); // Note: using imagePath instead of imageUrl
+
+            // Handle category - create a Category object if category name exists
+            if (menuItem.getCategory() != null && !menuItem.getCategory().isEmpty()) {
+                Product.Category category = new Product.Category();
+                category.setName(menuItem.getCategory()); // Set the category name
+                // You could also set ID if you have it available from MenuCategory lookup
+                product.setCategory(category);
+            }
+
+            // Handle variants if your Product model supports them
+            // You might need to add variant support to Product model or handle separately
+
+            products.add(product);
+        }
+
+        Log.d("ProductListActivity", "Converted " + menuItems.size() + " menu items to " + products.size() + " products");
+        return products;
     }
 
     private void showLoading(boolean show) {
@@ -366,5 +406,19 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             drawerLayout.closeDrawer(GravityCompat.START);
         }
         return true;
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Clean up resources
+        if (database != null) {
+            database.close();
+        }
+
+        if (executorService != null && !executorService.isShutdown()) {
+            executorService.shutdown();
+        }
     }
 }

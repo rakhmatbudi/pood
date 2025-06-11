@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName;
 
 public class Product {
     @SerializedName("id")
-    private int id;
+    private long id;  // Changed from int to long
 
     @SerializedName("name")
     private String name;
@@ -28,7 +28,7 @@ public class Product {
     // Inner class to represent the category structure from the API
     public static class Category {
         @SerializedName("id")
-        private int id;
+        private long id;  // Also change this to long for consistency
 
         @SerializedName("name")
         private String name;
@@ -37,16 +37,28 @@ public class Product {
         private String description;
 
         // Getters for Category
-        public int getId() {
+        public long getId() {  // Changed return type to long
             return id;
+        }
+
+        public void setId(long id) {  // Add setter
+            this.id = id;
         }
 
         public String getName() {
             return name;
         }
 
+        public void setName(String name) {  // Add setter
+            this.name = name;
+        }
+
         public String getDescription() {
             return description;
+        }
+
+        public void setDescription(String description) {  // Add setter
+            this.description = description;
         }
     }
 
@@ -55,11 +67,11 @@ public class Product {
     private Object[] variants;
 
     // Getters and Setters
-    public int getId() {
+    public long getId() {  // Changed return type to long
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(long id) {  // Changed parameter type to long
         this.id = id;
     }
 
@@ -104,7 +116,7 @@ public class Product {
     }
 
     // Updated methods to access category data through the nested object
-    public int getCategoryId() {
+    public long getCategoryId() {  // Changed return type to long
         return (category != null) ? category.getId() : 0;
     }
 
@@ -118,7 +130,7 @@ public class Product {
 
     // We no longer need these setters as they're part of the nested object
     // But we can keep them for backward compatibility if needed
-    public void setCategoryId(int categoryId) {
+    public void setCategoryId(long categoryId) {  // Changed parameter type to long
         // No direct implementation needed as it's now in the nested object
     }
 

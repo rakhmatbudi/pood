@@ -9,6 +9,7 @@ import android.util.Log;
 
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
+import com.restaurant.management.models.MenuCategory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,11 +17,12 @@ import java.util.List;
 public class MenuItemDatabase extends SQLiteOpenHelper {
     private static final String TAG = "MenuItemDatabase";
     private static final String DATABASE_NAME = "menu_items.db";
-    private static final int DATABASE_VERSION = 1;
+    private static final int DATABASE_VERSION = 2; // Increased version for categories
 
     // Table names
     private static final String TABLE_MENU_ITEMS = "menu_items";
     private static final String TABLE_VARIANTS = "variants";
+    private static final String TABLE_CATEGORIES = "categories";
 
     // Menu Items table columns
     private static final String COLUMN_ID = "id";
@@ -43,6 +45,19 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
     private static final String COLUMN_VARIANT_IS_ACTIVE = "variant_is_active";
     private static final String COLUMN_VARIANT_CREATED_AT = "variant_created_at";
     private static final String COLUMN_VARIANT_UPDATED_AT = "variant_updated_at";
+
+    // Categories table columns
+    private static final String COLUMN_CAT_ID = "cat_id";
+    private static final String COLUMN_CAT_NAME = "cat_name";
+    private static final String COLUMN_CAT_DESCRIPTION = "cat_description";
+    private static final String COLUMN_CAT_CREATED_AT = "cat_created_at";
+    private static final String COLUMN_CAT_UPDATED_AT = "cat_updated_at";
+    private static final String COLUMN_CAT_IS_DISPLAYED = "cat_is_displayed";
+    private static final String COLUMN_CAT_DISPLAY_PICTURE = "cat_display_picture";
+    private static final String COLUMN_CAT_GROUP = "cat_group";
+    private static final String COLUMN_CAT_SKU_ID = "cat_sku_id";
+    private static final String COLUMN_CAT_IS_HIGHLIGHT = "cat_is_highlight";
+    private static final String COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER = "cat_is_display_for_self_order";
 
     // Create table statements
     private static final String CREATE_MENU_ITEMS_TABLE = "CREATE TABLE " + TABLE_MENU_ITEMS + "("
@@ -70,6 +85,20 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
             + "FOREIGN KEY(" + COLUMN_MENU_ITEM_ID + ") REFERENCES " + TABLE_MENU_ITEMS + "(" + COLUMN_ID + ")"
             + ")";
 
+    private static final String CREATE_CATEGORIES_TABLE = "CREATE TABLE " + TABLE_CATEGORIES + "("
+            + COLUMN_CAT_ID + " INTEGER PRIMARY KEY,"
+            + COLUMN_CAT_NAME + " TEXT NOT NULL,"
+            + COLUMN_CAT_DESCRIPTION + " TEXT,"
+            + COLUMN_CAT_CREATED_AT + " TEXT,"
+            + COLUMN_CAT_UPDATED_AT + " TEXT,"
+            + COLUMN_CAT_IS_DISPLAYED + " INTEGER,"
+            + COLUMN_CAT_DISPLAY_PICTURE + " TEXT,"
+            + COLUMN_CAT_GROUP + " TEXT,"
+            + COLUMN_CAT_SKU_ID + " TEXT,"
+            + COLUMN_CAT_IS_HIGHLIGHT + " INTEGER,"
+            + COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER + " INTEGER"
+            + ")";
+
     public MenuItemDatabase(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -78,12 +107,14 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase db) {
         db.execSQL(CREATE_MENU_ITEMS_TABLE);
         db.execSQL(CREATE_VARIANTS_TABLE);
+        db.execSQL(CREATE_CATEGORIES_TABLE);
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_MENU_ITEMS);
         db.execSQL("DROP TABLE IF EXISTS " + TABLE_VARIANTS);
+        db.execSQL("DROP TABLE IF EXISTS " + TABLE_CATEGORIES);
         onCreate(db);
     }
 
@@ -140,6 +171,44 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
         }
     }
 
+    public void saveMenuCategories(List<MenuCategory> categories) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        try {
+            db.beginTransaction();
+
+            // Clear existing categories
+            db.delete(TABLE_CATEGORIES, null, null);
+
+            // Insert categories
+            for (MenuCategory category : categories) {
+                ContentValues values = new ContentValues();
+                values.put(COLUMN_CAT_ID, category.getId());
+                values.put(COLUMN_CAT_NAME, category.getName());
+                values.put(COLUMN_CAT_DESCRIPTION, category.getDescription());
+                values.put(COLUMN_CAT_CREATED_AT, category.getCreatedAt());
+                values.put(COLUMN_CAT_UPDATED_AT, category.getUpdatedAt());
+                values.put(COLUMN_CAT_IS_DISPLAYED, category.isDisplayed() ? 1 : 0);
+                values.put(COLUMN_CAT_DISPLAY_PICTURE, category.getDisplayPicture());
+                values.put(COLUMN_CAT_GROUP, category.getMenuCategoryGroup());
+                values.put(COLUMN_CAT_SKU_ID, category.getSkuId());
+                values.put(COLUMN_CAT_IS_HIGHLIGHT, category.isHighlight() ? 1 : 0);
+                values.put(COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER, category.isDisplayForSelfOrder() ? 1 : 0);
+
+                db.insert(TABLE_CATEGORIES, null, values);
+            }
+
+            db.setTransactionSuccessful();
+            Log.d(TAG, "Saved " + categories.size() + " categories to database");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving categories to database", e);
+        } finally {
+            db.endTransaction();
+            db.close();
+        }
+    }
+
     public List<ProductItem> getAllMenuItems() {
         List<ProductItem> menuItems = new ArrayList<>();
         SQLiteDatabase db = this.getReadableDatabase();
@@ -173,6 +242,40 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
 
         Log.d(TAG, "Loaded " + menuItems.size() + " menu items from database");
         return menuItems;
+    }
+
+    public List<MenuCategory> getAllMenuCategories() {
+        List<MenuCategory> categories = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        String selectQuery = "SELECT * FROM " + TABLE_CATEGORIES + " ORDER BY " + COLUMN_CAT_NAME + " ASC";
+
+        Cursor cursor = db.rawQuery(selectQuery, null);
+
+        if (cursor.moveToFirst()) {
+            do {
+                MenuCategory category = new MenuCategory();
+                category.setId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CAT_ID)));
+                category.setName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_NAME)));
+                category.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_DESCRIPTION)));
+                category.setCreatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_CREATED_AT)));
+                category.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_UPDATED_AT)));
+                category.setDisplayed(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CAT_IS_DISPLAYED)) == 1);
+                category.setDisplayPicture(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_DISPLAY_PICTURE)));
+                category.setMenuCategoryGroup(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_GROUP)));
+                category.setSkuId(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_SKU_ID)));
+                category.setHighlight(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CAT_IS_HIGHLIGHT)) == 1);
+                category.setDisplayForSelfOrder(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER)) == 1);
+
+                categories.add(category);
+            } while (cursor.moveToNext());
+        }
+
+        cursor.close();
+        db.close();
+
+        Log.d(TAG, "Loaded " + categories.size() + " categories from database");
+        return categories;
     }
 
     private List<Variant> getVariantsForMenuItem(long menuItemId) {
@@ -223,12 +326,36 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
         }
     }
 
+    public boolean hasMenuCategories() {
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + TABLE_CATEGORIES;
+            Cursor cursor = db.rawQuery(countQuery, null);
+
+            int count = 0;
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+
+            cursor.close();
+            Log.d(TAG, "Categories count: " + count);
+            return count > 0;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking if has categories", e);
+            return false;
+        } finally {
+            db.close();
+        }
+    }
+
     public void clearAllData() {
         SQLiteDatabase db = this.getWritableDatabase();
 
         try {
             db.delete(TABLE_MENU_ITEMS, null, null);
             db.delete(TABLE_VARIANTS, null, null);
+            db.delete(TABLE_CATEGORIES, null, null);
             Log.d(TAG, "Cleared all menu data");
         } catch (Exception e) {
             Log.e(TAG, "Error clearing menu data", e);

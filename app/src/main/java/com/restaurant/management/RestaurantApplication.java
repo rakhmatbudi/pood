@@ -6,6 +6,7 @@ import android.util.Log;
 import com.restaurant.management.database.MenuItemDatabase;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
+import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.utils.NetworkUtils;
 
 import org.json.JSONArray;
@@ -16,6 +17,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -29,27 +31,78 @@ public class RestaurantApplication extends Application {
 
     private MenuItemDatabase database;
     private OkHttpClient client;
+    private AtomicInteger pendingRequests = new AtomicInteger(0);
 
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "App started - downloading menu");
+        Log.d(TAG, "App started - downloading menu data");
 
         database = new MenuItemDatabase(this);
         client = new OkHttpClient();
 
-        // Download menu on every app start
-        downloadMenuOnStart();
+        // Download both menu items and categories on every app start
+        downloadMenuDataOnStart();
     }
 
-    private void downloadMenuOnStart() {
+    private void downloadMenuDataOnStart() {
         if (!NetworkUtils.isNetworkAvailable(this)) {
             Log.d(TAG, "No network - skipping download");
             return;
         }
 
-        Log.d(TAG, "Network available - starting download");
+        Log.d(TAG, "Network available - starting downloads");
+
+        // Download both categories and menu items
+        pendingRequests.set(2); // We have 2 API calls to make
+        downloadMenuCategories();
         downloadMenuItems();
+    }
+
+    private void downloadMenuCategories() {
+        String apiUrl = BASE_API_URL + "menu-categories";
+        String authToken = getAuthToken();
+
+        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
+
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Categories download failed: " + e.getMessage());
+                decrementPendingRequests();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+
+                    if (!response.isSuccessful()) {
+                        Log.e(TAG, "Categories server error: " + response.code());
+                        return;
+                    }
+
+                    JSONObject jsonResponse = new JSONObject(responseBody);
+                    List<MenuCategory> categories = parseMenuCategories(jsonResponse);
+
+                    Log.d(TAG, "Downloaded " + categories.size() + " categories");
+
+                    database.saveMenuCategories(categories);
+                    Log.d(TAG, "Categories saved to database");
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing categories download: " + e.getMessage());
+                } finally {
+                    decrementPendingRequests();
+                }
+            }
+        });
     }
 
     private void downloadMenuItems() {
@@ -67,7 +120,8 @@ public class RestaurantApplication extends Application {
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Download failed: " + e.getMessage());
+                Log.e(TAG, "Menu items download failed: " + e.getMessage());
+                decrementPendingRequests();
             }
 
             @Override
@@ -76,14 +130,14 @@ public class RestaurantApplication extends Application {
                     String responseBody = response.body().string();
 
                     if (!response.isSuccessful()) {
-                        Log.e(TAG, "Server error: " + response.code());
+                        Log.e(TAG, "Menu items server error: " + response.code());
                         return;
                     }
 
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<ProductItem> items = parseMenuItems(jsonResponse);
 
-                    Log.d(TAG, "Downloaded " + items.size() + " items");
+                    Log.d(TAG, "Downloaded " + items.size() + " menu items");
 
                     // Check Affogato price in downloaded data
                     for (ProductItem item : items) {
@@ -94,13 +148,66 @@ public class RestaurantApplication extends Application {
                     }
 
                     database.saveMenuItems(items);
-                    Log.d(TAG, "Saved to database");
+                    Log.d(TAG, "Menu items saved to database");
 
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing download: " + e.getMessage());
+                    Log.e(TAG, "Error processing menu items download: " + e.getMessage());
+                } finally {
+                    decrementPendingRequests();
                 }
             }
         });
+    }
+
+    private List<MenuCategory> parseMenuCategories(JSONObject jsonResponse) throws JSONException {
+        List<MenuCategory> categories = new ArrayList<>();
+
+        if (jsonResponse.has("data") && !jsonResponse.isNull("data")) {
+            JSONArray categoriesArray;
+
+            if (jsonResponse.get("data") instanceof JSONArray) {
+                categoriesArray = jsonResponse.getJSONArray("data");
+            } else {
+                JSONObject singleCategory = jsonResponse.getJSONObject("data");
+                categoriesArray = new JSONArray();
+                categoriesArray.put(singleCategory);
+            }
+
+            for (int i = 0; i < categoriesArray.length(); i++) {
+                JSONObject categoryJson = categoriesArray.getJSONObject(i);
+                MenuCategory category = new MenuCategory();
+
+                category.setId(categoryJson.optLong("id", -1));
+                category.setName(categoryJson.optString("name", ""));
+                category.setDescription(categoryJson.optString("description", ""));
+                category.setCreatedAt(categoryJson.optString("created_at", ""));
+                category.setUpdatedAt(categoryJson.optString("updated_at", ""));
+
+                // Map API fields to your MenuCategory fields
+                category.setDisplayed(categoryJson.optBoolean("is_displayed", true));
+                category.setHighlight(categoryJson.optBoolean("is_highlight", false));
+                category.setDisplayForSelfOrder(categoryJson.optBoolean("is_display_for_self_order", true));
+                category.setSkuId(categoryJson.optString("sku_id", ""));
+                category.setMenuCategoryGroup(categoryJson.optString("menu_category_group", ""));
+
+                // Handle display picture - check multiple possible field names
+                if (categoryJson.has("display_picture") && !categoryJson.isNull("display_picture")) {
+                    category.setDisplayPicture(categoryJson.optString("display_picture", ""));
+                } else if (categoryJson.has("image_url") && !categoryJson.isNull("image_url")) {
+                    category.setDisplayPicture(categoryJson.optString("image_url", ""));
+                } else if (categoryJson.has("image_path") && !categoryJson.isNull("image_path")) {
+                    category.setDisplayPicture(categoryJson.optString("image_path", ""));
+                }
+
+                categories.add(category);
+            }
+
+            // Sort categories by name
+            Collections.sort(categories, (cat1, cat2) ->
+                    cat1.getName().compareToIgnoreCase(cat2.getName()));
+        }
+
+        return categories;
     }
 
     private List<ProductItem> parseMenuItems(JSONObject jsonResponse) throws JSONException {
@@ -176,6 +283,20 @@ public class RestaurantApplication extends Application {
         }
 
         return items;
+    }
+
+    private void decrementPendingRequests() {
+        int remaining = pendingRequests.decrementAndGet();
+        if (remaining == 0) {
+            Log.d(TAG, "All menu data downloads completed");
+            onAllDownloadsComplete();
+        }
+    }
+
+    private void onAllDownloadsComplete() {
+        // This method is called when both categories and menu items have been downloaded
+        // You can add any additional logic here that should run after all data is loaded
+        Log.d(TAG, "Menu initialization complete - app ready to use");
     }
 
     private double parsePrice(String priceString) {
