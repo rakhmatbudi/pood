@@ -42,6 +42,21 @@
                 android:layout_marginBottom="16dp"
                 tools:text="Table: 12" />
 
+            <TextView
+                android:id="@+id/connection_status_text_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/status_background"
+                android:gravity="center"
+                android:padding="8dp"
+                android:text="Online"
+                android:textColor="@color/status_text_color"
+                android:textSize="12sp"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

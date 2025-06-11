@@ -94,4 +94,12 @@
 
     <!-- Session group background -->
     <color name="session_group_background">#F5F5F5</color>
+
+    <color name="status_background_color">#E8F5E8</color>
+    <color name="status_border_color">#4CAF50</color>
+    <color name="status_text_color">#2E7D32</color>
+
+    <color name="offline_status_background_color">#FFF3E0</color>
+    <color name="offline_status_border_color">#FF9800</color>
+    <color name="offline_status_text_color">#E65100</color>
 </resources>
