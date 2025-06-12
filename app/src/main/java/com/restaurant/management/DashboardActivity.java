@@ -417,44 +417,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         });
     }
 
-    private void testPromoDatabase() {
-        Log.d(TAG, "testPromoDatabase called");
-
-        // Test direct database access
-        promoRepository.testDirectDatabaseAccess(new PromoRepository.PromoCallback() {
-            @Override
-            public void onSuccess(List<Promo> fetchedPromos) {
-                Log.d(TAG, "testPromoDatabase SUCCESS: Got " + fetchedPromos.size() + " promos");
-
-                for (Promo promo : fetchedPromos) {
-                    Log.d(TAG, "Test Promo: ID=" + promo.getPromoId() +
-                            ", Name='" + promo.getPromoName() + "'" +
-                            ", Active=" + promo.isActive() +
-                            ", DisplayName='" + promo.getDisplayName() + "'");
-                }
-
-                // Show a toast with the count
-                runOnUiThread(() -> {
-                    Toast.makeText(DashboardActivity.this,
-                            "Database test: Found " + fetchedPromos.size() + " promos",
-                            Toast.LENGTH_LONG).show();
-                });
-            }
-
-            @Override
-            public void onError(String message) {
-                Log.e(TAG, "testPromoDatabase ERROR: " + message);
-
-                runOnUiThread(() -> {
-                    Toast.makeText(DashboardActivity.this,
-                            "Database test error: " + message,
-                            Toast.LENGTH_LONG).show();
-                });
-            }
-        });
-    }
-
-    // UPDATED: Using PromoRepository instead of PromoApiHelper
     private void initializePromoComponents() {
         // CHANGED: Initialize repository instead of API helper
         promoRepository = new PromoRepository(this);

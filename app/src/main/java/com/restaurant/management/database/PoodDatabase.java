@@ -244,8 +244,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
             }
 
             db.setTransactionSuccessful();
-            Log.d(TAG, "Saved " + promos.size() + " promos to database");
-
         } catch (Exception e) {
             Log.e(TAG, "Error saving promos", e);
         } finally {
@@ -318,7 +316,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
             }
 
             cursor.close();
-            Log.d(TAG, "Promos count: " + count);
             return count > 0;
         } catch (Exception e) {
             Log.e(TAG, "Error checking if has promos", e);
@@ -326,8 +323,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
         }
         // DON'T CLOSE db here - let the connection pool handle it
     }
-
-    // ... keep all your existing methods for menu items and categories exactly as they are ...
 
     public void saveMenuItems(List<ProductItem> menuItems) {
         SQLiteDatabase db = this.getWritableDatabase();
@@ -451,7 +446,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
         cursor.close();
         // REMOVED db.close() - let connection pool handle it
 
-        Log.d(TAG, "Loaded " + menuItems.size() + " menu items from database");
         return menuItems;
     }
 
@@ -484,8 +478,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
 
         cursor.close();
         // REMOVED db.close() - let connection pool handle it
-
-        Log.d(TAG, "Loaded " + categories.size() + " categories from database");
         return categories;
     }
 
@@ -527,7 +519,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
             }
 
             cursor.close();
-            Log.d(TAG, "Menu items count: " + count);
             return count > 0;
         } catch (Exception e) {
             Log.e(TAG, "Error checking if has menu items", e);
@@ -549,7 +540,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
             }
 
             cursor.close();
-            Log.d(TAG, "Categories count: " + count);
             return count > 0;
         } catch (Exception e) {
             Log.e(TAG, "Error checking if has categories", e);
@@ -572,180 +562,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
         } catch (Exception e) {
             Log.e(TAG, "Error clearing data", e);
         }
-        // REMOVED db.close() - let connection pool handle it
-    }
-
-    // Add this method to your PoodDatabase class to test exact SQL queries
-
-    public void testPromoRetrieval() {
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        try {
-            Log.d(TAG, "=== TESTING PROMO RETRIEVAL ===");
-
-            // Test 1: Check table name and existence
-            Cursor tableCheck = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='promos'", null);
-            if (tableCheck.moveToFirst()) {
-                Log.d(TAG, "✓ Table 'promos' exists");
-            } else {
-                Log.e(TAG, "✗ Table 'promos' does NOT exist");
-                // Try different table name
-                tableCheck.close();
-                tableCheck = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%promo%'", null);
-                if (tableCheck.moveToFirst()) {
-                    do {
-                        Log.d(TAG, "Found table with 'promo' in name: " + tableCheck.getString(0));
-                    } while (tableCheck.moveToNext());
-                }
-            }
-            tableCheck.close();
-
-            // Test 2: Count all records
-            Cursor countAll = db.rawQuery("SELECT COUNT(*) FROM promos", null);
-            if (countAll.moveToFirst()) {
-                int totalCount = countAll.getInt(0);
-                Log.d(TAG, "✓ Total records in promos table: " + totalCount);
-            }
-            countAll.close();
-
-            // Test 3: Check column names in the actual table
-            Cursor columnInfo = db.rawQuery("PRAGMA table_info(promos)", null);
-            Log.d(TAG, "Actual columns in promos table:");
-            while (columnInfo.moveToNext()) {
-                String columnName = columnInfo.getString(1);
-                String dataType = columnInfo.getString(2);
-                Log.d(TAG, "  - " + columnName + " (" + dataType + ")");
-            }
-            columnInfo.close();
-
-            // Test 4: Get first few records with all columns
-            Cursor sampleData = db.rawQuery("SELECT * FROM promos LIMIT 3", null);
-            Log.d(TAG, "Sample data from promos table:");
-
-            if (sampleData.moveToFirst()) {
-                String[] columnNames = sampleData.getColumnNames();
-                Log.d(TAG, "Column names: " + Arrays.toString(columnNames));
-
-                int recordNum = 1;
-                do {
-                    Log.d(TAG, "--- Record " + recordNum + " ---");
-                    for (int i = 0; i < columnNames.length; i++) {
-                        String value = sampleData.getString(i);
-                        Log.d(TAG, columnNames[i] + ": '" + value + "'");
-                    }
-                    recordNum++;
-                } while (sampleData.moveToNext());
-            } else {
-                Log.e(TAG, "✗ No data found in promos table");
-            }
-            sampleData.close();
-
-            // Test 5: Check is_active values specifically
-            Cursor activeCheck = db.rawQuery("SELECT promo_id, promo_name, is_active FROM promos", null);
-            Log.d(TAG, "Checking is_active values:");
-            while (activeCheck.moveToFirst()) {
-                do {
-                    long id = activeCheck.getLong(0);
-                    String name = activeCheck.getString(1);
-                    String isActiveValue = activeCheck.getString(2);
-                    Log.d(TAG, "ID: " + id + ", Name: '" + name + "', is_active: '" + isActiveValue + "'");
-                } while (activeCheck.moveToNext());
-            }
-            activeCheck.close();
-
-            // Test 6: Try the exact query used in getAllActivePromos
-            String exactQuery = "SELECT * FROM promos WHERE is_active = ? ORDER BY promo_name ASC";
-            Cursor exactTest = db.rawQuery(exactQuery, new String[]{"1"});
-            Log.d(TAG, "Exact query test: " + exactQuery);
-            Log.d(TAG, "Result count: " + exactTest.getCount());
-            exactTest.close();
-
-            // Test 7: Try different variations of active check
-            String[] activeVariations = {"1", "true", "TRUE", "True"};
-            for (String variation : activeVariations) {
-                Cursor variationTest = db.rawQuery("SELECT COUNT(*) FROM promos WHERE is_active = ?", new String[]{variation});
-                if (variationTest.moveToFirst()) {
-                    int count = variationTest.getInt(0);
-                    Log.d(TAG, "Active check with '" + variation + "': " + count + " records");
-                }
-                variationTest.close();
-            }
-
-            Log.d(TAG, "=== END TESTING PROMO RETRIEVAL ===");
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error in testPromoRetrieval", e);
-            e.printStackTrace();
-        }
-    }
-
-    // Simplified version of getAllActivePromos for testing
-    public List<Promo> getAllActivePromosSimple() {
-        Log.d(TAG, "getAllActivePromosSimple called");
-
-        // First run the test
-        testPromoRetrieval();
-
-        List<Promo> promos = new ArrayList<>();
-        SQLiteDatabase db = this.getReadableDatabase();
-
-        try {
-            // Use the simplest possible query first
-            Cursor cursor = db.rawQuery("SELECT * FROM promos", null);
-            Log.d(TAG, "Simple query returned " + cursor.getCount() + " records");
-
-            if (cursor.moveToFirst()) {
-                do {
-                    Promo promo = new Promo();
-
-                    // Get column indices safely
-                    int promoIdIndex = cursor.getColumnIndex("promo_id");
-                    int promoNameIndex = cursor.getColumnIndex("promo_name");
-                    int isActiveIndex = cursor.getColumnIndex("is_active");
-
-                    if (promoIdIndex >= 0) {
-                        promo.setPromoId(cursor.getLong(promoIdIndex));
-                    }
-
-                    if (promoNameIndex >= 0) {
-                        promo.setPromoName(cursor.getString(promoNameIndex));
-                    }
-
-                    if (isActiveIndex >= 0) {
-                        // Check the raw value
-                        String rawActiveValue = cursor.getString(isActiveIndex);
-                        Log.d(TAG, "Raw is_active value: '" + rawActiveValue + "'");
-
-                        // Try different interpretations
-                        boolean isActive = false;
-                        if ("1".equals(rawActiveValue) || "true".equalsIgnoreCase(rawActiveValue)) {
-                            isActive = true;
-                        }
-                        promo.setActive(isActive);
-                    }
-
-                    // Set other fields safely
-                    int descIndex = cursor.getColumnIndex("promo_description");
-                    if (descIndex >= 0) {
-                        promo.setPromoDescription(cursor.getString(descIndex));
-                    }
-
-                    // For now, add ALL promos regardless of active status for testing
-                    promos.add(promo);
-                    Log.d(TAG, "Added promo: " + promo.getPromoName() + " (Active: " + promo.isActive() + ")");
-
-                } while (cursor.moveToNext());
-            }
-
-            cursor.close();
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error in getAllActivePromosSimple", e);
-            e.printStackTrace();
-        }
-
-        Log.d(TAG, "getAllActivePromosSimple returning " + promos.size() + " promos");
-        return promos;
     }
 
     public void saveOrderTypes(List<OrderType> orderTypes) {

@@ -59,7 +59,6 @@ public class PromoRepository {
 
                 // Switch back to main thread for callback
                 mainHandler.post(() -> {
-                    Log.d(TAG, "Retrieved " + promos.size() + " promos from offline database");
                     callback.onSuccess(promos);
                 });
 
@@ -113,13 +112,10 @@ public class PromoRepository {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<Promo> promos = parsePromos(jsonResponse);
 
-                    Log.d(TAG, "Fetched " + promos.size() + " promos from API");
-
                     // Save to database for future offline use
                     executor.execute(() -> {
                         try {
                             database.savePromos(promos);
-                            Log.d(TAG, "API promos saved to database");
                         } catch (Exception e) {
                             Log.e(TAG, "Error saving API promos to database", e);
                         }
@@ -159,7 +155,6 @@ public class PromoRepository {
                 JSONObject promoJson = promosArray.getJSONObject(i);
                 Promo promo = new Promo();
 
-                // Map API fields to your Promo class fields
                 promo.setPromoId(promoJson.optLong("promo_id", -1));
                 promo.setPromoName(promoJson.optString("promo_name", ""));
                 promo.setPromoDescription(promoJson.optString("promo_description", ""));
@@ -171,7 +166,6 @@ public class PromoRepository {
                 promo.setDiscountAmount(promoJson.optString("discount_amount", ""));
                 promo.setActive(promoJson.optBoolean("is_active", false));
 
-                // Handle image/picture field - check multiple possible field names
                 if (promoJson.has("picture") && !promoJson.isNull("picture")) {
                     promo.setPicture(promoJson.optString("picture", ""));
                 } else if (promoJson.has("image_url") && !promoJson.isNull("image_url")) {
@@ -180,7 +174,6 @@ public class PromoRepository {
                     promo.setPicture(promoJson.optString("image_path", ""));
                 }
 
-                // Handle promo items if they exist in the API response
                 if (promoJson.has("promo_items") && !promoJson.isNull("promo_items")) {
                     JSONArray itemsArray = promoJson.getJSONArray("promo_items");
                     List<Promo.PromoItem> promoItems = new ArrayList<>();
@@ -197,41 +190,16 @@ public class PromoRepository {
                     promo.setPromoItems(promoItems);
                 }
 
-                // Only add active promos
                 if (promo.isActive()) {
                     promos.add(promo);
                 }
             }
 
-            // Sort promos by name
             Collections.sort(promos, (promo1, promo2) ->
                     promo1.getPromoName().compareToIgnoreCase(promo2.getPromoName()));
         }
 
         return promos;
-    }
-
-    public void testDirectDatabaseAccess(PromoCallback callback) {
-        Log.d(TAG, "testDirectDatabaseAccess called");
-
-        try {
-            // Call the simple database method directly
-            List<Promo> promos = database.getAllActivePromosSimple();
-
-            Log.d(TAG, "Direct database access returned " + promos.size() + " promos");
-
-            // Call callback on main thread
-            mainHandler.post(() -> {
-                callback.onSuccess(promos);
-            });
-
-        } catch (Exception e) {
-            Log.e(TAG, "Error in testDirectDatabaseAccess", e);
-
-            mainHandler.post(() -> {
-                callback.onError("Direct access error: " + e.getMessage());
-            });
-        }
     }
 
     /**
