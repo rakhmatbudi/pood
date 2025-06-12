@@ -3,7 +3,7 @@ package com.restaurant.management;
 import android.app.Application;
 import android.util.Log;
 
-import com.restaurant.management.database.MenuItemDatabase;
+import com.restaurant.management.database.PoodDatabase;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
@@ -29,7 +29,7 @@ public class RestaurantApplication extends Application {
     private static final String TAG = "RestaurantApplication";
     private static final String BASE_API_URL = "https://api.pood.lol/";
 
-    private MenuItemDatabase database;
+    private PoodDatabase database;
     private OkHttpClient client;
     private AtomicInteger pendingRequests = new AtomicInteger(0);
 
@@ -38,7 +38,7 @@ public class RestaurantApplication extends Application {
         super.onCreate();
         Log.d(TAG, "App started - downloading menu data");
 
-        database = new MenuItemDatabase(this);
+        database = new PoodDatabase(this);
         client = new OkHttpClient();
 
         // Download both menu items and categories on every app start

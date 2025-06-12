@@ -23,7 +23,7 @@ import com.google.android.material.navigation.NavigationView;
 import com.restaurant.management.adapters.CashierSessionAdapter;
 import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.adapters.PromoAdapter;
-import com.restaurant.management.helpers.PromoApiHelper;
+import com.restaurant.management.repositories.PromoRepository; // CHANGED: Using repository instead of helper
 import com.restaurant.management.models.Promo;
 
 import org.json.JSONException;
@@ -66,7 +66,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     private ProgressBar promosProgressBar;
     private TextView promosHeaderTextView;
     private List<Promo> promos = new ArrayList<>();
-    private PromoApiHelper promoApiHelper;
+    private PromoRepository promoRepository; // CHANGED: Using repository instead of helper
     private PromoAdapter promoAdapter;
 
     private int userId;
@@ -132,7 +132,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
 
             // Set initial UI state
             sessionStatusTextView.setText(getString(R.string.checking_session_status));
-            //sessionStatusTextView.setTextColor(getResources().getColor(R.color.black));
 
             // Check if there's an active cashier session
             checkActiveCashierSession();
@@ -158,10 +157,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 }
             });
 
-            // Fixed implementation for endSessionButton click listener
-            // Updated implementation for endSessionButton click listener using class-level activeSessionId
-            // Emergency fallback implementation using hardcoded values
-            // Updated implementation for endSessionButton click listener
             endSessionButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
@@ -200,6 +195,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         }
     }
 
+    // UPDATED: Using PromoRepository instead of PromoApiHelper
     private void loadPromos() {
         if (promosProgressBar != null) {
             promosProgressBar.setVisibility(View.VISIBLE);
@@ -213,7 +209,8 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             noPromosTextView.setVisibility(View.GONE);
         }
 
-        promoApiHelper.fetchActivePromos(new PromoApiHelper.PromoCallback() {
+        // CHANGED: Using repository callback instead of helper callback
+        promoRepository.fetchActivePromos(new PromoRepository.PromoCallback() {
             @Override
             public void onSuccess(List<Promo> fetchedPromos) {
                 runOnUiThread(() -> {
@@ -272,9 +269,10 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         });
     }
 
+    // UPDATED: Using PromoRepository instead of PromoApiHelper
     private void initializePromoComponents() {
-        // Initialize API helper
-        promoApiHelper = new PromoApiHelper(this);
+        // CHANGED: Initialize repository instead of API helper
+        promoRepository = new PromoRepository(this);
 
         // Find promo views (only if they exist in your layout)
         promosRecyclerView = findViewById(R.id.promos_recycler_view);
@@ -287,8 +285,11 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             promosRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
             promoAdapter = new PromoAdapter(this, promos);
             promoAdapter.setOnPromoClickListener(promo -> {
-                // Handle promo click
-                Toast.makeText(this, "Clicked on: " + promo.getDisplayName(), Toast.LENGTH_SHORT).show();
+                // UPDATED: Handle promo click - use description as the display text
+                String displayText = (promo.getPromoDescription() != null && !promo.getPromoDescription().trim().isEmpty())
+                        ? promo.getPromoDescription()
+                        : promo.getDisplayName();
+                Toast.makeText(this, "Clicked on: " + displayText, Toast.LENGTH_SHORT).show();
             });
             promosRecyclerView.setAdapter(promoAdapter);
 
@@ -303,7 +304,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         // Check for active session when activity resumes
         checkActiveCashierSession();
     }
-
 
     /**
      * Checks if there's an active cashier session by calling the API
@@ -330,7 +330,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                             loadingProgressBar.setVisibility(View.GONE);
                         }
                         sessionStatusTextView.setText(getString(R.string.error_checking_session));
-                        //sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
                         Toast.makeText(DashboardActivity.this,
                                 getString(R.string.failed_to_check_session, e.getMessage()),
                                 Toast.LENGTH_SHORT).show();
@@ -400,7 +399,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                     }
 
                                     sessionStatusTextView.setText(getString(R.string.active_session_cashier, cashierName));
-                                    //sessionStatusTextView.setTextColor(getResources().getColor(R.color.green));
 
                                     // Update button visibility
                                     openSessionButton.setVisibility(View.GONE);
@@ -414,7 +412,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                 Log.d(TAG, "No active session found in API response");
 
                                 sessionStatusTextView.setText(getString(R.string.no_active_session));
-                                //sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
 
                                 // Show open session button when no active session
                                 openSessionButton.setVisibility(View.VISIBLE);
@@ -432,7 +429,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                 loadingProgressBar.setVisibility(View.GONE);
                             }
                             sessionStatusTextView.setText(getString(R.string.error_checking_session));
-                            //sessionStatusTextView.setTextColor(getResources().getColor(R.color.red));
                             Toast.makeText(DashboardActivity.this,
                                     getString(R.string.error_processing_response, e.getMessage()),
                                     Toast.LENGTH_SHORT).show();
@@ -491,12 +487,10 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         } else if (id == R.id.nav_transactions) {
             // Handle the new transaction menu item
             Intent intent = new Intent(this, TransactionActivity.class);
-
             startActivity(intent);
         } else if (id == R.id.nav_products) {
             // Handle the new transaction menu item
             Intent intent = new Intent(this, ProductListActivity.class);
-
             startActivity(intent);
         } else if (id == R.id.nav_taxes) {
             // Handle the new tax menu item

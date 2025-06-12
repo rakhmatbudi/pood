@@ -27,7 +27,7 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.adapters.ProductAdapter;
-import com.restaurant.management.database.MenuItemDatabase;
+import com.restaurant.management.database.PoodDatabase;
 import com.restaurant.management.models.Product;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.utils.ProductFilter;
@@ -48,7 +48,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     private ProgressBar progressBar;
     private List<Product> productList = new ArrayList<>();
     private List<Product> filteredProductList = new ArrayList<>();
-    private MenuItemDatabase database;
+    private PoodDatabase database;
     private ExecutorService executorService;
     private TextView emptyView;
 
@@ -99,7 +99,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         initializeFilterListeners();
 
         // Initialize database and executor
-        database = new MenuItemDatabase(this);
+        database = new PoodDatabase(this);
         executorService = Executors.newSingleThreadExecutor();
 
         // Load products from database

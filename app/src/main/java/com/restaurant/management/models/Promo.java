@@ -1,24 +1,53 @@
 package com.restaurant.management.models;
 
+import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
 public class Promo {
+    @SerializedName("promo_id")
     private long promoId;
+
+    @SerializedName("promo_name")
     private String promoName;
+
+    @SerializedName("promo_description")
     private String promoDescription;
+
+    @SerializedName("start_date")
     private String startDate;
+
+    @SerializedName("end_date")
     private String endDate;
+
+    @SerializedName("term_and_condition")
     private String termAndCondition;
+
+    @SerializedName("picture")
     private String picture;
+
+    @SerializedName("type")
     private String type;
+
+    @SerializedName("discount_type")
     private String discountType;
+
+    @SerializedName("discount_amount")
     private String discountAmount;
+
+    @SerializedName("is_active")
     private boolean isActive;
+
+    @SerializedName("promo_items")
     private List<PromoItem> promoItems;
 
     public static class PromoItem {
+        @SerializedName("id")
         private long id;
+
+        @SerializedName("item_id")
         private long itemId;
+
+        @SerializedName("item_name")
         private String itemName;
 
         public PromoItem(long id, long itemId, String itemName) {
@@ -38,8 +67,8 @@ public class Promo {
         public void setItemName(String itemName) { this.itemName = itemName; }
     }
 
-    public Promo() {
-    }
+    // Constructors
+    public Promo() {}
 
     public Promo(long promoId, String promoName, String promoDescription, String startDate,
                  String endDate, String termAndCondition, String picture, String type,
@@ -58,107 +87,35 @@ public class Promo {
         this.promoItems = promoItems;
     }
 
-    // Getters
-    public long getPromoId() {
-        return promoId;
-    }
-
-    public String getPromoName() {
-        return promoName;
-    }
-
-    public String getPromoDescription() {
-        return promoDescription;
-    }
-
-    public String getStartDate() {
-        return startDate;
-    }
-
-    public String getEndDate() {
-        return endDate;
-    }
-
-    public String getTermAndCondition() {
-        return termAndCondition;
-    }
-
-    public String getPicture() {
-        return picture;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getDiscountType() {
-        return discountType;
-    }
-
-    public String getDiscountAmount() {
-        return discountAmount;
-    }
-
-    public boolean isActive() {
-        return isActive;
-    }
-
-    public List<PromoItem> getPromoItems() {
-        return promoItems;
-    }
+    // All your existing getters and setters...
+    public long getPromoId() { return promoId; }
+    public String getPromoName() { return promoName; }
+    public String getPromoDescription() { return promoDescription; }
+    public String getStartDate() { return startDate; }
+    public String getEndDate() { return endDate; }
+    public String getTermAndCondition() { return termAndCondition; }
+    public String getPicture() { return picture; }
+    public String getType() { return type; }
+    public String getDiscountType() { return discountType; }
+    public String getDiscountAmount() { return discountAmount; }
+    public boolean isActive() { return isActive; }
+    public List<PromoItem> getPromoItems() { return promoItems; }
 
     // Setters
-    public void setPromoId(long promoId) {
-        this.promoId = promoId;
-    }
+    public void setPromoId(long promoId) { this.promoId = promoId; }
+    public void setPromoName(String promoName) { this.promoName = promoName; }
+    public void setPromoDescription(String promoDescription) { this.promoDescription = promoDescription; }
+    public void setStartDate(String startDate) { this.startDate = startDate; }
+    public void setEndDate(String endDate) { this.endDate = endDate; }
+    public void setTermAndCondition(String termAndCondition) { this.termAndCondition = termAndCondition; }
+    public void setPicture(String picture) { this.picture = picture; }
+    public void setType(String type) { this.type = type; }
+    public void setDiscountType(String discountType) { this.discountType = discountType; }
+    public void setDiscountAmount(String discountAmount) { this.discountAmount = discountAmount; }
+    public void setActive(boolean active) { isActive = active; }
+    public void setPromoItems(List<PromoItem> promoItems) { this.promoItems = promoItems; }
 
-    public void setPromoName(String promoName) {
-        this.promoName = promoName;
-    }
-
-    public void setPromoDescription(String promoDescription) {
-        this.promoDescription = promoDescription;
-    }
-
-    public void setStartDate(String startDate) {
-        this.startDate = startDate;
-    }
-
-    public void setEndDate(String endDate) {
-        this.endDate = endDate;
-    }
-
-    public void setTermAndCondition(String termAndCondition) {
-        this.termAndCondition = termAndCondition;
-    }
-
-    public void setPicture(String picture) {
-        this.picture = picture;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public void setDiscountType(String discountType) {
-        this.discountType = discountType;
-    }
-
-    public void setDiscountAmount(String discountAmount) {
-        this.discountAmount = discountAmount;
-    }
-
-    public void setActive(boolean active) {
-        isActive = active;
-    }
-
-    public void setPromoItems(List<PromoItem> promoItems) {
-        this.promoItems = promoItems;
-    }
-
-    /**
-     * Get formatted discount display text
-     */
+    // Helper methods
     public String getFormattedDiscount() {
         if (discountAmount != null && !discountAmount.isEmpty()) {
             if ("percentage".equalsIgnoreCase(discountType)) {
@@ -175,30 +132,18 @@ public class Promo {
         return "Special Offer";
     }
 
-    /**
-     * Check if promo has an image
-     */
     public boolean hasImage() {
         return picture != null && !picture.trim().isEmpty();
     }
 
-    /**
-     * Get display name for UI
-     */
     public String getDisplayName() {
         return promoName != null ? promoName.replace("_", " ").toUpperCase() : "";
     }
 
-    /**
-     * Check if promo has items
-     */
     public boolean hasItems() {
         return promoItems != null && !promoItems.isEmpty();
     }
 
-    /**
-     * Get items count
-     */
     public int getItemsCount() {
         return promoItems != null ? promoItems.size() : 0;
     }

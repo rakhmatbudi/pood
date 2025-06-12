@@ -14,9 +14,9 @@ import com.restaurant.management.models.MenuCategory;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MenuItemDatabase extends SQLiteOpenHelper {
-    private static final String TAG = "MenuItemDatabase";
-    private static final String DATABASE_NAME = "menu_items.db";
+public class PoodDatabase extends SQLiteOpenHelper {
+    private static final String TAG = "PoodDatabase";
+    private static final String DATABASE_NAME = "pood.db";
     private static final int DATABASE_VERSION = 2; // Increased version for categories
 
     // Table names
@@ -99,7 +99,7 @@ public class MenuItemDatabase extends SQLiteOpenHelper {
             + COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER + " INTEGER"
             + ")";
 
-    public MenuItemDatabase(Context context) {
+    public PoodDatabase(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
 

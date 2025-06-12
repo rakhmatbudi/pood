@@ -19,7 +19,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.adapters.ProductItemAdapter;
-import com.restaurant.management.database.MenuItemDatabase;
+import com.restaurant.management.database.PoodDatabase;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.utils.NetworkUtils;
@@ -55,7 +55,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     private List<ProductItem> menuItems = new ArrayList<>();
     private List<ProductItem> allMenuItems = new ArrayList<>();
     private ProductItemAdapter menuItemAdapter;
-    private MenuItemDatabase database;
+    private PoodDatabase database;
 
     private long orderId;
     private String tableNumber;
@@ -65,7 +65,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_item);
 
-        database = new MenuItemDatabase(this);
+        database = new PoodDatabase(this);
 
         initializeViews();
         setupToolbar();

@@ -2,7 +2,9 @@ package com.restaurant.management.network;
 
 import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.models.SessionPaymentsResponse;
-import com.restaurant.management.models.ProductResponse;
+import com.restaurant.management.models.PromoResponse;
+import com.restaurant.management.models.MenuCategoryResponse;
+import com.restaurant.management.models.MenuItemResponse;
 
 import java.util.List;
 import retrofit2.Call;
@@ -39,9 +41,31 @@ public interface ApiService {
     Call<SessionPaymentsResponse> getSessionPayments();
 
     /**
-     * Get all menu items (products)
-     * @return Call object with ApiResponse containing products data
+     * Get all active promotions
+     * @return Call object with PromoResponse containing promos data
      */
-    @GET("menu-items") // or whatever your endpoint is
-    Call<ProductResponse> getProducts();
+    @GET("promos")
+    Call<PromoResponse> getActivePromos();
+
+    /**
+     * Get a specific promo by ID
+     * @param promoId The ID of the promo
+     * @return Call object with PromoResponse containing single promo
+     */
+    @GET("promos/{id}")
+    Call<PromoResponse> getPromoById(@Path("id") long promoId);
+
+    /**
+     * Get all menu categories
+     * @return Call object with MenuCategoryResponse containing categories data
+     */
+    @GET("menu-categories")
+    Call<MenuCategoryResponse> getMenuCategories();
+
+    /**
+     * Get all menu items
+     * @return Call object with MenuItemResponse containing menu items data
+     */
+    @GET("menu-items")
+    Call<MenuItemResponse> getMenuItems();
 }
