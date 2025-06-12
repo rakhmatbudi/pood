@@ -22,7 +22,7 @@ import java.util.Arrays;
 public class PoodDatabase extends SQLiteOpenHelper {
     private static final String TAG = "PoodDatabase";
     private static final String DATABASE_NAME = "pood.db";
-    private static final int DATABASE_VERSION = 4; // INCREASED VERSION FOR PROMOS TABLE
+    private static final int DATABASE_VERSION = 5; // INCREASED VERSION FOR PROMOS TABLE
 
     // Table names
     private static final String TABLE_MENU_ITEMS = "menu_items";
@@ -31,6 +31,8 @@ public class PoodDatabase extends SQLiteOpenHelper {
     private static final String TABLE_PROMOS = "promos";
     private static final String TABLE_ORDER_TYPES = "order_types";
     private static final String TABLE_ORDER_STATUSES = "order_statuses";
+    private static final String TABLE_ORDERS = "orders";
+
 
     // Menu Items table columns
     private static final String COLUMN_ID = "id";
@@ -79,6 +81,27 @@ public class PoodDatabase extends SQLiteOpenHelper {
     private static final String COLUMN_PROMO_DISCOUNT_TYPE = "discount_type";
     private static final String COLUMN_PROMO_DISCOUNT_AMOUNT = "discount_amount";
     private static final String COLUMN_PROMO_IS_ACTIVE = "is_active";
+
+    // Order table columns
+    private static final String COLUMN_ORDER_ID = "order_id";
+    private static final String COLUMN_SESSION_ID = "session_id";
+    private static final String COLUMN_TABLE_NUMBER = "table_number";
+    private static final String COLUMN_CUSTOMER_NAME = "customer_name";
+    private static final String COLUMN_ORDER_TYPE_ID = "order_type_id";
+    private static final String COLUMN_SERVER_ORDER_ID = "server_order_id";
+    private static final String COLUMN_IS_SYNCED = "is_synced";
+    private static final String COLUMN_ORDER_CREATED_AT = "order_created_at";
+
+    private static final String CREATE_ORDERS_TABLE = "CREATE TABLE " + TABLE_ORDERS + "("
+            + COLUMN_ORDER_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
+            + COLUMN_SESSION_ID + " INTEGER NOT NULL,"
+            + COLUMN_TABLE_NUMBER + " TEXT NOT NULL,"
+            + COLUMN_CUSTOMER_NAME + " TEXT,"
+            + COLUMN_ORDER_TYPE_ID + " INTEGER NOT NULL,"
+            + COLUMN_SERVER_ORDER_ID + " INTEGER,"
+            + COLUMN_IS_SYNCED + " INTEGER DEFAULT 0,"
+            + COLUMN_ORDER_CREATED_AT + " TEXT NOT NULL"
+            + ")";
 
     // Create table statements
     private static final String CREATE_MENU_ITEMS_TABLE = "CREATE TABLE " + TABLE_MENU_ITEMS + "("
@@ -157,7 +180,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
         db.execSQL(CREATE_PROMOS_TABLE);
         db.execSQL(CREATE_ORDER_TYPES_TABLE);
         db.execSQL(CREATE_ORDER_STATUSES_TABLE);
-        Log.d(TAG, "Database created with all tables including promos");
+        db.execSQL(CREATE_ORDERS_TABLE);
     }
 
     @Override
@@ -176,6 +199,10 @@ public class PoodDatabase extends SQLiteOpenHelper {
             db.execSQL(CREATE_ORDER_TYPES_TABLE);
             db.execSQL(CREATE_ORDER_STATUSES_TABLE);
             Log.d(TAG, "Added order_types and order_statuses tables in database upgrade");
+        }
+
+        if (oldVersion < 5) {
+            db.execSQL(CREATE_ORDERS_TABLE); // Add this line
         }
 
         // For major changes, you can still drop and recreate if needed
@@ -541,7 +568,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
             db.delete(TABLE_PROMOS, null, null); // ADDED PROMOS CLEARING
             db.delete(TABLE_ORDER_TYPES, null, null);
             db.delete(TABLE_ORDER_STATUSES, null, null);
-            Log.d(TAG, "Cleared all data including promos");
+            db.delete(TABLE_ORDERS, null, null);
         } catch (Exception e) {
             Log.e(TAG, "Error clearing data", e);
         }
@@ -825,5 +852,79 @@ public class PoodDatabase extends SQLiteOpenHelper {
         }
 
         return orderStatuses;
+    }
+
+    public long saveOrderLocally(long sessionId, String tableNumber, String customerName, long orderTypeId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        long orderId = -1;
+
+        try {
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_SESSION_ID, sessionId);
+            values.put(COLUMN_TABLE_NUMBER, tableNumber);
+            values.put(COLUMN_CUSTOMER_NAME, customerName);
+            values.put(COLUMN_ORDER_TYPE_ID, orderTypeId);
+            values.put(COLUMN_IS_SYNCED, 0); // Not synced initially
+            values.put(COLUMN_ORDER_CREATED_AT, getCurrentTimestamp());
+
+            orderId = db.insert(TABLE_ORDERS, null, values);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving order locally", e);
+            orderId = -1;
+        }
+
+        return orderId;
+    }
+
+    public void markOrderAsSynced(long localOrderId, long serverOrderId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        try {
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_SERVER_ORDER_ID, serverOrderId);
+            values.put(COLUMN_IS_SYNCED, 1);
+
+            int rowsUpdated = db.update(TABLE_ORDERS,
+                    values,
+                    COLUMN_ORDER_ID + " = ?",
+                    new String[]{String.valueOf(localOrderId)});
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error marking order as synced", e);
+        }
+    }
+
+    public List<Long> getUnsyncedOrderIds() {
+        List<Long> unsyncedIds = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            Cursor cursor = db.query(TABLE_ORDERS,
+                    new String[]{COLUMN_ORDER_ID},
+                    COLUMN_IS_SYNCED + " = ?",
+                    new String[]{"0"},
+                    null,
+                    null,
+                    COLUMN_ORDER_CREATED_AT + " ASC");
+
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    long orderId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ORDER_ID));
+                    unsyncedIds.add(orderId);
+                }
+                cursor.close();
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting unsynced order IDs", e);
+        }
+
+        return unsyncedIds;
+    }
+
+    private String getCurrentTimestamp() {
+        return new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                .format(new java.util.Date());
     }
 }

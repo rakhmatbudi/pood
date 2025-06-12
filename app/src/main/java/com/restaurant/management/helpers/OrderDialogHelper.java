@@ -175,36 +175,97 @@ public class OrderDialogHelper {
                 return;
             }
 
-            // Disable UI during API call
+            // Disable UI during operation
             setDialogControlsEnabled(dialog, false);
             Toast loadingToast = Toast.makeText(context, "Creating order...", Toast.LENGTH_LONG);
             loadingToast.show();
 
-            // Create order request
-            CreateOrderRequest request = new CreateOrderRequest(
-                    sessionId,                    // long sessionId
-                    tableNumber,                  // String tableNumber
-                    null,                        // Long customerId - using null since we don't have customer ID
-                    selectedOrderType.getId(),   // long orderTypeId
-                    null                         // Long serverId - using null as default
-            );
+            // Save to local database first (offline-first approach)
+            RestaurantApplication app = (RestaurantApplication) context.getApplicationContext();
+            long localOrderId = app.saveOrderLocally(sessionId, tableNumber, customerName, selectedOrderType.getId());
 
-            // Make API call
-            apiService.createOrder(request).enqueue(new Callback<CreateOrderResponse>() {
-                @Override
-                public void onResponse(Call<CreateOrderResponse> call, Response<CreateOrderResponse> response) {
-                    handleCreateOrderResponse(dialog, loadingToast, response);
-                }
+            if (localOrderId > 0) {
+                // Local save successful
+                runOnUiThread(() -> {
+                    loadingToast.cancel();
+                    dialog.dismiss();
 
-                @Override
-                public void onFailure(Call<CreateOrderResponse> call, Throwable t) {
-                    handleCreateOrderFailure(dialog, loadingToast, t);
-                }
-            });
+                    Toast.makeText(context, "Order created successfully (Order #" + localOrderId + ")", Toast.LENGTH_SHORT).show();
+
+                    if (orderCreatedListener != null) {
+                        orderCreatedListener.onOrderCreated();
+                    }
+                });
+
+                // Try to sync with server in background (don't block UI)
+                tryServerSync(localOrderId, sessionId, tableNumber, selectedOrderType.getId());
+
+            } else {
+                // Local save failed
+                runOnUiThread(() -> {
+                    loadingToast.cancel();
+                    setDialogControlsEnabled(dialog, true);
+                    Toast.makeText(context, "Failed to create order", Toast.LENGTH_SHORT).show();
+                });
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "Error creating order", e);
             Toast.makeText(context, "Error creating order", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void tryServerSync(long localOrderId, long sessionId, String tableNumber, long orderTypeId) {
+        // Check network connectivity
+        if (!isNetworkAvailable()) {
+            Log.d(TAG, "No network connectivity, order will sync later");
+            return;
+        }
+
+        // Create API request
+        CreateOrderRequest request = new CreateOrderRequest(
+                sessionId,      // long sessionId
+                tableNumber,    // String tableNumber
+                null,          // Long customerId - using null since we don't have customer ID
+                orderTypeId,   // long orderTypeId
+                null           // Long serverId - using null as default
+        );
+
+        // Make API call in background
+        apiService.createOrder(request).enqueue(new Callback<CreateOrderResponse>() {
+            @Override
+            public void onResponse(Call<CreateOrderResponse> call, Response<CreateOrderResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    CreateOrderResponse orderResponse = response.body();
+                    if (orderResponse.isSuccess()) {
+                        // Server sync successful - update local record
+                        RestaurantApplication app = (RestaurantApplication) context.getApplicationContext();
+                        app.markOrderAsSynced(localOrderId, orderResponse.getOrderId());
+                        Log.d(TAG, "Order synced successfully with server (Server ID: " + orderResponse.getOrderId() + ")");
+                    } else {
+                        Log.w(TAG, "Server rejected order sync: " + orderResponse.getStatus());
+                    }
+                } else {
+                    Log.w(TAG, "Failed to sync order with server: HTTP " + response.code());
+                }
+            }
+
+            @Override
+            public void onFailure(Call<CreateOrderResponse> call, Throwable t) {
+                Log.w(TAG, "Failed to sync order with server: " + t.getMessage());
+                // Order remains unsynced, will retry later
+            }
+        });
+    }
+
+    private boolean isNetworkAvailable() {
+        try {
+            android.net.ConnectivityManager connectivityManager =
+                    (android.net.ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            android.net.NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
+            return activeNetworkInfo != null && activeNetworkInfo.isConnected();
+        } catch (Exception e) {
+            return false;
         }
     }
 
@@ -229,33 +290,12 @@ public class OrderDialogHelper {
             if (selectedItem instanceof OrderType) {
                 OrderType selected = (OrderType) selectedItem;
                 return selected.getId() > 0 ? selected : null; // Ignore placeholder
-            } else if (selectedItem instanceof String) {
-                // Handle emergency fallback case where we used strings
-                String selectedString = (String) selectedItem;
-                if (!"Select Order Type".equals(selectedString)) {
-                    // Create a basic OrderType for fallback
-                    int id = getFallbackOrderTypeId(selectedString);
-                    return new OrderType(id, selectedString);
-                }
             }
         } catch (Exception e) {
             Log.e(TAG, "Error getting selected order type", e);
         }
 
         return null;
-    }
-
-    private int getFallbackOrderTypeId(String orderTypeName) {
-        // Map string names to IDs for emergency fallback
-        switch (orderTypeName) {
-            case "Dine In": return 1;
-            case "Take Away": return 2;
-            case "Delivery": return 3;
-            case "GoFood": return 4;
-            case "GrabFood": return 5;
-            case "ShopeeFood": return 6;
-            default: return 1; // Default to Dine In
-        }
     }
 
     private void handleCreateOrderResponse(AlertDialog dialog, Toast loadingToast,

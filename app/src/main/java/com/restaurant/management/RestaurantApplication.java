@@ -566,6 +566,14 @@ public class RestaurantApplication extends Application {
         return database.getOrderStatuses();
     }
 
+    public long saveOrderLocally(long sessionId, String tableNumber, String customerName, long orderTypeId) {
+        return database.saveOrderLocally(sessionId, tableNumber, customerName, orderTypeId);
+    }
+
+    public void markOrderAsSynced(long localOrderId, long serverOrderId) {
+        database.markOrderAsSynced(localOrderId, serverOrderId);
+    }
+
     @Override
     public void onTerminate() {
         super.onTerminate();
