@@ -25,7 +25,6 @@ import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.adapters.PromoAdapter;
 import com.restaurant.management.repositories.PromoRepository;
 import com.restaurant.management.models.Promo;
-import com.restaurant.management.network.ApiClient;
 import com.chuckerteam.chucker.api.ChuckerCollector;
 import com.chuckerteam.chucker.api.ChuckerInterceptor;
 import com.chuckerteam.chucker.api.RetentionManager;
@@ -737,7 +736,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             editor.apply();
 
             // Navigate to login screen
-            Intent intent = new Intent(DashboardActivity.this, MainActivity.class);
+            Intent intent = new Intent(DashboardActivity.this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
             finish();

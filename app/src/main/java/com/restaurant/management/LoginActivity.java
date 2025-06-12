@@ -36,7 +36,7 @@ import android.widget.Toast;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class MainActivity extends AppCompatActivity {
+public class LoginActivity extends AppCompatActivity {
     private static final String API_URL = "https://api.pood.lol/users/login";
 
     private static final String TAG = "MainActivity";
@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity {
         //setTheme(R.style.AppTheme); // Or whatever your main theme is called
 
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_login);
 
         // Initialize UI components
         emailEditText = findViewById(R.id.email_edit_text);
@@ -234,7 +234,7 @@ public class MainActivity extends AppCompatActivity {
                         Log.d(TAG, "Saved to SharedPreferences - userId: " + finalUserId +
                                 ", userName: " + finalUserName + ", userRole: " + finalUserRole);
 
-                        Toast.makeText(MainActivity.this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show();
                         navigateToDashboardActivity(finalUserId);
                     } else {
                         // Try to extract error message from response
@@ -248,7 +248,7 @@ public class MainActivity extends AppCompatActivity {
                             Log.e(TAG, "Error parsing error response", e);
                         }
 
-                        Toast.makeText(MainActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+                        Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
                     }
                 });
 
@@ -258,7 +258,7 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     loginButton.setEnabled(true);
-                    Toast.makeText(MainActivity.this,
+                    Toast.makeText(LoginActivity.this,
                             getString(R.string.network_error),
                             Toast.LENGTH_SHORT).show();
                 });
@@ -271,7 +271,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void navigateToDashboardActivity(int userId) {
-        Intent intent = new Intent(MainActivity.this, DashboardActivity.class);
+        Intent intent = new Intent(LoginActivity.this, DashboardActivity.class);
         intent.putExtra(getString(R.string.extra_user_id), userId);
         startActivity(intent);
         finish();

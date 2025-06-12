@@ -38,7 +38,7 @@
         android:theme="@style/AppTheme">
 
         <activity
-            android:name="com.restaurant.management.MainActivity"
+            android:name="com.restaurant.management.LoginActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
