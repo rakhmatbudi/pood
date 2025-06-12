@@ -12,6 +12,8 @@ import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.models.Promo;
+import com.restaurant.management.models.OrderType;
+import com.restaurant.management.models.OrderStatus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,13 +22,15 @@ import java.util.Arrays;
 public class PoodDatabase extends SQLiteOpenHelper {
     private static final String TAG = "PoodDatabase";
     private static final String DATABASE_NAME = "pood.db";
-    private static final int DATABASE_VERSION = 3; // INCREASED VERSION FOR PROMOS TABLE
+    private static final int DATABASE_VERSION = 4; // INCREASED VERSION FOR PROMOS TABLE
 
     // Table names
     private static final String TABLE_MENU_ITEMS = "menu_items";
     private static final String TABLE_VARIANTS = "variants";
     private static final String TABLE_CATEGORIES = "categories";
-    private static final String TABLE_PROMOS = "promos"; // ADDED PROMOS TABLE
+    private static final String TABLE_PROMOS = "promos";
+    private static final String TABLE_ORDER_TYPES = "order_types";
+    private static final String TABLE_ORDER_STATUSES = "order_statuses";
 
     // Menu Items table columns
     private static final String COLUMN_ID = "id";
@@ -131,6 +135,16 @@ public class PoodDatabase extends SQLiteOpenHelper {
             + COLUMN_PROMO_IS_ACTIVE + " INTEGER"
             + ")";
 
+    private static final String CREATE_ORDER_TYPES_TABLE = "CREATE TABLE " + TABLE_ORDER_TYPES + "("
+            + "id INTEGER PRIMARY KEY,"
+            + "name TEXT NOT NULL"
+            + ")";
+
+    private static final String CREATE_ORDER_STATUSES_TABLE = "CREATE TABLE " + TABLE_ORDER_STATUSES + "("
+            + "id INTEGER PRIMARY KEY,"
+            + "name TEXT NOT NULL"
+            + ")";
+
     public PoodDatabase(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -140,7 +154,9 @@ public class PoodDatabase extends SQLiteOpenHelper {
         db.execSQL(CREATE_MENU_ITEMS_TABLE);
         db.execSQL(CREATE_VARIANTS_TABLE);
         db.execSQL(CREATE_CATEGORIES_TABLE);
-        db.execSQL(CREATE_PROMOS_TABLE); // ADDED PROMOS TABLE CREATION
+        db.execSQL(CREATE_PROMOS_TABLE);
+        db.execSQL(CREATE_ORDER_TYPES_TABLE);
+        db.execSQL(CREATE_ORDER_STATUSES_TABLE);
         Log.d(TAG, "Database created with all tables including promos");
     }
 
@@ -155,6 +171,13 @@ public class PoodDatabase extends SQLiteOpenHelper {
             Log.d(TAG, "Added promos table in database upgrade");
         }
 
+        if (oldVersion < 4) {
+            // Add order types and statuses tables if upgrading from version 3 or earlier
+            db.execSQL(CREATE_ORDER_TYPES_TABLE);
+            db.execSQL(CREATE_ORDER_STATUSES_TABLE);
+            Log.d(TAG, "Added order_types and order_statuses tables in database upgrade");
+        }
+
         // For major changes, you can still drop and recreate if needed
         // db.execSQL("DROP TABLE IF EXISTS " + TABLE_MENU_ITEMS);
         // db.execSQL("DROP TABLE IF EXISTS " + TABLE_VARIANTS);
@@ -162,10 +185,6 @@ public class PoodDatabase extends SQLiteOpenHelper {
         // db.execSQL("DROP TABLE IF EXISTS " + TABLE_PROMOS);
         // onCreate(db);
     }
-
-    // ... existing saveMenuItems(), saveMenuCategories(), getAllMenuItems(),
-    // getAllMenuCategories(), getVariantsForMenuItem(), hasMenuItems(),
-    // hasMenuCategories(), clearAllData() methods remain the same ...
 
     /**
      * Save promos to database (called from RestaurantApplication)
@@ -520,6 +539,8 @@ public class PoodDatabase extends SQLiteOpenHelper {
             db.delete(TABLE_VARIANTS, null, null);
             db.delete(TABLE_CATEGORIES, null, null);
             db.delete(TABLE_PROMOS, null, null); // ADDED PROMOS CLEARING
+            db.delete(TABLE_ORDER_TYPES, null, null);
+            db.delete(TABLE_ORDER_STATUSES, null, null);
             Log.d(TAG, "Cleared all data including promos");
         } catch (Exception e) {
             Log.e(TAG, "Error clearing data", e);
@@ -698,5 +719,111 @@ public class PoodDatabase extends SQLiteOpenHelper {
 
         Log.d(TAG, "getAllActivePromosSimple returning " + promos.size() + " promos");
         return promos;
+    }
+
+    public void saveOrderTypes(List<OrderType> orderTypes) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        try {
+            db.beginTransaction();
+
+            // Clear existing order types
+            db.delete("order_types", null, null);
+
+            // Insert new order types
+            for (OrderType orderType : orderTypes) {
+                ContentValues values = new ContentValues();
+                values.put("id", orderType.getId());
+                values.put("name", orderType.getName());
+                // Remove is_active field since method doesn't exist
+
+                db.insert("order_types", null, values);
+            }
+
+            db.setTransactionSuccessful();
+            Log.d("PoodDatabase", "Saved " + orderTypes.size() + " order types");
+        } catch (Exception e) {
+            Log.e("PoodDatabase", "Error saving order types", e);
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public List<OrderType> getOrderTypes() {
+        List<OrderType> orderTypes = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            // Get all order types (no filtering by active since we don't store that field)
+            Cursor cursor = db.query("order_types", null, null, null, null, null, "name ASC");
+
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    OrderType orderType = new OrderType();
+                    orderType.setId(cursor.getLong(cursor.getColumnIndexOrThrow("id")));
+                    orderType.setName(cursor.getString(cursor.getColumnIndexOrThrow("name")));
+                    // Remove setActive since method doesn't exist
+
+                    orderTypes.add(orderType);
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            Log.e("PoodDatabase", "Error getting order types", e);
+        }
+
+        return orderTypes;
+    }
+
+    public void saveOrderStatuses(List<OrderStatus> orderStatuses) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        try {
+            db.beginTransaction();
+
+            // Clear existing order statuses
+            db.delete("order_statuses", null, null);
+
+            // Insert new order statuses
+            for (OrderStatus orderStatus : orderStatuses) {
+                ContentValues values = new ContentValues();
+                values.put("id", orderStatus.getId());
+                values.put("name", orderStatus.getName());
+                // Remove color and is_active fields
+
+                db.insert("order_statuses", null, values);
+            }
+
+            db.setTransactionSuccessful();
+            Log.d("PoodDatabase", "Saved " + orderStatuses.size() + " order statuses");
+        } catch (Exception e) {
+            Log.e("PoodDatabase", "Error saving order statuses", e);
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    public List<OrderStatus> getOrderStatuses() {
+        List<OrderStatus> orderStatuses = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            // Get all order statuses (no filtering)
+            Cursor cursor = db.query("order_statuses", null, null, null, null, null, "name ASC");
+
+            if (cursor != null) {
+                while (cursor.moveToNext()) {
+                    OrderStatus orderStatus = new OrderStatus();
+                    orderStatus.setId(cursor.getLong(cursor.getColumnIndexOrThrow("id")));
+                    orderStatus.setName(cursor.getString(cursor.getColumnIndexOrThrow("name")));
+                    // Remove setColor and setActive since methods might not exist
+
+                    orderStatuses.add(orderStatus);
+                }
+                cursor.close();
+            }
+        } catch (Exception e) {
+            Log.e("PoodDatabase", "Error getting order statuses", e);
+        }
+
+        return orderStatuses;
     }
 }

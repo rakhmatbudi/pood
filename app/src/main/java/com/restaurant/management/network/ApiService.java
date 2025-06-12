@@ -5,67 +5,86 @@ import com.restaurant.management.models.SessionPaymentsResponse;
 import com.restaurant.management.models.PromoResponse;
 import com.restaurant.management.models.MenuCategoryResponse;
 import com.restaurant.management.models.MenuItemResponse;
+import com.restaurant.management.models.Order;
+import com.restaurant.management.models.OrderStatus;
+import com.restaurant.management.models.OrderType;
+import com.restaurant.management.models.CreateOrderRequest;
+import com.restaurant.management.models.CreateOrderResponse;
 
 import java.util.List;
 import retrofit2.Call;
+import retrofit2.http.Body;
 import retrofit2.http.GET;
+import retrofit2.http.POST;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
 
 public interface ApiService {
 
-    /**
-     * Get active cashier session for a user
-     * @param userId The ID of the user
-     * @return Call object with CashierSession response
-     */
+    // Existing cashier session methods
     @GET("cashier/sessions/active")
     Call<CashierSession> getActiveSession(@Query("userId") int userId);
 
-    /**
-     * Get all cashier sessions
-     * @return Call object with List of CashierSession response
-     */
     @GET("cashier/sessions")
     Call<List<CashierSession>> getCashierSessions();
 
-    /**
-     * Get a specific session by ID
-     * @param sessionId The ID of the session
-     * @return Call object with CashierSession response
-     */
     @GET("cashier/sessions/{id}")
     Call<CashierSession> getSessionById(@Path("id") int sessionId);
 
     @GET("payments/grouped/sessions/details")
     Call<SessionPaymentsResponse> getSessionPayments();
 
-    /**
-     * Get all active promotions
-     * @return Call object with PromoResponse containing promos data
-     */
+    // Existing promo methods
     @GET("promos")
     Call<PromoResponse> getActivePromos();
 
-    /**
-     * Get a specific promo by ID
-     * @param promoId The ID of the promo
-     * @return Call object with PromoResponse containing single promo
-     */
     @GET("promos/{id}")
     Call<PromoResponse> getPromoById(@Path("id") long promoId);
 
-    /**
-     * Get all menu categories
-     * @return Call object with MenuCategoryResponse containing categories data
-     */
+    // Existing menu methods
     @GET("menu-categories")
     Call<MenuCategoryResponse> getMenuCategories();
 
-    /**
-     * Get all menu items
-     * @return Call object with MenuItemResponse containing menu items data
-     */
     @GET("menu-items")
     Call<MenuItemResponse> getMenuItems();
+
+    // NEW ORDER-RELATED METHODS:
+
+    /**
+     * Get all orders for a session
+     * @param sessionId The ID of the session
+     * @return Call object with List of Orders
+     */
+    @GET("sessions/{sessionId}/orders")
+    Call<List<Order>> getOrdersBySession(@Path("sessionId") long sessionId);
+
+    /**
+     * Create a new order
+     * @param request The order creation request
+     * @return Call object with CreateOrderResponse
+     */
+    @POST("orders")
+    Call<CreateOrderResponse> createOrder(@Body CreateOrderRequest request);
+
+    /**
+     * Get all order types
+     * @return Call object with List of OrderType
+     */
+    @GET("order-types")
+    Call<List<OrderType>> getOrderTypes();
+
+    /**
+     * Get all order statuses
+     * @return Call object with List of OrderStatus
+     */
+    @GET("order-statuses")
+    Call<List<OrderStatus>> getOrderStatuses();
+
+    /**
+     * Get a specific order by ID
+     * @param orderId The ID of the order
+     * @return Call object with Order response
+     */
+    @GET("orders/{id}")
+    Call<Order> getOrderById(@Path("id") long orderId);
 }

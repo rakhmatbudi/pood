@@ -46,7 +46,8 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
     private void initializeHelpers() {
         apiHelper = new OrderListApiHelper(this);
         uiHelper = new OrderListUiHelper(this);
-        dialogHelper = new OrderDialogHelper(this, apiHelper);
+        // Updated: No longer pass apiHelper to dialogHelper
+        dialogHelper = new OrderDialogHelper(this);
     }
 
     private void setupToolbar() {
@@ -97,6 +98,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             }
 
             if (dialogHelper != null) {
+                // Updated: Set listener to refresh orders when order is created
                 dialogHelper.setOnOrderCreatedListener(this::fetchOrders);
             }
         } catch (Exception e) {
@@ -166,6 +168,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
     private void showNewOrderDialog() {
         try {
             if (dialogHelper != null && sessionId != -1) {
+                // Updated: No need to pass additional parameters, dialogHelper handles everything
                 dialogHelper.showNewOrderDialog(sessionId);
             } else {
                 Toast.makeText(this, "Unable to create order. Please try again.", Toast.LENGTH_SHORT).show();

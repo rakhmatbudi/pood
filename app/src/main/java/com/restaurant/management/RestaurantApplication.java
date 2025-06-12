@@ -8,6 +8,8 @@ import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.models.Promo;
+import com.restaurant.management.models.OrderType;
+import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.utils.NetworkUtils;
 
 import org.json.JSONArray;
@@ -41,7 +43,7 @@ public class RestaurantApplication extends Application {
         database = new PoodDatabase(this);
         client = new OkHttpClient();
 
-        // Download menu items, categories, and promos on every app start
+        // Download all data on every app start
         downloadAllDataOnStart();
     }
 
@@ -50,11 +52,13 @@ public class RestaurantApplication extends Application {
             return;
         }
 
-        // Download categories, menu items, and promos
-        pendingRequests.set(3); // We have 3 API calls to make
+        // Download categories, menu items, promos, order types, and order statuses
+        pendingRequests.set(5); // We now have 5 API calls to make
         downloadMenuCategories();
         downloadMenuItems();
         downloadPromos();
+        downloadOrderTypes();
+        downloadOrderStatuses();
     }
 
     private void downloadMenuCategories() {
@@ -186,6 +190,180 @@ public class RestaurantApplication extends Application {
         });
     }
 
+    private void downloadOrderTypes() {
+        String apiUrl = BASE_API_URL + "order-types";
+        String authToken = getAuthToken();
+
+        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
+
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Order types download failed: " + e.getMessage());
+                decrementPendingRequests();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+
+                    if (!response.isSuccessful()) {
+                        Log.e(TAG, "Order types server error: " + response.code());
+                        return;
+                    }
+
+                    JSONObject jsonResponse = new JSONObject(responseBody);
+                    List<OrderType> orderTypes = parseOrderTypes(jsonResponse);
+
+                    database.saveOrderTypes(orderTypes);
+                    Log.d(TAG, "Order types saved: " + orderTypes.size());
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing order types download: " + e.getMessage());
+                } finally {
+                    decrementPendingRequests();
+                }
+            }
+        });
+    }
+
+    private void downloadOrderStatuses() {
+        String apiUrl = BASE_API_URL + "order-statuses";
+        String authToken = getAuthToken();
+
+        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
+
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Order statuses download failed: " + e.getMessage());
+                decrementPendingRequests();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+
+                    if (!response.isSuccessful()) {
+                        Log.e(TAG, "Order statuses server error: " + response.code());
+                        return;
+                    }
+
+                    JSONObject jsonResponse = new JSONObject(responseBody);
+                    List<OrderStatus> orderStatuses = parseOrderStatuses(jsonResponse);
+
+                    database.saveOrderStatuses(orderStatuses);
+                    Log.d(TAG, "Order statuses saved: " + orderStatuses.size());
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing order statuses download: " + e.getMessage());
+                } finally {
+                    decrementPendingRequests();
+                }
+            }
+        });
+    }
+
+    private List<OrderType> parseOrderTypes(JSONObject jsonResponse) throws JSONException {
+        List<OrderType> orderTypes = new ArrayList<>();
+
+        if (jsonResponse.has("data") && !jsonResponse.isNull("data")) {
+            JSONArray typesArray;
+
+            if (jsonResponse.get("data") instanceof JSONArray) {
+                typesArray = jsonResponse.getJSONArray("data");
+            } else {
+                JSONObject singleType = jsonResponse.getJSONObject("data");
+                typesArray = new JSONArray();
+                typesArray.put(singleType);
+            }
+
+            for (int i = 0; i < typesArray.length(); i++) {
+                JSONObject typeJson = typesArray.getJSONObject(i);
+                OrderType orderType = new OrderType();
+
+                // Only set fields that exist in your OrderType class
+                orderType.setId(typeJson.optLong("id", -1));
+                orderType.setName(typeJson.optString("name", ""));
+
+                // Remove all other fields since the methods don't exist:
+                // - setDescription() doesn't exist
+                // - setActive() doesn't exist
+                // - setCreatedAt() doesn't exist
+                // - setUpdatedAt() doesn't exist
+
+                // Only add order types with valid data
+                if (orderType.getId() > 0 && !orderType.getName().isEmpty()) {
+                    orderTypes.add(orderType);
+                }
+            }
+
+            // Sort order types by name
+            Collections.sort(orderTypes, (type1, type2) ->
+                    type1.getName().compareToIgnoreCase(type2.getName()));
+        }
+
+        return orderTypes;
+    }
+
+    private List<OrderStatus> parseOrderStatuses(JSONObject jsonResponse) throws JSONException {
+        List<OrderStatus> orderStatuses = new ArrayList<>();
+
+        if (jsonResponse.has("data") && !jsonResponse.isNull("data")) {
+            JSONArray statusesArray;
+
+            if (jsonResponse.get("data") instanceof JSONArray) {
+                statusesArray = jsonResponse.getJSONArray("data");
+            } else {
+                JSONObject singleStatus = jsonResponse.getJSONObject("data");
+                statusesArray = new JSONArray();
+                statusesArray.put(singleStatus);
+            }
+
+            for (int i = 0; i < statusesArray.length(); i++) {
+                JSONObject statusJson = statusesArray.getJSONObject(i);
+                OrderStatus orderStatus = new OrderStatus();
+
+                // Only set fields that exist in your OrderStatus class
+                orderStatus.setId(statusJson.optLong("id", -1));
+                orderStatus.setName(statusJson.optString("name", ""));
+
+                // Remove all other fields since the methods might not exist:
+                // - setDescription() might not exist
+                // - setColor() might not exist
+                // - setActive() might not exist
+                // - setCreatedAt() might not exist
+                // - setUpdatedAt() might not exist
+
+                // Only add order statuses with valid data
+                if (orderStatus.getId() > 0 && !orderStatus.getName().isEmpty()) {
+                    orderStatuses.add(orderStatus);
+                }
+            }
+
+            // Sort order statuses by name
+            Collections.sort(orderStatuses, (status1, status2) ->
+                    status1.getName().compareToIgnoreCase(status2.getName()));
+        }
+
+        return orderStatuses;
+    }
+
+    // Keep existing parsing methods for categories, items, and promos...
     private List<MenuCategory> parseMenuCategories(JSONObject jsonResponse) throws JSONException {
         List<MenuCategory> categories = new ArrayList<>();
 
@@ -390,7 +568,8 @@ public class RestaurantApplication extends Application {
     }
 
     private void onAllDownloadsComplete() {
-        // This method is called when categories, menu items, and promos have been downloaded
+        Log.d(TAG, "All data downloads completed");
+        // This method is called when categories, menu items, promos, order types, and order statuses have been downloaded
     }
 
     private double parsePrice(String priceString) {
@@ -408,6 +587,16 @@ public class RestaurantApplication extends Application {
         } catch (Exception e) {
             return "";
         }
+    }
+
+    // Public method to get cached order types
+    public List<OrderType> getCachedOrderTypes() {
+        return database.getOrderTypes();
+    }
+
+    // Public method to get cached order statuses
+    public List<OrderStatus> getCachedOrderStatuses() {
+        return database.getOrderStatuses();
     }
 
     @Override

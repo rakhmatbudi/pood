@@ -2,6 +2,7 @@ package com.restaurant.management.helpers;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -12,15 +13,25 @@ import android.widget.Spinner;
 import android.widget.Toast;
 
 import com.restaurant.management.R;
+import com.restaurant.management.RestaurantApplication;
+import com.restaurant.management.models.CreateOrderRequest;
+import com.restaurant.management.models.CreateOrderResponse;
 import com.restaurant.management.models.OrderType;
+import com.restaurant.management.network.ApiService;
+import com.restaurant.management.network.RetrofitClient;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
+
 public class OrderDialogHelper {
+    private static final String TAG = "OrderDialogHelper";
 
     private final Context context;
-    private final OrderListApiHelper apiHelper;
+    private final ApiService apiService;
 
     public interface OnOrderCreatedListener {
         void onOrderCreated();
@@ -28,9 +39,9 @@ public class OrderDialogHelper {
 
     private OnOrderCreatedListener orderCreatedListener;
 
-    public OrderDialogHelper(Context context, OrderListApiHelper apiHelper) {
+    public OrderDialogHelper(Context context) {
         this.context = context;
-        this.apiHelper = apiHelper;
+        this.apiService = RetrofitClient.getInstance(context).getApiService();
     }
 
     public void setOnOrderCreatedListener(OnOrderCreatedListener listener) {
@@ -52,269 +63,267 @@ public class OrderDialogHelper {
             AlertDialog.Builder builder = new AlertDialog.Builder(context);
             builder.setTitle("Create New Order")
                     .setView(dialogView)
-                    .setPositiveButton("Create Order", null) // Set null listener initially
+                    .setPositiveButton("Create Order", null)
                     .setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
 
             // Show dialog
             AlertDialog dialog = builder.create();
             dialog.show();
 
-            // Fetch order types and populate spinner
-            fetchOrderTypes(orderTypeSpinner, orderTypeProgress);
+            // Load order types from offline cache
+            loadOrderTypesFromCache(orderTypeSpinner, orderTypeProgress);
 
-            // Get the positive button and set custom click listener
-            // This needs to be done AFTER dialog.show() as buttons are initialized then
+            // Set up create order button click listener
             Button positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             if (positiveButton != null) {
-                positiveButton.setOnClickListener(v -> {
-                    handleCreateOrderClick(dialog, sessionId, orderTypeSpinner,
-                            tableNumberEditText, customerNameEditText);
-                });
+                positiveButton.setOnClickListener(v -> createOrder(dialog, sessionId, orderTypeSpinner,
+                        tableNumberEditText, customerNameEditText));
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(context, "Error opening dialog: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error opening dialog", e);
+            Toast.makeText(context, "Error opening dialog", Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void handleCreateOrderClick(AlertDialog dialog, long sessionId, Spinner orderTypeSpinner,
-                                        EditText tableNumberEditText, EditText customerNameEditText) {
+    private void loadOrderTypesFromCache(Spinner orderTypeSpinner, ProgressBar orderTypeProgress) {
         try {
-            // Get form values
-            String tableNumber = tableNumberEditText.getText().toString().trim();
-            String customerName = customerNameEditText.getText().toString().trim();
-
-            // Get selected order type
-            OrderType selectedOrderType = null;
-            if (orderTypeSpinner.getSelectedItem() != null && orderTypeSpinner.getSelectedItemPosition() > 0) {
-                Object selectedItem = orderTypeSpinner.getSelectedItem();
-                if (selectedItem instanceof OrderType) {
-                    selectedOrderType = (OrderType) selectedItem;
-                }
-            }
-
-            // Validate required fields
-            if (selectedOrderType == null || selectedOrderType.getId() == 0) { // Check ID for placeholder
-                Toast.makeText(context, "Please select an order type", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            if (tableNumber.isEmpty()) {
-                tableNumberEditText.setError("This field is required");
-                return;
-            }
-
-            // Show loading state
-            final Toast loadingToast = Toast.makeText(context, "Creating order...", Toast.LENGTH_LONG);
-            loadingToast.show();
-
-            // Disable input during API call
-            setDialogEnabled(dialog, orderTypeSpinner, tableNumberEditText, customerNameEditText, false);
-
-            // Create order
-            apiHelper.createOrder(sessionId, tableNumber, customerName, selectedOrderType,
-                    new OrderListApiHelper.CreateOrderCallback() {
-                        @Override
-                        public void onSuccess(String message) {
-                            // Ensure UI updates happen on main thread
-                            if (context instanceof android.app.Activity) {
-                                ((android.app.Activity) context).runOnUiThread(() -> {
-                                    try {
-                                        loadingToast.cancel();
-                                        dialog.dismiss();
-                                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
-                                        if (orderCreatedListener != null) {
-                                            orderCreatedListener.onOrderCreated();
-                                        }
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                        Toast.makeText(context, "Error during UI update: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                                    }
-                                });
-                            }
-                        }
-
-                        @Override
-                        public void onError(String errorMessage) {
-                            // Ensure UI updates happen on main thread
-                            if (context instanceof android.app.Activity) {
-                                ((android.app.Activity) context).runOnUiThread(() -> {
-                                    try {
-                                        loadingToast.cancel();
-                                        setDialogEnabled(dialog, orderTypeSpinner, tableNumberEditText, customerNameEditText, true);
-                                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show();
-                                    } catch (Exception e) {
-                                        e.printStackTrace();
-                                        Toast.makeText(context, "Error during UI update: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                                    }
-                                });
-                            }
-                        }
-                    });
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(context, "Error creating order: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void fetchOrderTypes(Spinner orderTypeSpinner, ProgressBar orderTypeProgress) {
-        try {
-            // Show loading
+            // Show loading briefly for UI consistency
             orderTypeProgress.setVisibility(View.VISIBLE);
             orderTypeSpinner.setEnabled(false);
 
-            apiHelper.fetchOrderTypes(new OrderListApiHelper.OrderTypesCallback() {
-                @Override
-                public void onSuccess(List<OrderType> orderTypes) {
-                    // Ensure UI updates happen on main thread
-                    if (context instanceof android.app.Activity) {
-                        ((android.app.Activity) context).runOnUiThread(() -> {
-                            try {
-                                orderTypeProgress.setVisibility(View.GONE);
-                                orderTypeSpinner.setEnabled(true);
-                                setupOrderTypeSpinner(orderTypeSpinner, orderTypes);
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                                // Fallback to default types if UI update fails
-                                setupOrderTypeSpinner(orderTypeSpinner, apiHelper.getFallbackOrderTypes());
-                                Toast.makeText(context, "Error setting up order types UI, using fallback.", Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    } else {
-                        // If context is not an activity, run on current thread (caution: might not be UI thread)
-                        try {
-                            orderTypeProgress.setVisibility(View.GONE);
-                            orderTypeSpinner.setEnabled(true);
-                            setupOrderTypeSpinner(orderTypeSpinner, orderTypes);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            setupOrderTypeSpinner(orderTypeSpinner, apiHelper.getFallbackOrderTypes());
-                            Toast.makeText(context, "Error setting up order types UI, using fallback.", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                }
+            // Get cached order types from application
+            RestaurantApplication app = (RestaurantApplication) context.getApplicationContext();
+            List<OrderType> cachedOrderTypes = app.getCachedOrderTypes();
 
-                @Override
-                public void onError(String errorMessage) {
-                    // Ensure UI updates happen on main thread
-                    if (context instanceof android.app.Activity) {
-                        ((android.app.Activity) context).runOnUiThread(() -> {
-                            try {
-                                orderTypeProgress.setVisibility(View.GONE);
-                                orderTypeSpinner.setEnabled(true);
-                                // Use fallback data immediately
-                                setupOrderTypeSpinner(orderTypeSpinner, apiHelper.getFallbackOrderTypes());
-                                Toast.makeText(context, "Using offline order types: " + errorMessage, Toast.LENGTH_LONG).show();
-                            } catch (Exception e) {
-                                e.printStackTrace();
-                                // Emergency fallback
-                                setupEmergencySpinner(orderTypeSpinner);
-                                Toast.makeText(context, "Critical error setting up order types.", Toast.LENGTH_SHORT).show();
-                            }
-                        });
-                    } else {
-                        // If context is not an activity, run on current thread (caution: might not be UI thread)
-                        try {
-                            orderTypeProgress.setVisibility(View.GONE);
-                            orderTypeSpinner.setEnabled(true);
-                            setupOrderTypeSpinner(orderTypeSpinner, apiHelper.getFallbackOrderTypes());
-                            Toast.makeText(context, "Using offline order types: " + errorMessage, Toast.LENGTH_LONG).show();
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                            setupEmergencySpinner(orderTypeSpinner);
-                            Toast.makeText(context, "Critical error setting up order types.", Toast.LENGTH_SHORT).show();
-                        }
-                    }
-                }
-            });
-
-            // Add timeout fallback - if API doesn't respond in 10 seconds, use fallback
-            new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(() -> {
-                if (context instanceof android.app.Activity) { // Ensure running on UI thread for UI check/update
-                    ((android.app.Activity) context).runOnUiThread(() -> {
-                        try {
-                            // Check if still loading (progress bar still visible)
-                            if (orderTypeProgress.getVisibility() == View.VISIBLE) {
-                                orderTypeProgress.setVisibility(View.GONE);
-                                orderTypeSpinner.setEnabled(true);
-                                setupOrderTypeSpinner(orderTypeSpinner, apiHelper.getFallbackOrderTypes());
-                                Toast.makeText(context, "Loading timeout - using offline order types", Toast.LENGTH_SHORT).show();
-                            }
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    });
-                }
-            }, 10000); // 10 second timeout
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            // Emergency fallback
+            // Hide loading
             orderTypeProgress.setVisibility(View.GONE);
             orderTypeSpinner.setEnabled(true);
-            setupEmergencySpinner(orderTypeSpinner);
-            Toast.makeText(context, "Initial error fetching order types, using emergency fallback.", Toast.LENGTH_SHORT).show();
+
+            if (cachedOrderTypes != null && !cachedOrderTypes.isEmpty()) {
+                setupOrderTypeSpinner(orderTypeSpinner, cachedOrderTypes);
+                Log.d(TAG, "Loaded " + cachedOrderTypes.size() + " order types from cache");
+            } else {
+                // No cached data - use fallback
+                Log.w(TAG, "No cached order types found, using fallback");
+                setupOrderTypeSpinner(orderTypeSpinner, getFallbackOrderTypes());
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading order types from cache", e);
+            orderTypeProgress.setVisibility(View.GONE);
+            orderTypeSpinner.setEnabled(true);
+            setupOrderTypeSpinner(orderTypeSpinner, getFallbackOrderTypes());
         }
     }
 
     private void setupOrderTypeSpinner(Spinner orderTypeSpinner, List<OrderType> orderTypes) {
         try {
-            // Ensure we have a valid list, use fallback if null or empty
-            if (orderTypes == null || orderTypes.isEmpty()) {
-                orderTypes = apiHelper.getFallbackOrderTypes();
-            }
-
-            // Add a placeholder at the beginning
+            // Create spinner items with placeholder
             List<OrderType> spinnerItems = new ArrayList<>();
-            // Use a placeholder with ID 0 to easily identify if user selected it
-            spinnerItems.add(new OrderType(0, "Select Order Type"));
+            spinnerItems.add(new OrderType(0, "Select Order Type")); // Placeholder
             spinnerItems.addAll(orderTypes);
 
+            // Set up adapter
             ArrayAdapter<OrderType> adapter = new ArrayAdapter<>(context,
                     android.R.layout.simple_spinner_item, spinnerItems);
             adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
             orderTypeSpinner.setAdapter(adapter);
-        } catch (Exception e) {
-            e.printStackTrace();
-            // Emergency fallback - create a simple adapter with just the placeholder
-            setupEmergencySpinner(orderTypeSpinner); // Call the more basic emergency setup
-        }
-    }
 
-    private void setupEmergencySpinner(Spinner orderTypeSpinner) {
-        try {
-            // Create the most basic spinner possible
+        } catch (Exception e) {
+            Log.e(TAG, "Error setting up order type spinner", e);
+            // Emergency fallback
             List<String> basicItems = new ArrayList<>();
             basicItems.add("Select Order Type");
             basicItems.add("Dine In");
             basicItems.add("Take Away");
 
-            ArrayAdapter<String> adapter = new ArrayAdapter<>(context,
+            ArrayAdapter<String> basicAdapter = new ArrayAdapter<>(context,
                     android.R.layout.simple_spinner_item, basicItems);
-            adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-            orderTypeSpinner.setAdapter(adapter);
-        } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(context, "Could not set up basic spinner, critical UI error.", Toast.LENGTH_SHORT).show();
+            basicAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+            orderTypeSpinner.setAdapter(basicAdapter);
         }
     }
 
-    private void setDialogEnabled(AlertDialog dialog, Spinner orderTypeSpinner,
-                                  EditText tableNumberEditText, EditText customerNameEditText,
-                                  boolean enabled) {
+    private List<OrderType> getFallbackOrderTypes() {
+        List<OrderType> fallbackTypes = new ArrayList<>();
+        fallbackTypes.add(new OrderType(1, "Dine In"));
+        fallbackTypes.add(new OrderType(2, "Take Away"));
+        fallbackTypes.add(new OrderType(3, "Delivery"));
+        return fallbackTypes;
+    }
+
+    private void createOrder(AlertDialog dialog, long sessionId, Spinner orderTypeSpinner,
+                             EditText tableNumberEditText, EditText customerNameEditText) {
         try {
-            // These buttons are only available after dialog.show()
+            // Get form values
+            String tableNumber = tableNumberEditText.getText().toString().trim();
+            String customerName = customerNameEditText.getText().toString().trim();
+
+            // Validate input
+            if (!validateInput(orderTypeSpinner, tableNumberEditText, tableNumber)) {
+                return;
+            }
+
+            // Get selected order type
+            OrderType selectedOrderType = getSelectedOrderType(orderTypeSpinner);
+            if (selectedOrderType == null) {
+                Toast.makeText(context, "Please select an order type", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Disable UI during API call
+            setDialogControlsEnabled(dialog, false);
+            Toast loadingToast = Toast.makeText(context, "Creating order...", Toast.LENGTH_LONG);
+            loadingToast.show();
+
+            // Create order request
+            CreateOrderRequest request = new CreateOrderRequest(sessionId, tableNumber,
+                    customerName, selectedOrderType.getId());
+
+            // Make API call
+            apiService.createOrder(request).enqueue(new Callback<CreateOrderResponse>() {
+                @Override
+                public void onResponse(Call<CreateOrderResponse> call, Response<CreateOrderResponse> response) {
+                    handleCreateOrderResponse(dialog, loadingToast, response);
+                }
+
+                @Override
+                public void onFailure(Call<CreateOrderResponse> call, Throwable t) {
+                    handleCreateOrderFailure(dialog, loadingToast, t);
+                }
+            });
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error creating order", e);
+            Toast.makeText(context, "Error creating order", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private boolean validateInput(Spinner orderTypeSpinner, EditText tableNumberEditText, String tableNumber) {
+        if (tableNumber.isEmpty()) {
+            tableNumberEditText.setError("Table number is required");
+            return false;
+        }
+
+        if (orderTypeSpinner.getSelectedItemPosition() <= 0) {
+            Toast.makeText(context, "Please select an order type", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+
+        return true;
+    }
+
+    private OrderType getSelectedOrderType(Spinner orderTypeSpinner) {
+        if (orderTypeSpinner.getSelectedItem() instanceof OrderType) {
+            OrderType selected = (OrderType) orderTypeSpinner.getSelectedItem();
+            return selected.getId() > 0 ? selected : null; // Ignore placeholder
+        }
+        return null;
+    }
+
+    private void handleCreateOrderResponse(AlertDialog dialog, Toast loadingToast,
+                                           Response<CreateOrderResponse> response) {
+        runOnUiThread(() -> {
+            try {
+                loadingToast.cancel();
+
+                if (response.isSuccessful() && response.body() != null) {
+                    CreateOrderResponse orderResponse = response.body();
+
+                    if (orderResponse.isSuccess()) {
+                        // Success - close dialog and notify listener
+                        dialog.dismiss();
+                        String message = orderResponse.getMessage() != null ?
+                                orderResponse.getMessage() : "Order created successfully";
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+
+                        if (orderCreatedListener != null) {
+                            orderCreatedListener.onOrderCreated();
+                        }
+                    } else {
+                        // API error in response body
+                        setDialogControlsEnabled(dialog, true);
+                        String errorMessage = orderResponse.getMessage() != null ?
+                                orderResponse.getMessage() : "Failed to create order";
+                        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show();
+                    }
+                } else {
+                    // HTTP error
+                    handleHttpError(dialog, response);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error handling response", e);
+                setDialogControlsEnabled(dialog, true);
+                Toast.makeText(context, "Error processing response", Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void handleCreateOrderFailure(AlertDialog dialog, Toast loadingToast, Throwable t) {
+        Log.e(TAG, "Order creation failed", t);
+
+        runOnUiThread(() -> {
+            try {
+                loadingToast.cancel();
+                setDialogControlsEnabled(dialog, true);
+                Toast.makeText(context, "Network error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            } catch (Exception e) {
+                Log.e(TAG, "Error handling failure", e);
+            }
+        });
+    }
+
+    private void handleHttpError(AlertDialog dialog, Response<CreateOrderResponse> response) {
+        setDialogControlsEnabled(dialog, true);
+        String errorMessage = "Server error: " + response.code();
+
+        try {
+            if (response.errorBody() != null) {
+                errorMessage = response.errorBody().string();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error reading error body", e);
+        }
+
+        Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show();
+    }
+
+    private void setDialogControlsEnabled(AlertDialog dialog, boolean enabled) {
+        try {
             Button positiveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
             Button negativeButton = dialog.getButton(AlertDialog.BUTTON_NEGATIVE);
 
             if (positiveButton != null) positiveButton.setEnabled(enabled);
             if (negativeButton != null) negativeButton.setEnabled(enabled);
-            if (orderTypeSpinner != null) orderTypeSpinner.setEnabled(enabled);
-            if (tableNumberEditText != null) tableNumberEditText.setEnabled(enabled);
-            if (customerNameEditText != null) customerNameEditText.setEnabled(enabled);
+
+            // Enable/disable all input controls in the dialog
+            View dialogView = dialog.findViewById(android.R.id.content);
+            if (dialogView != null) {
+                setViewGroupEnabled(dialogView, enabled);
+            }
         } catch (Exception e) {
-            e.printStackTrace();
-            Toast.makeText(context, "Error setting dialog enabled state: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            Log.e(TAG, "Error setting dialog controls enabled state", e);
+        }
+    }
+
+    private void setViewGroupEnabled(View view, boolean enabled) {
+        if (view instanceof Spinner || view instanceof EditText) {
+            view.setEnabled(enabled);
+        } else if (view instanceof android.view.ViewGroup) {
+            android.view.ViewGroup viewGroup = (android.view.ViewGroup) view;
+            for (int i = 0; i < viewGroup.getChildCount(); i++) {
+                setViewGroupEnabled(viewGroup.getChildAt(i), enabled);
+            }
+        }
+    }
+
+    private void runOnUiThread(Runnable runnable) {
+        if (context instanceof android.app.Activity) {
+            ((android.app.Activity) context).runOnUiThread(runnable);
+        } else {
+            // Fallback - run immediately (may not be on UI thread)
+            runnable.run();
         }
     }
 }
