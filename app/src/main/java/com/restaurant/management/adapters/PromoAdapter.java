@@ -11,6 +11,8 @@ import androidx.annotation.NonNull;
 import androidx.cardview.widget.CardView;
 import androidx.recyclerview.widget.RecyclerView;
 
+import com.bumptech.glide.Glide;
+import com.bumptech.glide.load.engine.DiskCacheStrategy;
 import com.restaurant.management.R;
 import com.restaurant.management.models.Promo;
 
@@ -82,29 +84,28 @@ public class PromoAdapter extends RecyclerView.Adapter<PromoAdapter.PromoViewHol
         }
 
         public void bind(Promo promo) {
-            promoNameTextView.setText(promo.getDisplayName());
-            promoDescriptionTextView.setText(promo.getPromoDescription());
+            // Use description as title instead of display name
+            String description = promo.getPromoDescription();
+            if (description != null && !description.trim().isEmpty()) {
+                promoNameTextView.setText(description);
+                promoDescriptionTextView.setVisibility(View.GONE);
+            } else {
+                promoNameTextView.setText(promo.getDisplayName());
+                promoDescriptionTextView.setVisibility(View.GONE);
+            }
+
             promoDiscountTextView.setText(promo.getFormattedDiscount());
 
             // Format validity dates
             String validityText = formatValidityDates(promo.getStartDate(), promo.getEndDate());
             promoValidityTextView.setText(validityText);
 
-            // Handle image placeholder - use a simple drawable or color
-            if (promo.hasImage()) {
-                // You can use an image loading library like Glide or Picasso here
-                // For now, we'll use a simple colored background
-                promoImageView.setBackgroundColor(0xFF4CAF50); // Green background
-                promoImageView.setVisibility(View.VISIBLE);
-            } else {
-                promoImageView.setBackgroundColor(0xFFE3F2FD); // Light blue background
-                promoImageView.setVisibility(View.VISIBLE);
-            }
+            // FIXED: Proper image loading
+            handlePromoImage(promo);
 
             // Set different card colors based on promo type with fallback
             try {
                 if ("Bundle".equalsIgnoreCase(promo.getType())) {
-                    // Try to use custom color, fallback to standard colors if not available
                     int colorId = getColorSafely(R.color.bundle_promo_bg, 0xFFE8F5E8);
                     cardView.setCardBackgroundColor(colorId);
                 } else if ("Discount".equalsIgnoreCase(promo.getType())) {
@@ -115,7 +116,6 @@ public class PromoAdapter extends RecyclerView.Adapter<PromoAdapter.PromoViewHol
                     cardView.setCardBackgroundColor(colorId);
                 }
             } catch (Exception e) {
-                // Fallback to white background if colors are not defined
                 cardView.setCardBackgroundColor(0xFFFFFFFF);
             }
 
@@ -123,10 +123,10 @@ public class PromoAdapter extends RecyclerView.Adapter<PromoAdapter.PromoViewHol
             if (!promo.isActive()) {
                 cardView.setAlpha(0.6f);
                 promoDiscountTextView.setText("EXPIRED");
-                promoDiscountTextView.setBackgroundColor(0xFF9E9E9E); // Gray background for expired
+                promoDiscountTextView.setBackgroundColor(0xFF9E9E9E);
             } else {
                 cardView.setAlpha(1.0f);
-                promoDiscountTextView.setBackgroundColor(0xFFFF4444); // Red background for active
+                promoDiscountTextView.setBackgroundColor(0xFFFF4444);
             }
 
             // Set click listener
@@ -135,6 +135,44 @@ public class PromoAdapter extends RecyclerView.Adapter<PromoAdapter.PromoViewHol
                     listener.onPromoClick(promo);
                 }
             });
+        }
+
+        private void handlePromoImage(Promo promo) {
+            if (promo.hasImage()) {
+                String imageUrl = promo.getPicture();
+
+                if (imageUrl != null && !imageUrl.trim().isEmpty()) {
+                    // Load image with Glide
+                    Glide.with(context)
+                            .load(imageUrl)
+                            .placeholder(R.drawable.ic_promo_placeholder) // Show while loading
+                            .error(R.drawable.ic_promo_error) // Show if loading fails
+                            .diskCacheStrategy(DiskCacheStrategy.ALL) // Cache the image
+                            .centerCrop() // Scale image to fill the ImageView
+                            .into(promoImageView);
+
+                    promoImageView.setVisibility(View.VISIBLE);
+                } else {
+                    // Has image flag but no URL - show placeholder
+                    setPlaceholderImage();
+                }
+            } else {
+                // No image - hide the image view
+                promoImageView.setVisibility(View.GONE);
+            }
+        }
+
+        private void setPlaceholderImage() {
+            try {
+                // Use Glide to load placeholder drawable
+                Glide.with(context)
+                        .load(R.drawable.ic_promo_placeholder)
+                        .into(promoImageView);
+                promoImageView.setVisibility(View.VISIBLE);
+            } catch (Exception e) {
+                // Ultimate fallback - hide the image view
+                promoImageView.setVisibility(View.GONE);
+            }
         }
 
         private int getColorSafely(int colorResId, int fallbackColor) {
