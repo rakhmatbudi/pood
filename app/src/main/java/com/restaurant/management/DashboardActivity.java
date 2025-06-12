@@ -23,8 +23,17 @@ import com.google.android.material.navigation.NavigationView;
 import com.restaurant.management.adapters.CashierSessionAdapter;
 import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.adapters.PromoAdapter;
-import com.restaurant.management.repositories.PromoRepository; // CHANGED: Using repository instead of helper
+import com.restaurant.management.repositories.PromoRepository;
 import com.restaurant.management.models.Promo;
+import com.restaurant.management.network.ApiClient;
+import com.chuckerteam.chucker.api.ChuckerCollector;
+import com.chuckerteam.chucker.api.ChuckerInterceptor;
+import com.chuckerteam.chucker.api.RetentionManager;
+import com.chuckerteam.chucker.api.Chucker;
+import android.hardware.SensorManager;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -66,19 +75,34 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     private ProgressBar promosProgressBar;
     private TextView promosHeaderTextView;
     private List<Promo> promos = new ArrayList<>();
-    private PromoRepository promoRepository; // CHANGED: Using repository instead of helper
+    private PromoRepository promoRepository;
     private PromoAdapter promoAdapter;
 
     private int userId;
     private String userName;
     private List<CashierSession> cashierSessions = new ArrayList<>();
-    private OkHttpClient client = new OkHttpClient();
+
+    // CHANGED: Use ApiClient to get OkHttpClient with Chucker integration
+    private OkHttpClient client;
+
+    // NEW: Shake detection fields
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private long lastUpdate = 0;
+    private float last_x, last_y, last_z;
+    private static final int SHAKE_THRESHOLD = 600;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         try {
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_dashboard);
+
+            // CHANGED: Initialize OkHttpClient using ApiClient for Chucker integration
+            initializeHttpClient();
+
+            // NEW: Initialize shake detection for Chucker
+            initializeShakeDetection();
 
             // Initialize toolbar
             Toolbar toolbar = findViewById(R.id.toolbar);
@@ -94,6 +118,9 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             endSessionButton = findViewById(R.id.end_session_button);
 
             initializePromoComponents();
+
+            // NEW: Setup debug options (long press to open Chucker)
+            setupDebugOptions();
 
             // Try to find the RecyclerView components, but don't crash if not found
             pastSessionsRecyclerView = findViewById(R.id.past_sessions_recycler_view);
@@ -193,6 +220,128 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                     getString(R.string.error_initializing, e.getMessage()),
                     Toast.LENGTH_LONG).show();
         }
+    }
+
+    // NEW METHOD: Initialize HTTP client with Chucker integration
+    private void initializeHttpClient() {
+        try {
+            ChuckerCollector chuckerCollector = new ChuckerCollector(
+                    this,
+                    true, // Show notification
+                    RetentionManager.Period.ONE_HOUR
+            );
+
+            ChuckerInterceptor chuckerInterceptor = new ChuckerInterceptor.Builder(this)
+                    .collector(chuckerCollector)
+                    .maxContentLength(250_000L)
+                    .redactHeaders("Authorization", "Cookie")
+                    .alwaysReadResponseBody(true)
+                    .createShortcut(true)
+                    .build();
+
+            // Add logging interceptor too
+            okhttp3.logging.HttpLoggingInterceptor loggingInterceptor =
+                    new okhttp3.logging.HttpLoggingInterceptor();
+            loggingInterceptor.setLevel(okhttp3.logging.HttpLoggingInterceptor.Level.BODY);
+
+            client = new OkHttpClient.Builder()
+                    .addInterceptor(loggingInterceptor)
+                    .addInterceptor(chuckerInterceptor)
+                    .build();
+
+        } catch (Exception e) {
+            Log.e(TAG, "❌ Failed to initialize HTTP client with Chucker, falling back to basic client", e);
+            // Fallback to basic OkHttpClient if ApiClient fails
+            client = new OkHttpClient();
+        }
+    }
+
+    // NEW METHOD: Initialize shake detection
+    private void initializeShakeDetection() {
+        try {
+            sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+            if (sensorManager != null) {
+                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                if (accelerometer != null) {
+                    sensorManager.registerListener(shakeListener, accelerometer,
+                            SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize shake detection", e);
+        }
+    }
+
+    // NEW: Shake detection listener
+    private final SensorEventListener shakeListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            long curTime = System.currentTimeMillis();
+
+            if ((curTime - lastUpdate) > 100) {
+                long diffTime = (curTime - lastUpdate);
+                lastUpdate = curTime;
+
+                float x = event.values[0];
+                float y = event.values[1];
+                float z = event.values[2];
+
+                float speed = Math.abs(x + y + z - last_x - last_y - last_z) / diffTime * 10000;
+
+                if (speed > SHAKE_THRESHOLD) {
+                    launchChucker();
+                }
+
+                last_x = x;
+                last_y = y;
+                last_z = z;
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            // Not needed
+        }
+    };
+
+    // NEW METHOD: Launch Chucker manually
+    private void launchChucker() {
+        try {
+            startActivity(Chucker.getLaunchIntent(this));
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch Chucker", e);
+        }
+    }
+
+    // NEW METHOD: Setup debug options (long press to open Chucker)
+    private void setupDebugOptions() {
+        // Long press on user name to open Chucker (alternative to shake)
+        if (userNameTextView != null) {
+            userNameTextView.setOnLongClickListener(v -> {
+                launchChucker();
+                return true;
+            });
+        }
+    }
+
+    // NEW METHOD: Create test network request to verify Chucker
+    private void testChuckerRequest() {
+        Request testRequest = new Request.Builder()
+                .url("https://httpbin.org/get") // Simple test endpoint
+                .addHeader("X-Test-Header", "Chucker-Test")
+                .build();
+
+        client.newCall(testRequest).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Test request failed", e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                response.body().close();
+            }
+        });
     }
 
     // UPDATED: Using PromoRepository instead of PromoApiHelper
@@ -340,10 +489,36 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         super.onResume();
         // Check for active session when activity resumes
         checkActiveCashierSession();
+
+        // Re-register shake detection if needed
+        if (sensorManager != null && accelerometer != null) {
+            sensorManager.registerListener(shakeListener, accelerometer,
+                    SensorManager.SENSOR_DELAY_NORMAL);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister shake detection to save battery
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+
+        // Clean up shake detection
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
+        }
     }
 
     /**
      * Checks if there's an active cashier session by calling the API
+     * NOW USES CHUCKER-ENABLED HTTP CLIENT
      */
     private void checkActiveCashierSession() {
         if (loadingProgressBar != null) {
@@ -354,8 +529,11 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
 
         Request request = new Request.Builder()
                 .url(API_URL)
+                .addHeader("User-Agent", "RestaurantApp/1.0")
+                .addHeader("X-Debug", "DashboardActivity")
                 .build();
 
+        // This call will now be visible in Chucker! 🎉
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {

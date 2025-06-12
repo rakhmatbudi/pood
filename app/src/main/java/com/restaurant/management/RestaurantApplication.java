@@ -37,7 +37,6 @@ public class RestaurantApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "App started - downloading menu data and promos");
 
         database = new PoodDatabase(this);
         client = new OkHttpClient();
@@ -48,11 +47,8 @@ public class RestaurantApplication extends Application {
 
     private void downloadAllDataOnStart() {
         if (!NetworkUtils.isNetworkAvailable(this)) {
-            Log.d(TAG, "No network - skipping download");
             return;
         }
-
-        Log.d(TAG, "Network available - starting downloads");
 
         // Download categories, menu items, and promos
         pendingRequests.set(3); // We have 3 API calls to make
@@ -93,10 +89,7 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<MenuCategory> categories = parseMenuCategories(jsonResponse);
 
-                    Log.d(TAG, "Downloaded " + categories.size() + " categories");
-
                     database.saveMenuCategories(categories);
-                    Log.d(TAG, "Categories saved to database");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing categories download: " + e.getMessage());
@@ -139,18 +132,7 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<ProductItem> items = parseMenuItems(jsonResponse);
 
-                    Log.d(TAG, "Downloaded " + items.size() + " menu items");
-
-                    // Check Affogato price in downloaded data
-                    for (ProductItem item : items) {
-                        if ("Affogato".equals(item.getName())) {
-                            Log.d(TAG, "Affogato price from API: " + item.getPrice());
-                            break;
-                        }
-                    }
-
                     database.saveMenuItems(items);
-                    Log.d(TAG, "Menu items saved to database");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing menu items download: " + e.getMessage());
@@ -193,10 +175,7 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<Promo> promos = parsePromos(jsonResponse);
 
-                    Log.d(TAG, "Downloaded " + promos.size() + " promos");
-
                     database.savePromos(promos);
-                    Log.d(TAG, "Promos saved to database");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing promos download: " + e.getMessage());
@@ -406,14 +385,12 @@ public class RestaurantApplication extends Application {
     private void decrementPendingRequests() {
         int remaining = pendingRequests.decrementAndGet();
         if (remaining == 0) {
-            Log.d(TAG, "All downloads completed (menu data + promos)");
             onAllDownloadsComplete();
         }
     }
 
     private void onAllDownloadsComplete() {
         // This method is called when categories, menu items, and promos have been downloaded
-        Log.d(TAG, "App initialization complete - all data ready to use");
     }
 
     private double parsePrice(String priceString) {
