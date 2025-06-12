@@ -1,9 +1,7 @@
 package com.restaurant.management.helpers;
 
 import android.content.Context;
-import android.widget.Toast;
 
-import com.restaurant.management.R;
 import com.restaurant.management.models.Discount;
 import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.RoundingConfig;

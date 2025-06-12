@@ -1,6 +1,5 @@
 package com.restaurant.management;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.util.Log;
 import android.widget.Button;

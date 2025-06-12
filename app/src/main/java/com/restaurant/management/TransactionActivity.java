@@ -12,12 +12,6 @@ import android.widget.ExpandableListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-import android.Manifest;
-import android.bluetooth.BluetoothAdapter;
-import android.bluetooth.BluetoothDevice;
-import android.bluetooth.BluetoothSocket;
-import android.content.pm.PackageManager;
-import android.os.Build;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
@@ -28,11 +22,8 @@ import java.io.OutputStream;
 import java.util.Set;
 import java.util.UUID;
 
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
 
 import com.restaurant.management.adapters.TransactionExpandableListAdapter;
 import com.restaurant.management.models.CashierSession;
@@ -43,10 +34,7 @@ import com.restaurant.management.models.SessionWithPayments;
 import com.restaurant.management.models.PaymentData;
 import com.restaurant.management.network.ApiClient;
 import com.restaurant.management.network.ApiService;
-import com.restaurant.management.printing.PrintTemplateManager;
 
-import java.io.IOException;
-import java.io.OutputStream;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -55,9 +43,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TimeZone;
-import java.util.UUID;
 
 import retrofit2.Call;
 import retrofit2.Callback;

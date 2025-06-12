@@ -102,10 +102,8 @@ public class OrderDialogHelper {
 
             if (cachedOrderTypes != null && !cachedOrderTypes.isEmpty()) {
                 setupOrderTypeSpinner(orderTypeSpinner, cachedOrderTypes);
-                Log.d(TAG, "Loaded " + cachedOrderTypes.size() + " order types from cache");
             } else {
                 // No cached data - use fallback
-                Log.w(TAG, "No cached order types found, using fallback");
                 setupOrderTypeSpinner(orderTypeSpinner, getFallbackOrderTypes());
             }
 
@@ -132,11 +130,13 @@ public class OrderDialogHelper {
 
         } catch (Exception e) {
             Log.e(TAG, "Error setting up order type spinner", e);
-            // Emergency fallback
+
+            // Emergency fallback with basic string items
             List<String> basicItems = new ArrayList<>();
             basicItems.add("Select Order Type");
             basicItems.add("Dine In");
             basicItems.add("Take Away");
+            basicItems.add("Delivery");
 
             ArrayAdapter<String> basicAdapter = new ArrayAdapter<>(context,
                     android.R.layout.simple_spinner_item, basicItems);
@@ -150,6 +150,9 @@ public class OrderDialogHelper {
         fallbackTypes.add(new OrderType(1, "Dine In"));
         fallbackTypes.add(new OrderType(2, "Take Away"));
         fallbackTypes.add(new OrderType(3, "Delivery"));
+        fallbackTypes.add(new OrderType(4, "GoFood"));
+        fallbackTypes.add(new OrderType(5, "GrabFood"));
+        fallbackTypes.add(new OrderType(6, "ShopeeFood"));
         return fallbackTypes;
     }
 
@@ -178,8 +181,13 @@ public class OrderDialogHelper {
             loadingToast.show();
 
             // Create order request
-            CreateOrderRequest request = new CreateOrderRequest(sessionId, tableNumber,
-                    customerName, selectedOrderType.getId());
+            CreateOrderRequest request = new CreateOrderRequest(
+                    sessionId,                    // long sessionId
+                    tableNumber,                  // String tableNumber
+                    null,                        // Long customerId - using null since we don't have customer ID
+                    selectedOrderType.getId(),   // long orderTypeId
+                    null                         // Long serverId - using null as default
+            );
 
             // Make API call
             apiService.createOrder(request).enqueue(new Callback<CreateOrderResponse>() {
@@ -215,11 +223,39 @@ public class OrderDialogHelper {
     }
 
     private OrderType getSelectedOrderType(Spinner orderTypeSpinner) {
-        if (orderTypeSpinner.getSelectedItem() instanceof OrderType) {
-            OrderType selected = (OrderType) orderTypeSpinner.getSelectedItem();
-            return selected.getId() > 0 ? selected : null; // Ignore placeholder
+        try {
+            Object selectedItem = orderTypeSpinner.getSelectedItem();
+
+            if (selectedItem instanceof OrderType) {
+                OrderType selected = (OrderType) selectedItem;
+                return selected.getId() > 0 ? selected : null; // Ignore placeholder
+            } else if (selectedItem instanceof String) {
+                // Handle emergency fallback case where we used strings
+                String selectedString = (String) selectedItem;
+                if (!"Select Order Type".equals(selectedString)) {
+                    // Create a basic OrderType for fallback
+                    int id = getFallbackOrderTypeId(selectedString);
+                    return new OrderType(id, selectedString);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting selected order type", e);
         }
+
         return null;
+    }
+
+    private int getFallbackOrderTypeId(String orderTypeName) {
+        // Map string names to IDs for emergency fallback
+        switch (orderTypeName) {
+            case "Dine In": return 1;
+            case "Take Away": return 2;
+            case "Delivery": return 3;
+            case "GoFood": return 4;
+            case "GrabFood": return 5;
+            case "ShopeeFood": return 6;
+            default: return 1; // Default to Dine In
+        }
     }
 
     private void handleCreateOrderResponse(AlertDialog dialog, Toast loadingToast,
@@ -234,9 +270,13 @@ public class OrderDialogHelper {
                     if (orderResponse.isSuccess()) {
                         // Success - close dialog and notify listener
                         dialog.dismiss();
-                        String message = orderResponse.getMessage() != null ?
-                                orderResponse.getMessage() : "Order created successfully";
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+
+                        String successMessage = "Order created successfully";
+                        if (orderResponse.getData() != null) {
+                            successMessage += " (Order #" + orderResponse.getOrderId() + ")";
+                        }
+
+                        Toast.makeText(context, successMessage, Toast.LENGTH_SHORT).show();
 
                         if (orderCreatedListener != null) {
                             orderCreatedListener.onOrderCreated();
@@ -244,8 +284,10 @@ public class OrderDialogHelper {
                     } else {
                         // API error in response body
                         setDialogControlsEnabled(dialog, true);
-                        String errorMessage = orderResponse.getMessage() != null ?
-                                orderResponse.getMessage() : "Failed to create order";
+                        String errorMessage = "Failed to create order";
+                        if (orderResponse.getStatus() != null && !orderResponse.getStatus().isEmpty()) {
+                            errorMessage += ": " + orderResponse.getStatus();
+                        }
                         Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show();
                     }
                 } else {
@@ -280,7 +322,8 @@ public class OrderDialogHelper {
 
         try {
             if (response.errorBody() != null) {
-                errorMessage = response.errorBody().string();
+                String errorBody = response.errorBody().string();
+                errorMessage = errorBody;
             }
         } catch (Exception e) {
             Log.e(TAG, "Error reading error body", e);

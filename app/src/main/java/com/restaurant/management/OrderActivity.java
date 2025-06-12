@@ -24,7 +24,6 @@ import androidx.core.content.ContextCompat;
 import com.restaurant.management.helpers.OrderApiHelper;
 import com.restaurant.management.helpers.OrderUiHelper;
 import com.restaurant.management.models.Order;
-import com.restaurant.management.models.OrderItem;
 import com.restaurant.management.printing.PrintTemplateManager;
 
 import org.json.JSONArray;
@@ -37,10 +36,6 @@ import java.net.URL;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 

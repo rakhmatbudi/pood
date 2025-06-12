@@ -3,7 +3,7 @@ package com.restaurant.management.models;
 import com.google.gson.annotations.SerializedName;
 import java.util.List;
 
-public class OrderTypesResponse {
+public class OrderStatusesResponse {
     @SerializedName("status")
     private String status;
 
@@ -11,9 +11,9 @@ public class OrderTypesResponse {
     private int count;
 
     @SerializedName("data")
-    private List<OrderType> data;
+    private List<OrderStatus> data;
 
-    public OrderTypesResponse() {}
+    public OrderStatusesResponse() {}
 
     public String getStatus() {
         return status;
@@ -31,15 +31,14 @@ public class OrderTypesResponse {
         this.count = count;
     }
 
-    public List<OrderType> getData() {
+    public List<OrderStatus> getData() {
         return data;
     }
 
-    public void setData(List<OrderType> data) {
+    public void setData(List<OrderStatus> data) {
         this.data = data;
     }
 
-    // Helper method to check if response was successful
     public boolean isSuccess() {
         return "success".equals(status);
     }

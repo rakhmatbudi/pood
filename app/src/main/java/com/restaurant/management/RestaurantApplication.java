@@ -53,7 +53,7 @@ public class RestaurantApplication extends Application {
         }
 
         // Download categories, menu items, promos, order types, and order statuses
-        pendingRequests.set(5); // We now have 5 API calls to make
+        pendingRequests.set(5);
         downloadMenuCategories();
         downloadMenuItems();
         downloadPromos();
@@ -223,7 +223,6 @@ public class RestaurantApplication extends Application {
                     List<OrderType> orderTypes = parseOrderTypes(jsonResponse);
 
                     database.saveOrderTypes(orderTypes);
-                    Log.d(TAG, "Order types saved: " + orderTypes.size());
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing order types download: " + e.getMessage());
@@ -267,7 +266,6 @@ public class RestaurantApplication extends Application {
                     List<OrderStatus> orderStatuses = parseOrderStatuses(jsonResponse);
 
                     database.saveOrderStatuses(orderStatuses);
-                    Log.d(TAG, "Order statuses saved: " + orderStatuses.size());
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing order statuses download: " + e.getMessage());
@@ -296,23 +294,14 @@ public class RestaurantApplication extends Application {
                 JSONObject typeJson = typesArray.getJSONObject(i);
                 OrderType orderType = new OrderType();
 
-                // Only set fields that exist in your OrderType class
                 orderType.setId(typeJson.optLong("id", -1));
                 orderType.setName(typeJson.optString("name", ""));
 
-                // Remove all other fields since the methods don't exist:
-                // - setDescription() doesn't exist
-                // - setActive() doesn't exist
-                // - setCreatedAt() doesn't exist
-                // - setUpdatedAt() doesn't exist
-
-                // Only add order types with valid data
                 if (orderType.getId() > 0 && !orderType.getName().isEmpty()) {
                     orderTypes.add(orderType);
                 }
             }
 
-            // Sort order types by name
             Collections.sort(orderTypes, (type1, type2) ->
                     type1.getName().compareToIgnoreCase(type2.getName()));
         }
@@ -338,24 +327,14 @@ public class RestaurantApplication extends Application {
                 JSONObject statusJson = statusesArray.getJSONObject(i);
                 OrderStatus orderStatus = new OrderStatus();
 
-                // Only set fields that exist in your OrderStatus class
                 orderStatus.setId(statusJson.optLong("id", -1));
                 orderStatus.setName(statusJson.optString("name", ""));
 
-                // Remove all other fields since the methods might not exist:
-                // - setDescription() might not exist
-                // - setColor() might not exist
-                // - setActive() might not exist
-                // - setCreatedAt() might not exist
-                // - setUpdatedAt() might not exist
-
-                // Only add order statuses with valid data
                 if (orderStatus.getId() > 0 && !orderStatus.getName().isEmpty()) {
                     orderStatuses.add(orderStatus);
                 }
             }
 
-            // Sort order statuses by name
             Collections.sort(orderStatuses, (status1, status2) ->
                     status1.getName().compareToIgnoreCase(status2.getName()));
         }
@@ -363,7 +342,6 @@ public class RestaurantApplication extends Application {
         return orderStatuses;
     }
 
-    // Keep existing parsing methods for categories, items, and promos...
     private List<MenuCategory> parseMenuCategories(JSONObject jsonResponse) throws JSONException {
         List<MenuCategory> categories = new ArrayList<>();
 
@@ -388,14 +366,12 @@ public class RestaurantApplication extends Application {
                 category.setCreatedAt(categoryJson.optString("created_at", ""));
                 category.setUpdatedAt(categoryJson.optString("updated_at", ""));
 
-                // Map API fields to your MenuCategory fields
                 category.setDisplayed(categoryJson.optBoolean("is_displayed", true));
                 category.setHighlight(categoryJson.optBoolean("is_highlight", false));
                 category.setDisplayForSelfOrder(categoryJson.optBoolean("is_display_for_self_order", true));
                 category.setSkuId(categoryJson.optString("sku_id", ""));
                 category.setMenuCategoryGroup(categoryJson.optString("menu_category_group", ""));
 
-                // Handle display picture - check multiple possible field names
                 if (categoryJson.has("display_picture") && !categoryJson.isNull("display_picture")) {
                     category.setDisplayPicture(categoryJson.optString("display_picture", ""));
                 } else if (categoryJson.has("image_url") && !categoryJson.isNull("image_url")) {
@@ -407,7 +383,6 @@ public class RestaurantApplication extends Application {
                 categories.add(category);
             }
 
-            // Sort categories by name
             Collections.sort(categories, (cat1, cat2) ->
                     cat1.getName().compareToIgnoreCase(cat2.getName()));
         }
@@ -508,7 +483,6 @@ public class RestaurantApplication extends Application {
                 JSONObject promoJson = promosArray.getJSONObject(i);
                 Promo promo = new Promo();
 
-                // Map API fields to your Promo class fields
                 promo.setPromoId(promoJson.optLong("promo_id", -1));
                 promo.setPromoName(promoJson.optString("promo_name", ""));
                 promo.setPromoDescription(promoJson.optString("promo_description", ""));
@@ -520,7 +494,6 @@ public class RestaurantApplication extends Application {
                 promo.setDiscountAmount(promoJson.optString("discount_amount", ""));
                 promo.setActive(promoJson.optBoolean("is_active", false));
 
-                // Handle image/picture field - check multiple possible field names
                 if (promoJson.has("picture") && !promoJson.isNull("picture")) {
                     promo.setPicture(promoJson.optString("picture", ""));
                 } else if (promoJson.has("image_url") && !promoJson.isNull("image_url")) {
@@ -529,7 +502,6 @@ public class RestaurantApplication extends Application {
                     promo.setPicture(promoJson.optString("image_path", ""));
                 }
 
-                // Handle promo items if they exist in the API response
                 if (promoJson.has("promo_items") && !promoJson.isNull("promo_items")) {
                     JSONArray itemsArray = promoJson.getJSONArray("promo_items");
                     List<Promo.PromoItem> promoItems = new ArrayList<>();
@@ -546,13 +518,11 @@ public class RestaurantApplication extends Application {
                     promo.setPromoItems(promoItems);
                 }
 
-                // Only add active promos
                 if (promo.isActive()) {
                     promos.add(promo);
                 }
             }
 
-            // Sort promos by name
             Collections.sort(promos, (promo1, promo2) ->
                     promo1.getPromoName().compareToIgnoreCase(promo2.getPromoName()));
         }
@@ -568,8 +538,7 @@ public class RestaurantApplication extends Application {
     }
 
     private void onAllDownloadsComplete() {
-        Log.d(TAG, "All data downloads completed");
-        // This method is called when categories, menu items, promos, order types, and order statuses have been downloaded
+        // This method is called when all data downloads are completed
     }
 
     private double parsePrice(String priceString) {
@@ -589,12 +558,10 @@ public class RestaurantApplication extends Application {
         }
     }
 
-    // Public method to get cached order types
     public List<OrderType> getCachedOrderTypes() {
         return database.getOrderTypes();
     }
 
-    // Public method to get cached order statuses
     public List<OrderStatus> getCachedOrderStatuses() {
         return database.getOrderStatuses();
     }

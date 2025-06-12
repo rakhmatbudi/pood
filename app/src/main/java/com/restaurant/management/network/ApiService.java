@@ -8,6 +8,8 @@ import com.restaurant.management.models.MenuItemResponse;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.models.OrderType;
+import com.restaurant.management.models.OrderTypesResponse;
+import com.restaurant.management.models.OrderStatusesResponse;
 import com.restaurant.management.models.CreateOrderRequest;
 import com.restaurant.management.models.CreateOrderResponse;
 
@@ -48,7 +50,7 @@ public interface ApiService {
     @GET("menu-items")
     Call<MenuItemResponse> getMenuItems();
 
-    // NEW ORDER-RELATED METHODS:
+    // ORDER-RELATED METHODS:
 
     /**
      * Get all orders for a session
@@ -67,18 +69,18 @@ public interface ApiService {
     Call<CreateOrderResponse> createOrder(@Body CreateOrderRequest request);
 
     /**
-     * Get all order types
-     * @return Call object with List of OrderType
+     * Get all order types - FIXED to use wrapper response
+     * @return Call object with OrderTypesResponse
      */
     @GET("order-types")
-    Call<List<OrderType>> getOrderTypes();
+    Call<OrderTypesResponse> getOrderTypes();
 
     /**
-     * Get all order statuses
-     * @return Call object with List of OrderStatus
+     * Get all order statuses - FIXED to use wrapper response
+     * @return Call object with OrderStatusesResponse
      */
     @GET("order-statuses")
-    Call<List<OrderStatus>> getOrderStatuses();
+    Call<OrderStatusesResponse> getOrderStatuses();
 
     /**
      * Get a specific order by ID

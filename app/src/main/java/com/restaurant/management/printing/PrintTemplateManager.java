@@ -7,8 +7,6 @@ import android.util.Log;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
 
-import org.json.JSONException;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
