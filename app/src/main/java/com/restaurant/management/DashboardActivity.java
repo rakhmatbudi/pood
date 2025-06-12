@@ -209,8 +209,8 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             noPromosTextView.setVisibility(View.GONE);
         }
 
-        // CHANGED: Using repository callback instead of helper callback
-        promoRepository.fetchActivePromos(new PromoRepository.PromoCallback() {
+        // CHANGED: Load from offline database instead of API
+        promoRepository.getOfflinePromos(new PromoRepository.PromoCallback() {
             @Override
             public void onSuccess(List<Promo> fetchedPromos) {
                 runOnUiThread(() -> {
@@ -227,7 +227,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                         }
                         if (noPromosTextView != null) {
                             noPromosTextView.setVisibility(View.VISIBLE);
-                            noPromosTextView.setText("No active promotions available");
+                            noPromosTextView.setText("No promotions available");
                         }
                     } else {
                         if (promosRecyclerView != null) {
@@ -260,10 +260,47 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
 
                     if (noPromosTextView != null) {
                         noPromosTextView.setVisibility(View.VISIBLE);
-                        noPromosTextView.setText("Failed to load promotions: " + message);
+                        noPromosTextView.setText("No promotions available");
                     }
 
-                    Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show();
+                    Log.e(TAG, "Failed to load offline promos: " + message);
+                });
+            }
+        });
+    }
+
+    private void testPromoDatabase() {
+        Log.d(TAG, "testPromoDatabase called");
+
+        // Test direct database access
+        promoRepository.testDirectDatabaseAccess(new PromoRepository.PromoCallback() {
+            @Override
+            public void onSuccess(List<Promo> fetchedPromos) {
+                Log.d(TAG, "testPromoDatabase SUCCESS: Got " + fetchedPromos.size() + " promos");
+
+                for (Promo promo : fetchedPromos) {
+                    Log.d(TAG, "Test Promo: ID=" + promo.getPromoId() +
+                            ", Name='" + promo.getPromoName() + "'" +
+                            ", Active=" + promo.isActive() +
+                            ", DisplayName='" + promo.getDisplayName() + "'");
+                }
+
+                // Show a toast with the count
+                runOnUiThread(() -> {
+                    Toast.makeText(DashboardActivity.this,
+                            "Database test: Found " + fetchedPromos.size() + " promos",
+                            Toast.LENGTH_LONG).show();
+                });
+            }
+
+            @Override
+            public void onError(String message) {
+                Log.e(TAG, "testPromoDatabase ERROR: " + message);
+
+                runOnUiThread(() -> {
+                    Toast.makeText(DashboardActivity.this,
+                            "Database test error: " + message,
+                            Toast.LENGTH_LONG).show();
                 });
             }
         });

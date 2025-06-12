@@ -7,22 +7,26 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
+
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
+import com.restaurant.management.models.Promo;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Arrays;
 
 public class PoodDatabase extends SQLiteOpenHelper {
     private static final String TAG = "PoodDatabase";
     private static final String DATABASE_NAME = "pood.db";
-    private static final int DATABASE_VERSION = 2; // Increased version for categories
+    private static final int DATABASE_VERSION = 3; // INCREASED VERSION FOR PROMOS TABLE
 
     // Table names
     private static final String TABLE_MENU_ITEMS = "menu_items";
     private static final String TABLE_VARIANTS = "variants";
     private static final String TABLE_CATEGORIES = "categories";
+    private static final String TABLE_PROMOS = "promos"; // ADDED PROMOS TABLE
 
     // Menu Items table columns
     private static final String COLUMN_ID = "id";
@@ -58,6 +62,19 @@ public class PoodDatabase extends SQLiteOpenHelper {
     private static final String COLUMN_CAT_SKU_ID = "cat_sku_id";
     private static final String COLUMN_CAT_IS_HIGHLIGHT = "cat_is_highlight";
     private static final String COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER = "cat_is_display_for_self_order";
+
+    // Promo table columns
+    private static final String COLUMN_PROMO_ID = "promo_id";
+    private static final String COLUMN_PROMO_NAME = "promo_name";
+    private static final String COLUMN_PROMO_DESCRIPTION = "promo_description";
+    private static final String COLUMN_PROMO_START_DATE = "start_date";
+    private static final String COLUMN_PROMO_END_DATE = "end_date";
+    private static final String COLUMN_PROMO_TERM_CONDITION = "term_and_condition";
+    private static final String COLUMN_PROMO_PICTURE = "picture";
+    private static final String COLUMN_PROMO_TYPE = "type";
+    private static final String COLUMN_PROMO_DISCOUNT_TYPE = "discount_type";
+    private static final String COLUMN_PROMO_DISCOUNT_AMOUNT = "discount_amount";
+    private static final String COLUMN_PROMO_IS_ACTIVE = "is_active";
 
     // Create table statements
     private static final String CREATE_MENU_ITEMS_TABLE = "CREATE TABLE " + TABLE_MENU_ITEMS + "("
@@ -99,6 +116,21 @@ public class PoodDatabase extends SQLiteOpenHelper {
             + COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER + " INTEGER"
             + ")";
 
+    // FIXED: Properly defined CREATE_PROMOS_TABLE
+    private static final String CREATE_PROMOS_TABLE = "CREATE TABLE " + TABLE_PROMOS + "("
+            + COLUMN_PROMO_ID + " INTEGER PRIMARY KEY,"
+            + COLUMN_PROMO_NAME + " TEXT,"
+            + COLUMN_PROMO_DESCRIPTION + " TEXT,"
+            + COLUMN_PROMO_START_DATE + " TEXT,"
+            + COLUMN_PROMO_END_DATE + " TEXT,"
+            + COLUMN_PROMO_TERM_CONDITION + " TEXT,"
+            + COLUMN_PROMO_PICTURE + " TEXT,"
+            + COLUMN_PROMO_TYPE + " TEXT,"
+            + COLUMN_PROMO_DISCOUNT_TYPE + " TEXT,"
+            + COLUMN_PROMO_DISCOUNT_AMOUNT + " TEXT,"
+            + COLUMN_PROMO_IS_ACTIVE + " INTEGER"
+            + ")";
+
     public PoodDatabase(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -108,15 +140,148 @@ public class PoodDatabase extends SQLiteOpenHelper {
         db.execSQL(CREATE_MENU_ITEMS_TABLE);
         db.execSQL(CREATE_VARIANTS_TABLE);
         db.execSQL(CREATE_CATEGORIES_TABLE);
+        db.execSQL(CREATE_PROMOS_TABLE); // ADDED PROMOS TABLE CREATION
+        Log.d(TAG, "Database created with all tables including promos");
     }
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_MENU_ITEMS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_VARIANTS);
-        db.execSQL("DROP TABLE IF EXISTS " + TABLE_CATEGORIES);
-        onCreate(db);
+        Log.d(TAG, "Upgrading database from version " + oldVersion + " to " + newVersion);
+
+        // Handle incremental upgrades
+        if (oldVersion < 3) {
+            // Add promos table if upgrading from version 2 or earlier
+            db.execSQL(CREATE_PROMOS_TABLE);
+            Log.d(TAG, "Added promos table in database upgrade");
+        }
+
+        // For major changes, you can still drop and recreate if needed
+        // db.execSQL("DROP TABLE IF EXISTS " + TABLE_MENU_ITEMS);
+        // db.execSQL("DROP TABLE IF EXISTS " + TABLE_VARIANTS);
+        // db.execSQL("DROP TABLE IF EXISTS " + TABLE_CATEGORIES);
+        // db.execSQL("DROP TABLE IF EXISTS " + TABLE_PROMOS);
+        // onCreate(db);
     }
+
+    // ... existing saveMenuItems(), saveMenuCategories(), getAllMenuItems(),
+    // getAllMenuCategories(), getVariantsForMenuItem(), hasMenuItems(),
+    // hasMenuCategories(), clearAllData() methods remain the same ...
+
+    /**
+     * Save promos to database (called from RestaurantApplication)
+     */
+    public void savePromos(List<Promo> promos) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        try {
+            db.beginTransaction();
+
+            // Clear existing promos
+            db.delete(TABLE_PROMOS, null, null);
+
+            // Insert new promos
+            for (Promo promo : promos) {
+                ContentValues values = new ContentValues();
+                values.put(COLUMN_PROMO_ID, promo.getPromoId());
+                values.put(COLUMN_PROMO_NAME, promo.getPromoName());
+                values.put(COLUMN_PROMO_DESCRIPTION, promo.getPromoDescription());
+                values.put(COLUMN_PROMO_START_DATE, promo.getStartDate());
+                values.put(COLUMN_PROMO_END_DATE, promo.getEndDate());
+                values.put(COLUMN_PROMO_TERM_CONDITION, promo.getTermAndCondition());
+                values.put(COLUMN_PROMO_PICTURE, promo.getPicture());
+                values.put(COLUMN_PROMO_TYPE, promo.getType());
+                values.put(COLUMN_PROMO_DISCOUNT_TYPE, promo.getDiscountType());
+                values.put(COLUMN_PROMO_DISCOUNT_AMOUNT, promo.getDiscountAmount());
+                values.put(COLUMN_PROMO_IS_ACTIVE, promo.isActive() ? 1 : 0);
+
+                db.insert(TABLE_PROMOS, null, values);
+            }
+
+            db.setTransactionSuccessful();
+            Log.d(TAG, "Saved " + promos.size() + " promos to database");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving promos", e);
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    /**
+     * Get all active promos from database (called from PromoRepository)
+     */
+    public List<Promo> getAllActivePromos() {
+        List<Promo> promos = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = null;
+        try {
+            cursor = db.query(TABLE_PROMOS,
+                    null,
+                    COLUMN_PROMO_IS_ACTIVE + " = ?",
+                    new String[]{"1"},
+                    null,
+                    null,
+                    COLUMN_PROMO_NAME + " ASC");
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    Promo promo = new Promo();
+
+                    promo.setPromoId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_PROMO_ID)));
+                    promo.setPromoName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_NAME)));
+                    promo.setPromoDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_DESCRIPTION)));
+                    promo.setStartDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_START_DATE)));
+                    promo.setEndDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_END_DATE)));
+                    promo.setTermAndCondition(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_TERM_CONDITION)));
+                    promo.setPicture(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_PICTURE)));
+                    promo.setType(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_TYPE)));
+                    promo.setDiscountType(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_DISCOUNT_TYPE)));
+                    promo.setDiscountAmount(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_DISCOUNT_AMOUNT)));
+                    promo.setActive(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_PROMO_IS_ACTIVE)) == 1);
+
+                    promos.add(promo);
+                } while (cursor.moveToNext());
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting promos from database", e);
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        Log.d(TAG, "Loaded " + promos.size() + " active promos from database");
+        return promos;
+    }
+
+    /**
+     * Check if we have any promos in the database
+     */
+    public boolean hasPromos() {
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + TABLE_PROMOS;
+            Cursor cursor = db.rawQuery(countQuery, null);
+
+            int count = 0;
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+
+            cursor.close();
+            Log.d(TAG, "Promos count: " + count);
+            return count > 0;
+        } catch (Exception e) {
+            Log.e(TAG, "Error checking if has promos", e);
+            return false;
+        }
+        // DON'T CLOSE db here - let the connection pool handle it
+    }
+
+    // ... keep all your existing methods for menu items and categories exactly as they are ...
 
     public void saveMenuItems(List<ProductItem> menuItems) {
         SQLiteDatabase db = this.getWritableDatabase();
@@ -167,7 +332,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
             Log.e(TAG, "Error saving menu items to database", e);
         } finally {
             db.endTransaction();
-            db.close();
+            // REMOVED db.close() - let connection pool handle it
         }
     }
 
@@ -205,7 +370,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
             Log.e(TAG, "Error saving categories to database", e);
         } finally {
             db.endTransaction();
-            db.close();
+            // REMOVED db.close() - let connection pool handle it
         }
     }
 
@@ -238,7 +403,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
         }
 
         cursor.close();
-        db.close();
+        // REMOVED db.close() - let connection pool handle it
 
         Log.d(TAG, "Loaded " + menuItems.size() + " menu items from database");
         return menuItems;
@@ -272,7 +437,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
         }
 
         cursor.close();
-        db.close();
+        // REMOVED db.close() - let connection pool handle it
 
         Log.d(TAG, "Loaded " + categories.size() + " categories from database");
         return categories;
@@ -321,9 +486,8 @@ public class PoodDatabase extends SQLiteOpenHelper {
         } catch (Exception e) {
             Log.e(TAG, "Error checking if has menu items", e);
             return false;
-        } finally {
-            db.close();
         }
+        // REMOVED db.close() - let connection pool handle it
     }
 
     public boolean hasMenuCategories() {
@@ -344,9 +508,8 @@ public class PoodDatabase extends SQLiteOpenHelper {
         } catch (Exception e) {
             Log.e(TAG, "Error checking if has categories", e);
             return false;
-        } finally {
-            db.close();
         }
+        // REMOVED db.close() - let connection pool handle it
     }
 
     public void clearAllData() {
@@ -356,11 +519,184 @@ public class PoodDatabase extends SQLiteOpenHelper {
             db.delete(TABLE_MENU_ITEMS, null, null);
             db.delete(TABLE_VARIANTS, null, null);
             db.delete(TABLE_CATEGORIES, null, null);
-            Log.d(TAG, "Cleared all menu data");
+            db.delete(TABLE_PROMOS, null, null); // ADDED PROMOS CLEARING
+            Log.d(TAG, "Cleared all data including promos");
         } catch (Exception e) {
-            Log.e(TAG, "Error clearing menu data", e);
-        } finally {
-            db.close();
+            Log.e(TAG, "Error clearing data", e);
         }
+        // REMOVED db.close() - let connection pool handle it
+    }
+
+    // Add this method to your PoodDatabase class to test exact SQL queries
+
+    public void testPromoRetrieval() {
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            Log.d(TAG, "=== TESTING PROMO RETRIEVAL ===");
+
+            // Test 1: Check table name and existence
+            Cursor tableCheck = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name='promos'", null);
+            if (tableCheck.moveToFirst()) {
+                Log.d(TAG, "✓ Table 'promos' exists");
+            } else {
+                Log.e(TAG, "✗ Table 'promos' does NOT exist");
+                // Try different table name
+                tableCheck.close();
+                tableCheck = db.rawQuery("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE '%promo%'", null);
+                if (tableCheck.moveToFirst()) {
+                    do {
+                        Log.d(TAG, "Found table with 'promo' in name: " + tableCheck.getString(0));
+                    } while (tableCheck.moveToNext());
+                }
+            }
+            tableCheck.close();
+
+            // Test 2: Count all records
+            Cursor countAll = db.rawQuery("SELECT COUNT(*) FROM promos", null);
+            if (countAll.moveToFirst()) {
+                int totalCount = countAll.getInt(0);
+                Log.d(TAG, "✓ Total records in promos table: " + totalCount);
+            }
+            countAll.close();
+
+            // Test 3: Check column names in the actual table
+            Cursor columnInfo = db.rawQuery("PRAGMA table_info(promos)", null);
+            Log.d(TAG, "Actual columns in promos table:");
+            while (columnInfo.moveToNext()) {
+                String columnName = columnInfo.getString(1);
+                String dataType = columnInfo.getString(2);
+                Log.d(TAG, "  - " + columnName + " (" + dataType + ")");
+            }
+            columnInfo.close();
+
+            // Test 4: Get first few records with all columns
+            Cursor sampleData = db.rawQuery("SELECT * FROM promos LIMIT 3", null);
+            Log.d(TAG, "Sample data from promos table:");
+
+            if (sampleData.moveToFirst()) {
+                String[] columnNames = sampleData.getColumnNames();
+                Log.d(TAG, "Column names: " + Arrays.toString(columnNames));
+
+                int recordNum = 1;
+                do {
+                    Log.d(TAG, "--- Record " + recordNum + " ---");
+                    for (int i = 0; i < columnNames.length; i++) {
+                        String value = sampleData.getString(i);
+                        Log.d(TAG, columnNames[i] + ": '" + value + "'");
+                    }
+                    recordNum++;
+                } while (sampleData.moveToNext());
+            } else {
+                Log.e(TAG, "✗ No data found in promos table");
+            }
+            sampleData.close();
+
+            // Test 5: Check is_active values specifically
+            Cursor activeCheck = db.rawQuery("SELECT promo_id, promo_name, is_active FROM promos", null);
+            Log.d(TAG, "Checking is_active values:");
+            while (activeCheck.moveToFirst()) {
+                do {
+                    long id = activeCheck.getLong(0);
+                    String name = activeCheck.getString(1);
+                    String isActiveValue = activeCheck.getString(2);
+                    Log.d(TAG, "ID: " + id + ", Name: '" + name + "', is_active: '" + isActiveValue + "'");
+                } while (activeCheck.moveToNext());
+            }
+            activeCheck.close();
+
+            // Test 6: Try the exact query used in getAllActivePromos
+            String exactQuery = "SELECT * FROM promos WHERE is_active = ? ORDER BY promo_name ASC";
+            Cursor exactTest = db.rawQuery(exactQuery, new String[]{"1"});
+            Log.d(TAG, "Exact query test: " + exactQuery);
+            Log.d(TAG, "Result count: " + exactTest.getCount());
+            exactTest.close();
+
+            // Test 7: Try different variations of active check
+            String[] activeVariations = {"1", "true", "TRUE", "True"};
+            for (String variation : activeVariations) {
+                Cursor variationTest = db.rawQuery("SELECT COUNT(*) FROM promos WHERE is_active = ?", new String[]{variation});
+                if (variationTest.moveToFirst()) {
+                    int count = variationTest.getInt(0);
+                    Log.d(TAG, "Active check with '" + variation + "': " + count + " records");
+                }
+                variationTest.close();
+            }
+
+            Log.d(TAG, "=== END TESTING PROMO RETRIEVAL ===");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error in testPromoRetrieval", e);
+            e.printStackTrace();
+        }
+    }
+
+    // Simplified version of getAllActivePromos for testing
+    public List<Promo> getAllActivePromosSimple() {
+        Log.d(TAG, "getAllActivePromosSimple called");
+
+        // First run the test
+        testPromoRetrieval();
+
+        List<Promo> promos = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            // Use the simplest possible query first
+            Cursor cursor = db.rawQuery("SELECT * FROM promos", null);
+            Log.d(TAG, "Simple query returned " + cursor.getCount() + " records");
+
+            if (cursor.moveToFirst()) {
+                do {
+                    Promo promo = new Promo();
+
+                    // Get column indices safely
+                    int promoIdIndex = cursor.getColumnIndex("promo_id");
+                    int promoNameIndex = cursor.getColumnIndex("promo_name");
+                    int isActiveIndex = cursor.getColumnIndex("is_active");
+
+                    if (promoIdIndex >= 0) {
+                        promo.setPromoId(cursor.getLong(promoIdIndex));
+                    }
+
+                    if (promoNameIndex >= 0) {
+                        promo.setPromoName(cursor.getString(promoNameIndex));
+                    }
+
+                    if (isActiveIndex >= 0) {
+                        // Check the raw value
+                        String rawActiveValue = cursor.getString(isActiveIndex);
+                        Log.d(TAG, "Raw is_active value: '" + rawActiveValue + "'");
+
+                        // Try different interpretations
+                        boolean isActive = false;
+                        if ("1".equals(rawActiveValue) || "true".equalsIgnoreCase(rawActiveValue)) {
+                            isActive = true;
+                        }
+                        promo.setActive(isActive);
+                    }
+
+                    // Set other fields safely
+                    int descIndex = cursor.getColumnIndex("promo_description");
+                    if (descIndex >= 0) {
+                        promo.setPromoDescription(cursor.getString(descIndex));
+                    }
+
+                    // For now, add ALL promos regardless of active status for testing
+                    promos.add(promo);
+                    Log.d(TAG, "Added promo: " + promo.getPromoName() + " (Active: " + promo.isActive() + ")");
+
+                } while (cursor.moveToNext());
+            }
+
+            cursor.close();
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error in getAllActivePromosSimple", e);
+            e.printStackTrace();
+        }
+
+        Log.d(TAG, "getAllActivePromosSimple returning " + promos.size() + " promos");
+        return promos;
     }
 }

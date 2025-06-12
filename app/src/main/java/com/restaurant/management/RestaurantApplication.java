@@ -7,6 +7,7 @@ import com.restaurant.management.database.PoodDatabase;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
+import com.restaurant.management.models.Promo;
 import com.restaurant.management.utils.NetworkUtils;
 
 import org.json.JSONArray;
@@ -36,16 +37,16 @@ public class RestaurantApplication extends Application {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "App started - downloading menu data");
+        Log.d(TAG, "App started - downloading menu data and promos");
 
         database = new PoodDatabase(this);
         client = new OkHttpClient();
 
-        // Download both menu items and categories on every app start
-        downloadMenuDataOnStart();
+        // Download menu items, categories, and promos on every app start
+        downloadAllDataOnStart();
     }
 
-    private void downloadMenuDataOnStart() {
+    private void downloadAllDataOnStart() {
         if (!NetworkUtils.isNetworkAvailable(this)) {
             Log.d(TAG, "No network - skipping download");
             return;
@@ -53,10 +54,11 @@ public class RestaurantApplication extends Application {
 
         Log.d(TAG, "Network available - starting downloads");
 
-        // Download both categories and menu items
-        pendingRequests.set(2); // We have 2 API calls to make
+        // Download categories, menu items, and promos
+        pendingRequests.set(3); // We have 3 API calls to make
         downloadMenuCategories();
         downloadMenuItems();
+        downloadPromos();
     }
 
     private void downloadMenuCategories() {
@@ -152,6 +154,52 @@ public class RestaurantApplication extends Application {
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing menu items download: " + e.getMessage());
+                } finally {
+                    decrementPendingRequests();
+                }
+            }
+        });
+    }
+
+    private void downloadPromos() {
+        String apiUrl = BASE_API_URL + "promos";
+        String authToken = getAuthToken();
+
+        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
+
+        if (authToken != null && !authToken.isEmpty()) {
+            requestBuilder.header("Authorization", "Bearer " + authToken);
+        }
+
+        Request request = requestBuilder.build();
+
+        client.newCall(request).enqueue(new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                Log.e(TAG, "Promos download failed: " + e.getMessage());
+                decrementPendingRequests();
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                try {
+                    String responseBody = response.body().string();
+
+                    if (!response.isSuccessful()) {
+                        Log.e(TAG, "Promos server error: " + response.code());
+                        return;
+                    }
+
+                    JSONObject jsonResponse = new JSONObject(responseBody);
+                    List<Promo> promos = parsePromos(jsonResponse);
+
+                    Log.d(TAG, "Downloaded " + promos.size() + " promos");
+
+                    database.savePromos(promos);
+                    Log.d(TAG, "Promos saved to database");
+
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing promos download: " + e.getMessage());
                 } finally {
                     decrementPendingRequests();
                 }
@@ -285,18 +333,87 @@ public class RestaurantApplication extends Application {
         return items;
     }
 
+    private List<Promo> parsePromos(JSONObject jsonResponse) throws JSONException {
+        List<Promo> promos = new ArrayList<>();
+
+        if (jsonResponse.has("data") && !jsonResponse.isNull("data")) {
+            JSONArray promosArray;
+
+            if (jsonResponse.get("data") instanceof JSONArray) {
+                promosArray = jsonResponse.getJSONArray("data");
+            } else {
+                JSONObject singlePromo = jsonResponse.getJSONObject("data");
+                promosArray = new JSONArray();
+                promosArray.put(singlePromo);
+            }
+
+            for (int i = 0; i < promosArray.length(); i++) {
+                JSONObject promoJson = promosArray.getJSONObject(i);
+                Promo promo = new Promo();
+
+                // Map API fields to your Promo class fields
+                promo.setPromoId(promoJson.optLong("promo_id", -1));
+                promo.setPromoName(promoJson.optString("promo_name", ""));
+                promo.setPromoDescription(promoJson.optString("promo_description", ""));
+                promo.setStartDate(promoJson.optString("start_date", ""));
+                promo.setEndDate(promoJson.optString("end_date", ""));
+                promo.setTermAndCondition(promoJson.optString("term_and_condition", ""));
+                promo.setType(promoJson.optString("type", ""));
+                promo.setDiscountType(promoJson.optString("discount_type", ""));
+                promo.setDiscountAmount(promoJson.optString("discount_amount", ""));
+                promo.setActive(promoJson.optBoolean("is_active", false));
+
+                // Handle image/picture field - check multiple possible field names
+                if (promoJson.has("picture") && !promoJson.isNull("picture")) {
+                    promo.setPicture(promoJson.optString("picture", ""));
+                } else if (promoJson.has("image_url") && !promoJson.isNull("image_url")) {
+                    promo.setPicture(promoJson.optString("image_url", ""));
+                } else if (promoJson.has("image_path") && !promoJson.isNull("image_path")) {
+                    promo.setPicture(promoJson.optString("image_path", ""));
+                }
+
+                // Handle promo items if they exist in the API response
+                if (promoJson.has("promo_items") && !promoJson.isNull("promo_items")) {
+                    JSONArray itemsArray = promoJson.getJSONArray("promo_items");
+                    List<Promo.PromoItem> promoItems = new ArrayList<>();
+
+                    for (int j = 0; j < itemsArray.length(); j++) {
+                        JSONObject itemJson = itemsArray.getJSONObject(j);
+                        Promo.PromoItem item = new Promo.PromoItem(
+                                itemJson.optLong("id", -1),
+                                itemJson.optLong("item_id", -1),
+                                itemJson.optString("item_name", "")
+                        );
+                        promoItems.add(item);
+                    }
+                    promo.setPromoItems(promoItems);
+                }
+
+                // Only add active promos
+                if (promo.isActive()) {
+                    promos.add(promo);
+                }
+            }
+
+            // Sort promos by name
+            Collections.sort(promos, (promo1, promo2) ->
+                    promo1.getPromoName().compareToIgnoreCase(promo2.getPromoName()));
+        }
+
+        return promos;
+    }
+
     private void decrementPendingRequests() {
         int remaining = pendingRequests.decrementAndGet();
         if (remaining == 0) {
-            Log.d(TAG, "All menu data downloads completed");
+            Log.d(TAG, "All downloads completed (menu data + promos)");
             onAllDownloadsComplete();
         }
     }
 
     private void onAllDownloadsComplete() {
-        // This method is called when both categories and menu items have been downloaded
-        // You can add any additional logic here that should run after all data is loaded
-        Log.d(TAG, "Menu initialization complete - app ready to use");
+        // This method is called when categories, menu items, and promos have been downloaded
+        Log.d(TAG, "App initialization complete - all data ready to use");
     }
 
     private double parsePrice(String priceString) {
