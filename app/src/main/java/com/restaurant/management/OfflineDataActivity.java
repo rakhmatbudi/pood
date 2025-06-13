@@ -6,8 +6,10 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.ProgressBar;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -20,7 +22,12 @@ import com.restaurant.management.R;
 import com.restaurant.management.RestaurantApplication;
 import com.restaurant.management.adapters.OfflineDataAdapter;
 import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.models.OfflineDataItem;
+import com.restaurant.management.models.OrderStatus;
+import com.restaurant.management.models.OrderType;
+import com.restaurant.management.models.ProductItem;
+import com.restaurant.management.models.Promo;
 import com.restaurant.management.utils.NetworkUtils;
 
 import java.util.ArrayList;
@@ -185,7 +192,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 // 2. LOCALLY GENERATED DATA
 
                 // Get all orders (synced + unsynced)
-                int totalOrders = database.getAllOrders().size();
+                int totalOrders = database.getAllOrdersCount();
                 int unsyncedOrders = database.getUnsyncedOrderItems().size();
                 Log.d(TAG, "Total orders: " + totalOrders + ", Unsynced: " + unsyncedOrders);
                 if (totalOrders > 0) {
@@ -202,7 +209,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get all order items
-                int totalOrderItems = database.getAllOrderItems().size();
+                int totalOrderItems = database.getAllOrderItemsCount();
                 Log.d(TAG, "Order items: " + totalOrderItems);
                 if (totalOrderItems > 0) {
                     items.add(new OfflineDataItem(
@@ -213,10 +220,8 @@ public class OfflineDataActivity extends AppCompatActivity {
                     ));
                 }
 
-
-
                 // Get variants (usually generated with menu items)
-                int variants = database.getAllVariants().size();
+                int variants = database.getAllVariantsCount();
                 Log.d(TAG, "Variants: " + variants);
                 if (variants > 0) {
                     items.add(new OfflineDataItem(
@@ -224,6 +229,18 @@ public class OfflineDataActivity extends AppCompatActivity {
                             variants + " variants cached",
                             variants,
                             "variants"
+                    ));
+                }
+
+                // Get cashier sessions (if table exists)
+                int cashierSessions = database.getCashierSessionsCount();
+                Log.d(TAG, "Cashier sessions: " + cashierSessions);
+                if (cashierSessions > 0) {
+                    items.add(new OfflineDataItem(
+                            "Cashier Sessions",
+                            cashierSessions + " sessions stored",
+                            cashierSessions,
+                            "sessions"
                     ));
                 }
 
@@ -296,15 +313,64 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private void onItemClick(OfflineDataItem item) {
-        // Show detailed information about the selected item
-        showItemDetailsDialog(item);
+        // Show detailed preview of the selected data type
+        showDataPreviewDialog(item);
     }
 
-    private void showItemDetailsDialog(OfflineDataItem item) {
+    private void showDataPreviewDialog(OfflineDataItem item) {
+        // Create a dialog to show data preview
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(item.getTitle());
-        builder.setMessage(item.getDescription() + "\n\nType: " + item.getType().toUpperCase());
-        builder.setPositiveButton("OK", null);
+        builder.setTitle(item.getTitle() + " - Data Preview");
+
+        // Show loading while fetching data
+        ProgressBar progressBar = new ProgressBar(this);
+        builder.setView(progressBar);
+        AlertDialog loadingDialog = builder.create();
+        loadingDialog.show();
+
+        // Fetch data on background thread
+        executor.execute(() -> {
+            try {
+                String dataPreview = getDataPreview(item.getType(), item.getCount());
+
+                runOnUiThread(() -> {
+                    loadingDialog.dismiss();
+                    showDataPreview(item, dataPreview);
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting data preview", e);
+                runOnUiThread(() -> {
+                    loadingDialog.dismiss();
+                    Toast.makeText(this, "Error loading data preview: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
+    private void showDataPreview(OfflineDataItem item, String dataPreview) {
+        // Create dialog with scrollable text view
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(item.getTitle() + " (" + item.getCount() + " items)");
+
+        // Create scrollable text view
+        TextView textView = new TextView(this);
+        textView.setText(dataPreview);
+        textView.setPadding(20, 20, 20, 20);
+        textView.setTextSize(12);
+        textView.setTypeface(android.graphics.Typeface.MONOSPACE); // Use monospace for better formatting
+
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(textView);
+        scrollView.setLayoutParams(new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                800 // Max height
+        ));
+
+        builder.setView(scrollView);
+
+        // Add action buttons
+        builder.setPositiveButton("Close", null);
 
         if ("orders".equals(item.getType())) {
             builder.setNeutralButton("Sync Now", (dialog, which) -> {
@@ -316,7 +382,308 @@ public class OfflineDataActivity extends AppCompatActivity {
             });
         }
 
+        builder.setNegativeButton("Export", (dialog, which) -> {
+            // TODO: Implement export functionality
+            Toast.makeText(this, "Export feature coming soon!", Toast.LENGTH_SHORT).show();
+        });
+
         builder.show();
+    }
+
+    private String getDataPreview(String type, int count) {
+        StringBuilder preview = new StringBuilder();
+
+        try {
+            switch (type) {
+                case "categories":
+                    preview.append(getMenuCategoriesPreview());
+                    break;
+                case "menu_items":
+                    preview.append(getMenuItemsPreview());
+                    break;
+                case "promos":
+                    preview.append(getPromosPreview());
+                    break;
+                case "order_types":
+                    preview.append(getOrderTypesPreview());
+                    break;
+                case "order_statuses":
+                    preview.append(getOrderStatusesPreview());
+                    break;
+                case "orders":
+                    preview.append(getOrdersPreview());
+                    break;
+                case "order_items":
+                    preview.append(getOrderItemsPreview());
+                    break;
+                case "variants":
+                    preview.append(getVariantsPreview());
+                    break;
+                case "sessions":
+                    preview.append(getCashierSessionsPreview());
+                    break;
+                default:
+                    preview.append("No preview available for this data type.");
+                    break;
+            }
+        } catch (Exception e) {
+            preview.append("Error loading preview: ").append(e.getMessage());
+        }
+
+        return preview.toString();
+    }
+
+    private String getMenuCategoriesPreview() {
+        List<MenuCategory> categories = database.getMenuCategories();
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("MENU CATEGORIES\n");
+        sb.append("================\n\n");
+
+        for (int i = 0; i < Math.min(categories.size(), 10); i++) {
+            MenuCategory category = categories.get(i);
+            sb.append(String.format("ID: %d\n", category.getId()));
+            sb.append(String.format("Name: %s\n", category.getName()));
+            sb.append(String.format("Description: %s\n", category.getDescription()));
+            sb.append(String.format("Displayed: %s\n", category.isDisplayed() ? "Yes" : "No"));
+            sb.append(String.format("Highlight: %s\n", category.isHighlight() ? "Yes" : "No"));
+            sb.append("---\n");
+        }
+
+        if (categories.size() > 10) {
+            sb.append(String.format("\n... and %d more categories", categories.size() - 10));
+        }
+
+        return sb.toString();
+    }
+
+    private String getMenuItemsPreview() {
+        List<ProductItem> items = database.getMenuItems();
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("MENU ITEMS\n");
+        sb.append("==========\n\n");
+
+        for (int i = 0; i < Math.min(items.size(), 10); i++) {
+            ProductItem item = items.get(i);
+            sb.append(String.format("ID: %d\n", item.getId()));
+            sb.append(String.format("Name: %s\n", item.getName()));
+            sb.append(String.format("Price: $%.2f\n", item.getPrice()));
+            sb.append(String.format("Category: %s\n", item.getCategory()));
+            sb.append(String.format("Active: %s\n", item.isActive() ? "Yes" : "No"));
+            if (item.getVariants() != null && !item.getVariants().isEmpty()) {
+                sb.append(String.format("Variants: %d\n", item.getVariants().size()));
+            }
+            sb.append("---\n");
+        }
+
+        if (items.size() > 10) {
+            sb.append(String.format("\n... and %d more items", items.size() - 10));
+        }
+
+        return sb.toString();
+    }
+
+    private String getPromosPreview() {
+        List<Promo> promos = database.getPromos();
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("PROMOTIONS\n");
+        sb.append("==========\n\n");
+
+        for (int i = 0; i < Math.min(promos.size(), 10); i++) {
+            Promo promo = promos.get(i);
+            sb.append(String.format("ID: %d\n", promo.getPromoId()));
+            sb.append(String.format("Name: %s\n", promo.getPromoName()));
+            sb.append(String.format("Description: %s\n", promo.getPromoDescription()));
+            sb.append(String.format("Type: %s\n", promo.getType()));
+            sb.append(String.format("Discount: %s %s\n", promo.getDiscountAmount(), promo.getDiscountType()));
+            sb.append(String.format("Active: %s\n", promo.isActive() ? "Yes" : "No"));
+            sb.append(String.format("Start: %s\n", promo.getStartDate()));
+            sb.append(String.format("End: %s\n", promo.getEndDate()));
+            sb.append("---\n");
+        }
+
+        if (promos.size() > 10) {
+            sb.append(String.format("\n... and %d more promos", promos.size() - 10));
+        }
+
+        return sb.toString();
+    }
+
+    private String getOrderTypesPreview() {
+        List<OrderType> orderTypes = database.getOrderTypes();
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("ORDER TYPES\n");
+        sb.append("===========\n\n");
+
+        for (OrderType orderType : orderTypes) {
+            sb.append(String.format("ID: %d\n", orderType.getId()));
+            sb.append(String.format("Name: %s\n", orderType.getName()));
+            sb.append("---\n");
+        }
+
+        return sb.toString();
+    }
+
+    private String getOrderStatusesPreview() {
+        List<OrderStatus> orderStatuses = database.getOrderStatuses();
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("ORDER STATUSES\n");
+        sb.append("==============\n\n");
+
+        for (OrderStatus orderStatus : orderStatuses) {
+            sb.append(String.format("ID: %d\n", orderStatus.getId()));
+            sb.append(String.format("Name: %s\n", orderStatus.getName()));
+            sb.append("---\n");
+        }
+
+        return sb.toString();
+    }
+
+    private String getOrdersPreview() {
+        // Since we don't have Order objects, we'll query the database directly
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("ORDERS\n");
+        sb.append("======\n\n");
+
+        android.database.Cursor cursor = null;
+        try {
+            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
+            cursor = db.rawQuery("SELECT * FROM orders ORDER BY order_created_at DESC LIMIT 10", null);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    sb.append(String.format("Order ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("order_id"))));
+                    sb.append(String.format("Session ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("session_id"))));
+                    sb.append(String.format("Table: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("table_number"))));
+                    sb.append(String.format("Customer: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("customer_name"))));
+                    sb.append(String.format("Synced: %s\n", cursor.getInt(cursor.getColumnIndexOrThrow("is_synced")) == 1 ? "Yes" : "No"));
+                    sb.append(String.format("Created: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("order_created_at"))));
+                    sb.append("---\n");
+                } while (cursor.moveToNext());
+            } else {
+                sb.append("No orders found.");
+            }
+        } catch (Exception e) {
+            sb.append("Error loading orders: ").append(e.getMessage());
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String getOrderItemsPreview() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("ORDER ITEMS\n");
+        sb.append("===========\n\n");
+
+        android.database.Cursor cursor = null;
+        try {
+            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
+            String query = "SELECT oi.*, mi.name as menu_item_name FROM order_items oi " +
+                    "LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id " +
+                    "ORDER BY oi.item_created_at DESC LIMIT 10";
+            cursor = db.rawQuery(query, null);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    sb.append(String.format("Item ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("item_id"))));
+                    sb.append(String.format("Order ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("order_id"))));
+                    sb.append(String.format("Item: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("menu_item_name"))));
+                    sb.append(String.format("Quantity: %d\n", cursor.getInt(cursor.getColumnIndexOrThrow("quantity"))));
+                    sb.append(String.format("Unit Price: $%.2f\n", cursor.getDouble(cursor.getColumnIndexOrThrow("unit_price"))));
+                    sb.append(String.format("Total: $%.2f\n", cursor.getDouble(cursor.getColumnIndexOrThrow("total_price"))));
+                    sb.append(String.format("Synced: %s\n", cursor.getInt(cursor.getColumnIndexOrThrow("is_synced")) == 1 ? "Yes" : "No"));
+                    sb.append("---\n");
+                } while (cursor.moveToNext());
+            } else {
+                sb.append("No order items found.");
+            }
+        } catch (Exception e) {
+            sb.append("Error loading order items: ").append(e.getMessage());
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String getVariantsPreview() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("PRODUCT VARIANTS\n");
+        sb.append("================\n\n");
+
+        android.database.Cursor cursor = null;
+        try {
+            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
+            String query = "SELECT v.*, mi.name as menu_item_name FROM variants v " +
+                    "LEFT JOIN menu_items mi ON v.menu_item_id = mi.id " +
+                    "ORDER BY v.variant_name ASC LIMIT 10";
+            cursor = db.rawQuery(query, null);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    sb.append(String.format("Variant ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("variant_id"))));
+                    sb.append(String.format("Name: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("variant_name"))));
+                    sb.append(String.format("Menu Item: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("menu_item_name"))));
+                    sb.append(String.format("Price: $%.2f\n", cursor.getDouble(cursor.getColumnIndexOrThrow("variant_price"))));
+                    sb.append(String.format("Active: %s\n", cursor.getInt(cursor.getColumnIndexOrThrow("variant_is_active")) == 1 ? "Yes" : "No"));
+                    sb.append("---\n");
+                } while (cursor.moveToNext());
+            } else {
+                sb.append("No variants found.");
+            }
+        } catch (Exception e) {
+            sb.append("Error loading variants: ").append(e.getMessage());
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        return sb.toString();
+    }
+
+    private String getCashierSessionsPreview() {
+        StringBuilder sb = new StringBuilder();
+
+        sb.append("CASHIER SESSIONS\n");
+        sb.append("================\n\n");
+
+        android.database.Cursor cursor = null;
+        try {
+            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
+            cursor = db.rawQuery("SELECT * FROM cashier_sessions ORDER BY created_at DESC LIMIT 10", null);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    // Add session data based on your actual table structure
+                    sb.append("Session found\n");
+                    sb.append("---\n");
+                } while (cursor.moveToNext());
+            } else {
+                sb.append("No cashier sessions found.");
+            }
+        } catch (Exception e) {
+            sb.append("Cashier sessions table not available or error: ").append(e.getMessage());
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+
+        return sb.toString();
     }
 
     private void showSyncConfirmationDialog() {
