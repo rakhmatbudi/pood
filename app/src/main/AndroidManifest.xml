@@ -146,6 +146,12 @@
             android:exported="false"
             android:parentActivityName="com.restaurant.management.OrderActivity" />
 
+        <activity
+            android:name="com.restaurant.management.OfflineDataActivity"
+            android:label="Offline Data Management"
+            android:theme="@style/AppTheme"
+            android:parentActivityName="com.restaurant.management.DashboardActivity" />
+
         <!-- Offline Sync Service -->
         <service
             android:name=".services.OfflineSyncService"

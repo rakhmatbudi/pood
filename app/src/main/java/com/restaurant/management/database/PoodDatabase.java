@@ -8,6 +8,7 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 
 
+import com.restaurant.management.models.Order;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
@@ -20,6 +21,8 @@ import com.restaurant.management.models.CreateOrderItemRequest;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Calendar;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Arrays;
 
 public class PoodDatabase extends SQLiteOpenHelper {
@@ -973,6 +976,377 @@ public class PoodDatabase extends SQLiteOpenHelper {
 
         } catch (Exception e) {
             Log.e(TAG, "Error cleaning up synced order items", e);
+        }
+    }
+
+    /**
+     * Clear all cached data from the database
+     */
+    public void clearAllCachedData() {
+        SQLiteDatabase db = this.getWritableDatabase();
+        try {
+            db.beginTransaction();
+
+            // Clear all tables using the correct table constants
+            db.delete(TABLE_CATEGORIES, null, null);
+            db.delete(TABLE_MENU_ITEMS, null, null);
+            db.delete(TABLE_VARIANTS, null, null);
+            db.delete(TABLE_PROMOS, null, null);
+            db.delete(TABLE_ORDER_TYPES, null, null);
+            db.delete(TABLE_ORDER_STATUSES, null, null);
+
+            // Clear unsynced orders (be careful with this!)
+            db.delete(TABLE_ORDERS, COLUMN_IS_SYNCED + " = 0", null);
+            db.delete(TABLE_ORDER_ITEMS, COLUMN_ITEM_IS_SYNCED + " = 0", null);
+
+            db.setTransactionSuccessful();
+            Log.d(TAG, "All cached data cleared successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "Error clearing cached data", e);
+        } finally {
+            db.endTransaction();
+        }
+    }
+
+    /**
+     * Get all menu categories (for OfflineDataActivity)
+     */
+    public List<MenuCategory> getMenuCategories() {
+        List<MenuCategory> categories = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(TABLE_CATEGORIES, null, null, null, null, null, COLUMN_CAT_NAME + " ASC");
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                MenuCategory category = new MenuCategory();
+                category.setId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_CAT_ID)));
+                category.setName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_NAME)));
+                category.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_DESCRIPTION)));
+                category.setDisplayed(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CAT_IS_DISPLAYED)) == 1);
+                category.setHighlight(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CAT_IS_HIGHLIGHT)) == 1);
+                category.setDisplayForSelfOrder(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_CAT_IS_DISPLAY_FOR_SELF_ORDER)) == 1);
+                category.setSkuId(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_SKU_ID)));
+                category.setMenuCategoryGroup(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_GROUP)));
+                category.setDisplayPicture(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_DISPLAY_PICTURE)));
+                category.setCreatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_CREATED_AT)));
+                category.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAT_UPDATED_AT)));
+
+                categories.add(category);
+            } while (cursor.moveToNext());
+
+            cursor.close();
+        }
+
+        return categories;
+    }
+
+    /**
+     * Get all menu items (for OfflineDataActivity)
+     */
+    public List<ProductItem> getMenuItems() {
+        List<ProductItem> items = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(TABLE_MENU_ITEMS, null, null, null, null, null, COLUMN_NAME + " ASC");
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                ProductItem item = new ProductItem();
+                item.setId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)));
+                item.setName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_NAME)));
+                item.setDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_DESCRIPTION)));
+                item.setPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_PRICE)));
+                item.setCategory(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CATEGORY_NAME)));
+                item.setActive(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_IS_ACTIVE)) == 1);
+                item.setImageUrl(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_IMAGE_PATH)));
+                item.setCreatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CREATED_AT)));
+                item.setUpdatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_UPDATED_AT)));
+
+                // Load variants for this item
+                item.setVariants(getVariantsForMenuItem(item.getId()));
+
+                items.add(item);
+            } while (cursor.moveToNext());
+
+            cursor.close();
+        }
+
+        return items;
+    }
+
+    /**
+     * Get all promos (for OfflineDataActivity)
+     */
+    public List<Promo> getPromos() {
+        List<Promo> promos = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        Cursor cursor = db.query(TABLE_PROMOS, null, null, null, null, null, COLUMN_PROMO_NAME + " ASC");
+
+        if (cursor != null && cursor.moveToFirst()) {
+            do {
+                Promo promo = new Promo();
+                promo.setPromoId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_PROMO_ID)));
+                promo.setPromoName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_NAME)));
+                promo.setPromoDescription(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_DESCRIPTION)));
+                promo.setStartDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_START_DATE)));
+                promo.setEndDate(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_END_DATE)));
+                promo.setTermAndCondition(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_TERM_CONDITION)));
+                promo.setType(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_TYPE)));
+                promo.setDiscountType(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_DISCOUNT_TYPE)));
+                promo.setDiscountAmount(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_DISCOUNT_AMOUNT)));
+                promo.setActive(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_PROMO_IS_ACTIVE)) == 1);
+                promo.setPicture(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_PROMO_PICTURE)));
+
+                // Note: PromoItems would need a separate table to be fully implemented
+                promo.setPromoItems(new ArrayList<>());
+
+                promos.add(promo);
+            } while (cursor.moveToNext());
+
+            cursor.close();
+        }
+
+        return promos;
+    }
+
+
+
+    /**
+     * Get all orders (synced and unsynced)
+     */
+    public List<Order> getAllOrders() {
+        List<Order> orders = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            Cursor cursor = db.query(TABLE_ORDERS, null, null, null, null, null,
+                    COLUMN_ORDER_CREATED_AT + " DESC");
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    // Create a simple Order object or use a Map/HashMap
+                    // Since you might not have an Order model class,
+                    // we'll just count them for now
+                    orders.add(new Order()); // You can create a simple Order class or use Object
+                } while (cursor.moveToNext());
+
+                cursor.close();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting all orders", e);
+        }
+
+        return orders;
+    }
+
+    /**
+     * Get count of all orders (synced and unsynced)
+     */
+    public int getAllOrdersCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        int count = 0;
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + TABLE_ORDERS;
+            Cursor cursor = db.rawQuery(countQuery, null);
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting orders count", e);
+        }
+        return count;
+    }
+
+    /**
+     * Get all order items
+     */
+    public List<OrderItemSyncData> getAllOrderItems() {
+        List<OrderItemSyncData> orderItems = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            String selectQuery = "SELECT * FROM " + TABLE_ORDER_ITEMS +
+                    " ORDER BY " + COLUMN_ITEM_CREATED_AT + " DESC";
+
+            Cursor cursor = db.rawQuery(selectQuery, null);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    OrderItemSyncData item = new OrderItemSyncData();
+                    item.setLocalId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ITEM_ID)));
+                    item.setOrderId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ORDER_ITEM_ORDER_ID)));
+                    item.setMenuItemId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_MENU_ITEM_ID_FK)));
+                    item.setQuantity(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_QUANTITY)));
+                    item.setTotalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_TOTAL_PRICE)));
+                    item.setSynced(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_IS_SYNCED)) == 1);
+                    item.setCreatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_CREATED_AT)));
+
+                    orderItems.add(item);
+                } while (cursor.moveToNext());
+
+                cursor.close();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting all order items", e);
+        }
+
+        return orderItems;
+    }
+
+    /**
+     * Get count of all order items
+     */
+    public int getAllOrderItemsCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        int count = 0;
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + TABLE_ORDER_ITEMS;
+            Cursor cursor = db.rawQuery(countQuery, null);
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting order items count", e);
+        }
+        return count;
+    }
+
+
+    /**
+     * Get all variants
+     */
+    public List<Variant> getAllVariants() {
+        List<Variant> variants = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            Cursor cursor = db.query(TABLE_VARIANTS, null, null, null, null, null,
+                    COLUMN_VARIANT_NAME + " ASC");
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    Variant variant = new Variant();
+                    variant.setId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_ID)));
+                    variant.setName(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_NAME)));
+                    variant.setPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_PRICE)));
+                    variant.setActive(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_IS_ACTIVE)) == 1);
+
+                    variants.add(variant);
+                } while (cursor.moveToNext());
+
+                cursor.close();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting all variants", e);
+        }
+
+        return variants;
+    }
+
+    /**
+     * Get count of all variants
+     */
+    public int getAllVariantsCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        int count = 0;
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + TABLE_VARIANTS;
+            Cursor cursor = db.rawQuery(countQuery, null);
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting variants count", e);
+        }
+        return count;
+    }
+
+    /**
+     * Get count of cashier sessions (if table exists)
+     */
+    public int getCashierSessionsCount() {
+        SQLiteDatabase db = this.getReadableDatabase();
+        int count = 0;
+        try {
+            String countQuery = "SELECT COUNT(*) FROM cashier_sessions";
+            Cursor cursor = db.rawQuery(countQuery, null);
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Cashier sessions table might not exist", e);
+            // Return 0 if table doesn't exist
+        }
+        return count;
+    }
+
+    /**
+     * Get count of all tables for quick overview
+     */
+    public Map<String, Integer> getAllTableCounts() {
+        Map<String, Integer> counts = new HashMap<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            // Count all tables
+            counts.put("menu_categories", getTableCount(db, TABLE_CATEGORIES));
+            counts.put("menu_items", getTableCount(db, TABLE_MENU_ITEMS));
+            counts.put("variants", getTableCount(db, TABLE_VARIANTS));
+            counts.put("promos", getTableCount(db, TABLE_PROMOS));
+            counts.put("order_types", getTableCount(db, TABLE_ORDER_TYPES));
+            counts.put("order_statuses", getTableCount(db, TABLE_ORDER_STATUSES));
+            counts.put("orders", getTableCount(db, TABLE_ORDERS));
+            counts.put("order_items", getTableCount(db, TABLE_ORDER_ITEMS));
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting table counts", e);
+        }
+
+        return counts;
+    }
+
+    /**
+     * Generic method to get count of any table
+     */
+    public int getTableCount(String tableName) {
+        SQLiteDatabase db = this.getReadableDatabase();
+        int count = 0;
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + tableName;
+            Cursor cursor = db.rawQuery(countQuery, null);
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+            cursor.close();
+        } catch (Exception e) {
+            Log.e(TAG, "Error counting table " + tableName + ": " + e.getMessage());
+        }
+        return count;
+    }
+
+    /**
+     * Helper method to get count of any table (overloaded)
+     */
+    private int getTableCount(SQLiteDatabase db, String tableName) {
+        try {
+            String countQuery = "SELECT COUNT(*) FROM " + tableName;
+            Cursor cursor = db.rawQuery(countQuery, null);
+
+            int count = 0;
+            if (cursor.moveToFirst()) {
+                count = cursor.getInt(0);
+            }
+            cursor.close();
+            return count;
+        } catch (Exception e) {
+            Log.e(TAG, "Error counting table " + tableName, e);
+            return 0;
         }
     }
 

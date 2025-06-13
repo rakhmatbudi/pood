@@ -25,6 +25,7 @@ import com.restaurant.management.models.CashierSession;
 import com.restaurant.management.adapters.PromoAdapter;
 import com.restaurant.management.repositories.PromoRepository;
 import com.restaurant.management.models.Promo;
+
 import com.chuckerteam.chucker.api.ChuckerCollector;
 import com.chuckerteam.chucker.api.ChuckerInterceptor;
 import com.chuckerteam.chucker.api.RetentionManager;
@@ -686,6 +687,10 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 Log.e(TAG, "Error starting CashierActivity", e);
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
+        } else if (id == R.id.nav_offline_data) {
+            // Launch Offline Data Management Activity
+            Intent intent = new Intent(this, OfflineDataActivity.class);
+            startActivity(intent);
         } else if (id == R.id.nav_discounts) {
             // Handle discounts navigation
             Intent intent = new Intent(this, DiscountListActivity.class);

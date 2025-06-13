@@ -23,6 +23,12 @@
         android:icon="@drawable/ic_transactions"
         android:title="@string/transactions" />
 
+    <!-- New Offline Data Management Item -->
+    <item
+        android:id="@+id/nav_offline_data"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="Offline Data Management" />
+
     <item android:title="@string/label_setup">
         <menu>
             <item
