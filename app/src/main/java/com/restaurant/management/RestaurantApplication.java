@@ -1,6 +1,13 @@
 package com.restaurant.management;
 
+import android.app.AlarmManager;
 import android.app.Application;
+import android.app.PendingIntent;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.net.ConnectivityManager;
+import android.os.SystemClock;
 import android.util.Log;
 
 import com.restaurant.management.database.PoodDatabase;
@@ -11,6 +18,8 @@ import com.restaurant.management.models.Promo;
 import com.restaurant.management.models.OrderType;
 import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.utils.NetworkUtils;
+import com.restaurant.management.receivers.NetworkChangeReceiver;
+import com.restaurant.management.services.OfflineSyncService;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,6 +41,9 @@ public class RestaurantApplication extends Application {
     private static final String TAG = "RestaurantApplication";
     private static final String BASE_API_URL = "https://api.pood.lol/";
 
+    private NetworkChangeReceiver networkChangeReceiver;
+    private static final long SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+
     private PoodDatabase database;
     private OkHttpClient client;
     private AtomicInteger pendingRequests = new AtomicInteger(0);
@@ -43,8 +55,109 @@ public class RestaurantApplication extends Application {
         database = new PoodDatabase(this);
         client = new OkHttpClient();
 
+        // Register network change receiver
+        registerNetworkChangeReceiver();
+
+        // Schedule periodic sync
+        schedulePeriodicSync();
+
         // Download all data on every app start
         downloadAllDataOnStart();
+
+        // Start initial sync if network is available
+        if (NetworkUtils.isNetworkAvailable(this)) {
+            startSyncService();
+        }
+    }
+
+    private void registerNetworkChangeReceiver() {
+        networkChangeReceiver = new NetworkChangeReceiver();
+        IntentFilter filter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+        registerReceiver(networkChangeReceiver, filter);
+        Log.d(TAG, "Network change receiver registered");
+    }
+
+    private void schedulePeriodicSync() {
+        try {
+            AlarmManager alarmManager = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            Intent intent = new Intent(this, OfflineSyncService.class);
+            PendingIntent pendingIntent = PendingIntent.getService(this, 0, intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+            // Schedule repeating sync every 30 minutes
+            alarmManager.setInexactRepeating(
+                    AlarmManager.ELAPSED_REALTIME_WAKEUP,
+                    SystemClock.elapsedRealtime() + SYNC_INTERVAL_MS,
+                    SYNC_INTERVAL_MS,
+                    pendingIntent
+            );
+
+            Log.d(TAG, "Periodic sync scheduled");
+        } catch (Exception e) {
+            Log.e(TAG, "Error scheduling periodic sync", e);
+        }
+    }
+
+    /**
+     * Start sync service manually
+     */
+    public void startSyncService() {
+        try {
+            Intent syncIntent = new Intent(this, OfflineSyncService.class);
+            startService(syncIntent);
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting sync service", e);
+        }
+    }
+
+    /**
+     * Get count of unsynced order items
+     */
+    public void getUnsyncedItemsCount(UnsyncedCountCallback callback) {
+        new Thread(() -> {
+            try {
+                int count = database.getUnsyncedOrderItems().size();
+                callback.onResult(count);
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting unsynced items count", e);
+                callback.onResult(0);
+            }
+        }).start();
+    }
+
+    /**
+     * Force sync all unsynced items
+     */
+    public void forceSyncNow() {
+        if (NetworkUtils.isNetworkAvailable(this)) {
+            startSyncService();
+        } else {
+            Log.w(TAG, "Cannot force sync - no network available");
+        }
+    }
+
+    /**
+     * Check if there are pending offline items
+     */
+    public void hasPendingOfflineItems(PendingItemsCallback callback) {
+        new Thread(() -> {
+            try {
+                boolean hasPending = !database.getUnsyncedOrderItems().isEmpty();
+                callback.onResult(hasPending);
+            } catch (Exception e) {
+                Log.e(TAG, "Error checking pending offline items", e);
+                callback.onResult(false);
+            }
+        }).start();
+    }
+
+    // Callback interfaces
+    public interface UnsyncedCountCallback {
+        void onResult(int count);
+    }
+
+    public interface PendingItemsCallback {
+        void onResult(boolean hasPending);
     }
 
     private void downloadAllDataOnStart() {
@@ -577,6 +690,16 @@ public class RestaurantApplication extends Application {
     @Override
     public void onTerminate() {
         super.onTerminate();
+
+        // Unregister network receiver
+        if (networkChangeReceiver != null) {
+            try {
+                unregisterReceiver(networkChangeReceiver);
+            } catch (Exception e) {
+                Log.e(TAG, "Error unregistering network receiver", e);
+            }
+        }
+
         if (database != null) {
             database.close();
         }

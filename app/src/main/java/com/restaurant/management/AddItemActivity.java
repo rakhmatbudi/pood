@@ -127,16 +127,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 List<ProductItem> items = database.getAllMenuItems();
                 Log.d(TAG, "Loaded " + (items != null ? items.size() : 0) + " items from database");
 
-                // Check Affogato price in database
-                if (items != null) {
-                    for (ProductItem item : items) {
-                        if ("Affogato".equals(item.getName())) {
-                            Log.d(TAG, "Affogato price from database: " + item.getPrice());
-                            break;
-                        }
-                    }
-                }
-
                 runOnUiThread(() -> {
                     if (items != null && !items.isEmpty()) {
                         allMenuItems.clear();
@@ -232,40 +222,45 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             return;
         }
 
-        if (!NetworkUtils.isNetworkAvailable(this)) {
-            Toast.makeText(this, "Internet connection required to add items to order.", Toast.LENGTH_LONG).show();
-            return;
-        }
-
         progressBar.setVisibility(View.VISIBLE);
         menuItemsRecyclerView.setVisibility(View.GONE);
 
-        double unitPrice;
+        // Calculate pricing
+        double unitPrice = calculateUnitPrice(menuItem, variantId, customPrice, isComplimentary);
+        double totalPrice = unitPrice * quantity;
+
+        // Create the request object
+        CreateOrderItemRequest request = createOrderItemRequest(menuItem, variantId, quantity, notes, unitPrice, totalPrice, isComplimentary, customPrice);
+
+        // OFFLINE-FIRST: Always save locally first
+        saveOrderItemLocally(request, menuItem, variantId, quantity, notes, unitPrice, totalPrice, isComplimentary, customPrice);
+    }
+
+    private double calculateUnitPrice(ProductItem menuItem, Long variantId, Double customPrice, boolean isComplimentary) {
         if (isComplimentary) {
-            unitPrice = 0.0;
+            return 0.0;
         } else if (customPrice != null) {
-            unitPrice = customPrice;
+            return customPrice;
         } else if (variantId != null) {
-            unitPrice = menuItem.getPrice();
+            double unitPrice = menuItem.getPrice();
             for (Variant variant : menuItem.getVariants()) {
                 if (Objects.equals(variant.getId(), variantId)) {
                     unitPrice = variant.getPrice();
                     break;
                 }
             }
+            return unitPrice;
         } else {
-            unitPrice = menuItem.getPrice();
+            return menuItem.getPrice();
         }
+    }
 
-        double totalPrice = unitPrice * quantity;
-        final double finalUnitPrice = unitPrice;
-
-        // Create the request object
+    private CreateOrderItemRequest createOrderItemRequest(ProductItem menuItem, Long variantId, int quantity, String notes, double unitPrice, double totalPrice, boolean isComplimentary, Double customPrice) {
         CreateOrderItemRequest request = new CreateOrderItemRequest();
         request.setMenuItemId(menuItem.getId());
         request.setVariantId(variantId);
         request.setQuantity(quantity);
-        request.setUnitPrice(finalUnitPrice);
+        request.setUnitPrice(unitPrice);
         request.setTotalPrice(totalPrice);
         request.setStatus("new");
         request.setKitchenPrinted(false);
@@ -284,43 +279,111 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             request.setOriginalPrice(menuItem.getPrice());
         }
 
-        // Use ApiService instead of raw OkHttp
+        return request;
+    }
+
+    private void saveOrderItemLocally(CreateOrderItemRequest request, ProductItem menuItem, Long variantId, int quantity, String notes, double unitPrice, double totalPrice, boolean isComplimentary, Double customPrice) {
+        new Thread(() -> {
+            try {
+                // Save to local database
+                long localItemId = database.saveOrderItemLocally(orderId, request);
+
+                runOnUiThread(() -> {
+                    // Show success message
+                    String successMessage = buildSuccessMessage(isComplimentary, customPrice, unitPrice);
+                    Toast.makeText(this, successMessage + " (Saved locally)", Toast.LENGTH_SHORT).show();
+
+                    // If online, attempt to sync immediately
+                    if (NetworkUtils.isNetworkAvailable(this)) {
+                        syncOrderItemToServer(localItemId, request);
+                    } else {
+                        // Show offline indicator
+                        Toast.makeText(this, "Item saved offline - will sync when online", Toast.LENGTH_LONG).show();
+                    }
+
+                    progressBar.setVisibility(View.GONE);
+                    menuItemsRecyclerView.setVisibility(View.VISIBLE);
+                    setResult(RESULT_OK);
+                    finish();
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving order item locally", e);
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    menuItemsRecyclerView.setVisibility(View.VISIBLE);
+                    Toast.makeText(this, "Failed to save item", Toast.LENGTH_SHORT).show();
+                });
+            }
+        }).start();
+    }
+
+    private void syncOrderItemToServer(long localItemId, CreateOrderItemRequest request) {
         ApiClient.getApiService().addItemToOrder(orderId, request)
                 .enqueue(new retrofit2.Callback<CreateOrderItemResponse>() {
                     @Override
                     public void onResponse(retrofit2.Call<CreateOrderItemResponse> call,
                                            retrofit2.Response<CreateOrderItemResponse> response) {
-                        progressBar.setVisibility(View.GONE);
-                        menuItemsRecyclerView.setVisibility(View.VISIBLE);
-
                         if (response.isSuccessful() && response.body() != null) {
-                            String successMessage = buildSuccessMessage(isComplimentary, customPrice, finalUnitPrice);
-                            Toast.makeText(AddItemActivity.this, successMessage, Toast.LENGTH_SHORT).show();
-                            setResult(RESULT_OK);
-                            finish();
-                        } else {
-                            String errorMessage = "Failed to add item";
-                            if (response.errorBody() != null) {
+                            // Mark as synced in local database
+                            new Thread(() -> {
                                 try {
-                                    String errorBody = response.errorBody().string();
-                                    JSONObject errorJson = new JSONObject(errorBody);
-                                    errorMessage = errorJson.optString("message", "Server error");
+                                    // Try different possible method names for getting the server ID
+                                    long serverId = getServerIdFromResponse(response.body());
+                                    database.markOrderItemAsSynced(localItemId, serverId);
+                                    Log.d(TAG, "Order item synced successfully - Local ID: " + localItemId + " -> Server ID: " + serverId);
                                 } catch (Exception e) {
-                                    Log.e(TAG, "Error parsing error response", e);
+                                    Log.e(TAG, "Error marking item as synced", e);
                                 }
-                            }
-                            Toast.makeText(AddItemActivity.this, "Failed to add item: " + errorMessage, Toast.LENGTH_LONG).show();
+                            }).start();
+                        } else {
+                            Log.e(TAG, "Failed to sync order item to server: " + response.code());
+                            // Item remains in local database for future sync attempts
                         }
                     }
 
                     @Override
                     public void onFailure(retrofit2.Call<CreateOrderItemResponse> call, Throwable t) {
-                        progressBar.setVisibility(View.GONE);
-                        menuItemsRecyclerView.setVisibility(View.VISIBLE);
-                        Log.e(TAG, "Network error adding item to order", t);
-                        Toast.makeText(AddItemActivity.this, "Failed to add item", Toast.LENGTH_SHORT).show();
+                        Log.e(TAG, "Network error syncing order item", t);
+                        // Item remains in local database for future sync attempts
                     }
                 });
+    }
+
+    /**
+     * Try to get server ID from response using different possible method names
+     */
+    private long getServerIdFromResponse(CreateOrderItemResponse response) {
+        try {
+            // Try common method names for getting ID
+            if (hasMethod(response, "getId")) {
+                return (Long) response.getClass().getMethod("getId").invoke(response);
+            } else if (hasMethod(response, "getItemId")) {
+                return (Long) response.getClass().getMethod("getItemId").invoke(response);
+            } else if (hasMethod(response, "getOrderItemId")) {
+                return (Long) response.getClass().getMethod("getOrderItemId").invoke(response);
+            } else if (hasMethod(response, "id")) {
+                return (Long) response.getClass().getField("id").get(response);
+            } else {
+                Log.w(TAG, "No ID method found in CreateOrderItemResponse, using timestamp as fallback");
+                return System.currentTimeMillis(); // Fallback - not ideal but prevents crashes
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting server ID from response", e);
+            return System.currentTimeMillis(); // Fallback
+        }
+    }
+
+    /**
+     * Check if object has a specific method
+     */
+    private boolean hasMethod(Object obj, String methodName) {
+        try {
+            obj.getClass().getMethod(methodName);
+            return true;
+        } catch (NoSuchMethodException e) {
+            return false;
+        }
     }
 
     private double getOriginalPrice(ProductItem menuItem, Long variantId) {

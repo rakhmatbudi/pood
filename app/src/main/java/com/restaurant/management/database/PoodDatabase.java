@@ -14,15 +14,18 @@ import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.models.Promo;
 import com.restaurant.management.models.OrderType;
 import com.restaurant.management.models.OrderStatus;
+import com.restaurant.management.helpers.OrderItemSyncData;
+import com.restaurant.management.models.CreateOrderItemRequest;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Calendar;
 import java.util.Arrays;
 
 public class PoodDatabase extends SQLiteOpenHelper {
     private static final String TAG = "PoodDatabase";
     private static final String DATABASE_NAME = "pood.db";
-    private static final int DATABASE_VERSION = 5; // INCREASED VERSION FOR PROMOS TABLE
+    private static final int DATABASE_VERSION = 6; // INCREASED VERSION FOR PROMOS TABLE
 
     // Table names
     private static final String TABLE_MENU_ITEMS = "menu_items";
@@ -32,6 +35,8 @@ public class PoodDatabase extends SQLiteOpenHelper {
     private static final String TABLE_ORDER_TYPES = "order_types";
     private static final String TABLE_ORDER_STATUSES = "order_statuses";
     private static final String TABLE_ORDERS = "orders";
+    private static final String TABLE_ORDER_ITEMS = "order_items";
+
 
 
     // Menu Items table columns
@@ -91,6 +96,24 @@ public class PoodDatabase extends SQLiteOpenHelper {
     private static final String COLUMN_SERVER_ORDER_ID = "server_order_id";
     private static final String COLUMN_IS_SYNCED = "is_synced";
     private static final String COLUMN_ORDER_CREATED_AT = "order_created_at";
+
+    // Order Items table columns
+    private static final String COLUMN_ITEM_ID = "item_id";
+    private static final String COLUMN_ORDER_ITEM_ORDER_ID = "order_id";
+    private static final String COLUMN_MENU_ITEM_ID_FK = "menu_item_id";
+    private static final String COLUMN_VARIANT_ID_FK = "variant_id";
+    private static final String COLUMN_ITEM_QUANTITY = "quantity";
+    private static final String COLUMN_ITEM_UNIT_PRICE = "unit_price";
+    private static final String COLUMN_ITEM_TOTAL_PRICE = "total_price";
+    private static final String COLUMN_ITEM_NOTES = "notes";
+    private static final String COLUMN_ITEM_STATUS = "status";
+    private static final String COLUMN_ITEM_IS_COMPLIMENTARY = "is_complimentary";
+    private static final String COLUMN_ITEM_IS_CUSTOM_PRICE = "is_custom_price";
+    private static final String COLUMN_ITEM_ORIGINAL_PRICE = "original_price";
+    private static final String COLUMN_ITEM_KITCHEN_PRINTED = "kitchen_printed";
+    private static final String COLUMN_ITEM_IS_SYNCED = "is_synced";
+    private static final String COLUMN_ITEM_SERVER_ID = "server_id";
+    private static final String COLUMN_ITEM_CREATED_AT = "item_created_at";
 
     private static final String CREATE_ORDERS_TABLE = "CREATE TABLE " + TABLE_ORDERS + "("
             + COLUMN_ORDER_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
@@ -158,6 +181,29 @@ public class PoodDatabase extends SQLiteOpenHelper {
             + COLUMN_PROMO_IS_ACTIVE + " INTEGER"
             + ")";
 
+    // Create order items table
+    private static final String CREATE_ORDER_ITEMS_TABLE = "CREATE TABLE " + TABLE_ORDER_ITEMS + "("
+            + COLUMN_ITEM_ID + " INTEGER PRIMARY KEY AUTOINCREMENT,"
+            + COLUMN_ORDER_ITEM_ORDER_ID + " INTEGER NOT NULL,"
+            + COLUMN_MENU_ITEM_ID_FK + " INTEGER NOT NULL,"
+            + COLUMN_VARIANT_ID_FK + " INTEGER,"
+            + COLUMN_ITEM_QUANTITY + " INTEGER NOT NULL,"
+            + COLUMN_ITEM_UNIT_PRICE + " REAL NOT NULL,"
+            + COLUMN_ITEM_TOTAL_PRICE + " REAL NOT NULL,"
+            + COLUMN_ITEM_NOTES + " TEXT,"
+            + COLUMN_ITEM_STATUS + " TEXT DEFAULT 'new',"
+            + COLUMN_ITEM_IS_COMPLIMENTARY + " INTEGER DEFAULT 0,"
+            + COLUMN_ITEM_IS_CUSTOM_PRICE + " INTEGER DEFAULT 0,"
+            + COLUMN_ITEM_ORIGINAL_PRICE + " REAL,"
+            + COLUMN_ITEM_KITCHEN_PRINTED + " INTEGER DEFAULT 0,"
+            + COLUMN_ITEM_IS_SYNCED + " INTEGER DEFAULT 0,"
+            + COLUMN_ITEM_SERVER_ID + " INTEGER,"
+            + COLUMN_ITEM_CREATED_AT + " TEXT NOT NULL,"
+            + "FOREIGN KEY(" + COLUMN_ORDER_ITEM_ORDER_ID + ") REFERENCES " + TABLE_ORDERS + "(" + COLUMN_ORDER_ID + "),"
+            + "FOREIGN KEY(" + COLUMN_MENU_ITEM_ID_FK + ") REFERENCES " + TABLE_MENU_ITEMS + "(" + COLUMN_ID + ")"
+            + ")";
+
+
     private static final String CREATE_ORDER_TYPES_TABLE = "CREATE TABLE " + TABLE_ORDER_TYPES + "("
             + "id INTEGER PRIMARY KEY,"
             + "name TEXT NOT NULL"
@@ -181,6 +227,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
         db.execSQL(CREATE_ORDER_TYPES_TABLE);
         db.execSQL(CREATE_ORDER_STATUSES_TABLE);
         db.execSQL(CREATE_ORDERS_TABLE);
+        db.execSQL(CREATE_ORDER_ITEMS_TABLE);
     }
 
     @Override
@@ -203,6 +250,10 @@ public class PoodDatabase extends SQLiteOpenHelper {
 
         if (oldVersion < 5) {
             db.execSQL(CREATE_ORDERS_TABLE); // Add this line
+        }
+
+        if (oldVersion < 6) {
+             db.execSQL(CREATE_ORDER_ITEMS_TABLE);
         }
 
         // For major changes, you can still drop and recreate if needed
@@ -559,6 +610,7 @@ public class PoodDatabase extends SQLiteOpenHelper {
             db.delete(TABLE_ORDER_TYPES, null, null);
             db.delete(TABLE_ORDER_STATUSES, null, null);
             db.delete(TABLE_ORDERS, null, null);
+            db.delete(TABLE_ORDER_ITEMS, null, null);
         } catch (Exception e) {
             Log.e(TAG, "Error clearing data", e);
         }
@@ -737,6 +789,191 @@ public class PoodDatabase extends SQLiteOpenHelper {
         }
 
         return unsyncedIds;
+    }
+
+    /**
+     * Save order item locally (offline-first)
+     */
+    public long saveOrderItemLocally(long orderId, CreateOrderItemRequest request) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        long itemId = -1;
+
+        try {
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_ORDER_ITEM_ORDER_ID, orderId);
+            values.put(COLUMN_MENU_ITEM_ID_FK, request.getMenuItemId());
+            values.put(COLUMN_VARIANT_ID_FK, request.getVariantId());
+            values.put(COLUMN_ITEM_QUANTITY, request.getQuantity());
+            values.put(COLUMN_ITEM_UNIT_PRICE, request.getUnitPrice());
+            values.put(COLUMN_ITEM_TOTAL_PRICE, request.getTotalPrice());
+            values.put(COLUMN_ITEM_NOTES, request.getNotes());
+            values.put(COLUMN_ITEM_STATUS, request.getStatus());
+            values.put(COLUMN_ITEM_IS_COMPLIMENTARY, request.isComplimentary() ? 1 : 0);
+            values.put(COLUMN_ITEM_IS_CUSTOM_PRICE, request.isCustomPrice() ? 1 : 0);
+            values.put(COLUMN_ITEM_ORIGINAL_PRICE, request.getOriginalPrice());
+            values.put(COLUMN_ITEM_KITCHEN_PRINTED, request.isKitchenPrinted() ? 1 : 0);
+            values.put(COLUMN_ITEM_IS_SYNCED, 0); // Not synced initially
+            values.put(COLUMN_ITEM_CREATED_AT, getCurrentTimestamp());
+
+            itemId = db.insert(TABLE_ORDER_ITEMS, null, values);
+            Log.d(TAG, "Saved order item locally with ID: " + itemId);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error saving order item locally", e);
+            itemId = -1;
+        }
+
+        return itemId;
+    }
+
+    /**
+     * Mark order item as synced with server
+     */
+    public void markOrderItemAsSynced(long localItemId, long serverItemId) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        try {
+            ContentValues values = new ContentValues();
+            values.put(COLUMN_ITEM_SERVER_ID, serverItemId);
+            values.put(COLUMN_ITEM_IS_SYNCED, 1);
+
+            int rowsUpdated = db.update(TABLE_ORDER_ITEMS,
+                    values,
+                    COLUMN_ITEM_ID + " = ?",
+                    new String[]{String.valueOf(localItemId)});
+
+            Log.d(TAG, "Marked order item as synced: " + localItemId + " -> " + serverItemId);
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error marking order item as synced", e);
+        }
+    }
+
+    /**
+     * Get all unsynced order items for background sync
+     */
+    public List<OrderItemSyncData> getUnsyncedOrderItems() {
+        List<OrderItemSyncData> unsyncedItems = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            String selectQuery = "SELECT * FROM " + TABLE_ORDER_ITEMS +
+                    " WHERE " + COLUMN_ITEM_IS_SYNCED + " = 0" +
+                    " ORDER BY " + COLUMN_ITEM_CREATED_AT + " ASC";
+
+            Cursor cursor = db.rawQuery(selectQuery, null);
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    OrderItemSyncData item = new OrderItemSyncData();
+                    item.setLocalId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ITEM_ID)));
+                    item.setOrderId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ORDER_ITEM_ORDER_ID)));
+                    item.setMenuItemId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_MENU_ITEM_ID_FK)));
+                    item.setVariantId(cursor.isNull(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_ID_FK)) ?
+                            null : cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_ID_FK)));
+                    item.setQuantity(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_QUANTITY)));
+                    item.setUnitPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_UNIT_PRICE)));
+                    item.setTotalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_TOTAL_PRICE)));
+                    item.setNotes(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_NOTES)));
+                    item.setStatus(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_STATUS)));
+                    item.setComplimentary(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_IS_COMPLIMENTARY)) == 1);
+                    item.setCustomPrice(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_IS_CUSTOM_PRICE)) == 1);
+                    item.setOriginalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_ORIGINAL_PRICE)));
+                    item.setKitchenPrinted(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_KITCHEN_PRINTED)) == 1);
+                    item.setCreatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_CREATED_AT)));
+
+                    unsyncedItems.add(item);
+                } while (cursor.moveToNext());
+
+                cursor.close();
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting unsynced order items", e);
+        }
+
+        Log.d(TAG, "Found " + unsyncedItems.size() + " unsynced order items");
+        return unsyncedItems;
+    }
+
+    /**
+     * Get order items for a specific order (for viewing order details)
+     */
+    public List<OrderItemSyncData> getOrderItems(long orderId) {
+        List<OrderItemSyncData> orderItems = new ArrayList<>();
+        SQLiteDatabase db = this.getReadableDatabase();
+
+        try {
+            String selectQuery = "SELECT oi.*, mi.name as menu_item_name, v.name as variant_name " +
+                    "FROM " + TABLE_ORDER_ITEMS + " oi " +
+                    "LEFT JOIN " + TABLE_MENU_ITEMS + " mi ON oi." + COLUMN_MENU_ITEM_ID_FK + " = mi." + COLUMN_ID + " " +
+                    "LEFT JOIN " + TABLE_VARIANTS + " v ON oi." + COLUMN_VARIANT_ID_FK + " = v." + COLUMN_VARIANT_ID + " " +
+                    "WHERE oi." + COLUMN_ORDER_ITEM_ORDER_ID + " = ? " +
+                    "ORDER BY oi." + COLUMN_ITEM_CREATED_AT + " ASC";
+
+            Cursor cursor = db.rawQuery(selectQuery, new String[]{String.valueOf(orderId)});
+
+            if (cursor != null && cursor.moveToFirst()) {
+                do {
+                    OrderItemSyncData item = new OrderItemSyncData();
+                    item.setLocalId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ITEM_ID)));
+                    item.setOrderId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ORDER_ITEM_ORDER_ID)));
+                    item.setMenuItemId(cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_MENU_ITEM_ID_FK)));
+                    item.setVariantId(cursor.isNull(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_ID_FK)) ?
+                            null : cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_VARIANT_ID_FK)));
+                    item.setQuantity(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_QUANTITY)));
+                    item.setUnitPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_UNIT_PRICE)));
+                    item.setTotalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_TOTAL_PRICE)));
+                    item.setNotes(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_NOTES)));
+                    item.setStatus(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_STATUS)));
+                    item.setComplimentary(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_IS_COMPLIMENTARY)) == 1);
+                    item.setCustomPrice(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_IS_CUSTOM_PRICE)) == 1);
+                    item.setOriginalPrice(cursor.getDouble(cursor.getColumnIndexOrThrow(COLUMN_ITEM_ORIGINAL_PRICE)));
+                    item.setKitchenPrinted(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_KITCHEN_PRINTED)) == 1);
+                    item.setSynced(cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_ITEM_IS_SYNCED)) == 1);
+                    item.setServerId(cursor.isNull(cursor.getColumnIndexOrThrow(COLUMN_ITEM_SERVER_ID)) ?
+                            null : cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ITEM_SERVER_ID)));
+                    item.setCreatedAt(cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_ITEM_CREATED_AT)));
+
+                    // Set menu item and variant names
+                    item.setMenuItemName(cursor.getString(cursor.getColumnIndexOrThrow("menu_item_name")));
+                    item.setVariantName(cursor.getString(cursor.getColumnIndexOrThrow("variant_name")));
+
+                    orderItems.add(item);
+                } while (cursor.moveToNext());
+
+                cursor.close();
+            }
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting order items", e);
+        }
+
+        return orderItems;
+    }
+
+    /**
+     * Delete synced order items (cleanup)
+     */
+    public void cleanupSyncedOrderItems(int daysOld) {
+        SQLiteDatabase db = this.getWritableDatabase();
+
+        try {
+            // Calculate date threshold
+            Calendar calendar = Calendar.getInstance();
+            calendar.add(Calendar.DAY_OF_YEAR, -daysOld);
+            String dateThreshold = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+                    .format(calendar.getTime());
+
+            int deletedRows = db.delete(TABLE_ORDER_ITEMS,
+                    COLUMN_ITEM_IS_SYNCED + " = 1 AND " + COLUMN_ITEM_CREATED_AT + " < ?",
+                    new String[]{dateThreshold});
+
+            Log.d(TAG, "Cleaned up " + deletedRows + " old synced order items");
+
+        } catch (Exception e) {
+            Log.e(TAG, "Error cleaning up synced order items", e);
+        }
     }
 
     private String getCurrentTimestamp() {
