@@ -20,30 +20,21 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.adapters.ProductItemAdapter;
 import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.models.CreateOrderItemRequest;
+import com.restaurant.management.models.CreateOrderItemResponse;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
+import com.restaurant.management.network.ApiClient;
 import com.restaurant.management.utils.NetworkUtils;
 
-import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-
 public class AddItemActivity extends AppCompatActivity implements ProductItemAdapter.OnItemClickListener {
     private static final String TAG = "AddItemActivity";
-    private static final String BASE_API_URL = "https://api.pood.lol/";
-    private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
     private TextView tableNumberTextView;
     private EditText searchEditText;
@@ -51,7 +42,6 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     private RecyclerView menuItemsRecyclerView;
     private ProgressBar progressBar;
 
-    private OkHttpClient client = new OkHttpClient();
     private List<ProductItem> menuItems = new ArrayList<>();
     private List<ProductItem> allMenuItems = new ArrayList<>();
     private ProductItemAdapter menuItemAdapter;
@@ -270,87 +260,67 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         double totalPrice = unitPrice * quantity;
         final double finalUnitPrice = unitPrice;
 
-        JSONObject requestJson = new JSONObject();
-        try {
-            requestJson.put("menu_item_id", menuItem.getId());
-            requestJson.put("variant_id", variantId != null ? variantId : JSONObject.NULL);
-            requestJson.put("quantity", quantity);
-            requestJson.put("unit_price", finalUnitPrice);
-            requestJson.put("total_price", totalPrice);
-            requestJson.put("status", "new");
-            requestJson.put("kitchen_printed", false);
+        // Create the request object
+        CreateOrderItemRequest request = new CreateOrderItemRequest();
+        request.setMenuItemId(menuItem.getId());
+        request.setVariantId(variantId);
+        request.setQuantity(quantity);
+        request.setUnitPrice(finalUnitPrice);
+        request.setTotalPrice(totalPrice);
+        request.setStatus("new");
+        request.setKitchenPrinted(false);
 
-            if (notes != null && !notes.isEmpty()) {
-                requestJson.put("notes", notes);
-            }
-
-            if (isComplimentary) {
-                requestJson.put("is_complimentary", true);
-                requestJson.put("original_price", getOriginalPrice(menuItem, variantId));
-            }
-
-            if (customPrice != null && !isComplimentary) {
-                requestJson.put("is_custom_price", true);
-                requestJson.put("original_price", menuItem.getPrice());
-            }
-
-        } catch (JSONException e) {
-            Toast.makeText(this, "Error creating request", Toast.LENGTH_SHORT).show();
-            progressBar.setVisibility(View.GONE);
-            menuItemsRecyclerView.setVisibility(View.VISIBLE);
-            return;
+        if (notes != null && !notes.isEmpty()) {
+            request.setNotes(notes);
         }
 
-        String apiUrl = BASE_API_URL + "orders/" + orderId + "/items";
-        String authToken = getAuthToken();
-
-        RequestBody body = RequestBody.create(JSON, requestJson.toString());
-        Request.Builder requestBuilder = new Request.Builder()
-                .url(apiUrl)
-                .post(body)
-                .header("Content-Type", "application/json");
-
-        if (authToken != null && !authToken.isEmpty()) {
-            requestBuilder.header("Authorization", "Bearer " + authToken);
+        if (isComplimentary) {
+            request.setComplimentary(true);
+            request.setOriginalPrice(getOriginalPrice(menuItem, variantId));
         }
 
-        Request request = requestBuilder.build();
+        if (customPrice != null && !isComplimentary) {
+            request.setCustomPrice(true);
+            request.setOriginalPrice(menuItem.getPrice());
+        }
 
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onFailure(Call call, IOException e) {
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    menuItemsRecyclerView.setVisibility(View.VISIBLE);
-                    Toast.makeText(AddItemActivity.this, "Failed to add item", Toast.LENGTH_SHORT).show();
-                });
-            }
+        // Use ApiService instead of raw OkHttp
+        ApiClient.getApiService().addItemToOrder(orderId, request)
+                .enqueue(new retrofit2.Callback<CreateOrderItemResponse>() {
+                    @Override
+                    public void onResponse(retrofit2.Call<CreateOrderItemResponse> call,
+                                           retrofit2.Response<CreateOrderItemResponse> response) {
+                        progressBar.setVisibility(View.GONE);
+                        menuItemsRecyclerView.setVisibility(View.VISIBLE);
 
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                String responseBody = response.body().string();
-
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    menuItemsRecyclerView.setVisibility(View.VISIBLE);
-
-                    if (response.isSuccessful()) {
-                        String successMessage = buildSuccessMessage(isComplimentary, customPrice, finalUnitPrice);
-                        Toast.makeText(AddItemActivity.this, successMessage, Toast.LENGTH_SHORT).show();
-                        setResult(RESULT_OK);
-                        finish();
-                    } else {
-                        try {
-                            JSONObject errorJson = new JSONObject(responseBody);
-                            String errorMessage = errorJson.optString("message", "Server error");
+                        if (response.isSuccessful() && response.body() != null) {
+                            String successMessage = buildSuccessMessage(isComplimentary, customPrice, finalUnitPrice);
+                            Toast.makeText(AddItemActivity.this, successMessage, Toast.LENGTH_SHORT).show();
+                            setResult(RESULT_OK);
+                            finish();
+                        } else {
+                            String errorMessage = "Failed to add item";
+                            if (response.errorBody() != null) {
+                                try {
+                                    String errorBody = response.errorBody().string();
+                                    JSONObject errorJson = new JSONObject(errorBody);
+                                    errorMessage = errorJson.optString("message", "Server error");
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Error parsing error response", e);
+                                }
+                            }
                             Toast.makeText(AddItemActivity.this, "Failed to add item: " + errorMessage, Toast.LENGTH_LONG).show();
-                        } catch (JSONException e) {
-                            Toast.makeText(AddItemActivity.this, "Failed to add item", Toast.LENGTH_SHORT).show();
                         }
                     }
+
+                    @Override
+                    public void onFailure(retrofit2.Call<CreateOrderItemResponse> call, Throwable t) {
+                        progressBar.setVisibility(View.GONE);
+                        menuItemsRecyclerView.setVisibility(View.VISIBLE);
+                        Log.e(TAG, "Network error adding item to order", t);
+                        Toast.makeText(AddItemActivity.this, "Failed to add item", Toast.LENGTH_SHORT).show();
+                    }
                 });
-            }
-        });
     }
 
     private double getOriginalPrice(ProductItem menuItem, Long variantId) {

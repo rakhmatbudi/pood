@@ -12,6 +12,8 @@ import com.restaurant.management.models.OrderTypesResponse;
 import com.restaurant.management.models.OrderStatusesResponse;
 import com.restaurant.management.models.CreateOrderRequest;
 import com.restaurant.management.models.CreateOrderResponse;
+import com.restaurant.management.models.CreateOrderItemRequest;
+import com.restaurant.management.models.CreateOrderItemResponse;
 
 import java.util.List;
 import retrofit2.Call;
@@ -89,4 +91,16 @@ public interface ApiService {
      */
     @GET("orders/{id}")
     Call<Order> getOrderById(@Path("id") long orderId);
+
+    /**
+     * Add an item to an existing order
+     * @param orderId The ID of the order to add the item to
+     * @param request The item details to add
+     * @return Call object with the response
+     */
+    @POST("orders/{orderId}/items")
+    Call<CreateOrderItemResponse> addItemToOrder(
+            @Path("orderId") long orderId,
+            @Body CreateOrderItemRequest request
+    );
 }
