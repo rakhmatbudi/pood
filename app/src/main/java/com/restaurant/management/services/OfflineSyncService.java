@@ -5,7 +5,7 @@ import android.content.Intent;
 import android.os.IBinder;
 import android.util.Log;
 
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.helpers.OrderItemSyncData;
 import com.restaurant.management.models.CreateOrderItemResponse;
 import com.restaurant.management.network.ApiClient;
@@ -24,14 +24,14 @@ public class OfflineSyncService extends Service {
     private static final int MAX_RETRY_ATTEMPTS = 3;
     private static final long RETRY_DELAY_MS = 5000; // 5 seconds
 
-    private PoodDatabase database;
+    private DatabaseManager databaseManager;
     private ExecutorService executorService;
     private boolean isSyncing = false;
 
     @Override
     public void onCreate() {
         super.onCreate();
-        database = new PoodDatabase(this);
+        databaseManager = DatabaseManager.getInstance(this);
         executorService = Executors.newSingleThreadExecutor();
         Log.d(TAG, "OfflineSyncService created");
     }
@@ -62,7 +62,7 @@ public class OfflineSyncService extends Service {
 
     private void syncUnsyncedOrderItems() {
         try {
-            List<OrderItemSyncData> unsyncedItems = database.getUnsyncedOrderItems();
+            List<OrderItemSyncData> unsyncedItems = databaseManager.getUnsyncedOrderItems();
 
             if (unsyncedItems.isEmpty()) {
                 Log.d(TAG, "No unsynced items found");
@@ -134,7 +134,7 @@ public class OfflineSyncService extends Service {
                                 try {
                                     // Try to get server ID using robust method
                                     long serverId = getServerIdFromResponse(response.body());
-                                    database.markOrderItemAsSynced(item.getLocalId(), serverId);
+                                    databaseManager.markOrderItemAsSynced(item.getLocalId(), serverId);
                                     Log.d(TAG, "Successfully synced item " + item.getLocalId() + " -> " + serverId);
                                 } catch (Exception e) {
                                     Log.e(TAG, "Error marking item as synced", e);
@@ -236,7 +236,7 @@ public class OfflineSyncService extends Service {
         // Clean up old synced items (older than 7 days)
         executorService.execute(() -> {
             try {
-                database.cleanupSyncedOrderItems(7);
+                databaseManager.cleanupSyncedOrderItems(7);
             } catch (Exception e) {
                 Log.e(TAG, "Error during cleanup", e);
             }
@@ -252,9 +252,7 @@ public class OfflineSyncService extends Service {
         if (executorService != null) {
             executorService.shutdown();
         }
-        if (database != null) {
-            database.close();
-        }
+        // Note: No need to close DatabaseManager as it uses singleton pattern
         Log.d(TAG, "OfflineSyncService destroyed");
     }
 

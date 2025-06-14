@@ -1,9 +1,10 @@
 package com.restaurant.management.helpers;
 
 import android.content.Context;
+import android.util.Log;
 
 import com.restaurant.management.R;
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
 import com.restaurant.management.models.OrderStatus;
@@ -28,6 +29,7 @@ import okhttp3.Response;
 import retrofit2.Retrofit;
 
 public class OrderListApiHelper {
+    private static final String TAG = "OrderListApiHelper";
     private static final String ORDER_TYPES_API_URL = "https://api.pood.lol/order-types/";
     private static final String ORDER_STATUSES_API_URL = "https://api.pood.lol/order-statuses";
     private static final String ORDERS_API_URL = "https://api.pood.lol/orders";
@@ -35,6 +37,7 @@ public class OrderListApiHelper {
 
     private final Context context;
     private final OkHttpClient client;
+    private final DatabaseManager databaseManager;
 
     public interface OrdersCallback {
         void onSuccess(List<Order> orders);
@@ -59,6 +62,8 @@ public class OrderListApiHelper {
     public OrderListApiHelper(Context context) {
         this.context = context;
         this.client = createHttpClient(context);
+        this.databaseManager = DatabaseManager.getInstance(context);
+        Log.d(TAG, "OrderListApiHelper initialized with DatabaseManager");
     }
 
     private static OkHttpClient createHttpClient(Context context) {
@@ -66,6 +71,7 @@ public class OrderListApiHelper {
             Retrofit retrofit = ApiClient.getClient(context);
             return (OkHttpClient) retrofit.callFactory();
         } catch (Exception e) {
+            Log.e(TAG, "Error creating HTTP client from ApiClient, using default", e);
             return new OkHttpClient();
         }
     }
@@ -85,10 +91,13 @@ public class OrderListApiHelper {
 
         Request request = requestBuilder.build();
 
+        Log.d(TAG, "Fetching orders for session: " + sessionId);
+
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                callback.onError("Network error occurred");
+                Log.e(TAG, "Failed to fetch orders", e);
+                callback.onError("Network error occurred: " + e.getMessage());
             }
 
             @Override
@@ -97,13 +106,15 @@ public class OrderListApiHelper {
                     String responseBody = response.body().string();
 
                     if (!response.isSuccessful()) {
-                        callback.onError("Unexpected response code: " + response.code());
+                        Log.e(TAG, "Order fetch failed with code: " + response.code());
+                        callback.onError("Server error: " + response.code());
                         return;
                     }
 
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     if (!jsonResponse.has("data")) {
-                        callback.onError("Response missing 'data' field");
+                        Log.e(TAG, "Response missing 'data' field");
+                        callback.onError("Invalid response format");
                         return;
                     }
 
@@ -113,12 +124,16 @@ public class OrderListApiHelper {
                     for (int i = 0; i < ordersArray.length(); i++) {
                         JSONObject orderJson = ordersArray.getJSONObject(i);
                         Order order = parseOrder(orderJson);
-                        orders.add(order);
+                        if (order != null && order.getId() > 0) {
+                            orders.add(order);
+                        }
                     }
 
+                    Log.d(TAG, "Successfully parsed " + orders.size() + " orders");
                     callback.onSuccess(orders);
 
                 } catch (Exception e) {
+                    Log.e(TAG, "Error processing orders response", e);
                     callback.onError("Error processing response: " + e.getMessage());
                 }
             }
@@ -137,10 +152,21 @@ public class OrderListApiHelper {
 
         Request request = requestBuilder.build();
 
+        Log.d(TAG, "Fetching order statuses from API");
+
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                callback.onError("Failed to fetch order statuses");
+                Log.e(TAG, "Failed to fetch order statuses", e);
+
+                // Fall back to cached data
+                Log.d(TAG, "Falling back to cached order statuses");
+                List<OrderStatus> cachedStatuses = getOrderStatuses();
+                if (!cachedStatuses.isEmpty()) {
+                    callback.onSuccess(cachedStatuses);
+                } else {
+                    callback.onError("Failed to fetch order statuses and no cached data available");
+                }
             }
 
             @Override
@@ -161,12 +187,34 @@ public class OrderListApiHelper {
                             orderStatuses.add(orderStatus);
                         }
 
+                        // Cache the fresh data
+                        cacheFreshOrderStatuses(orderStatuses);
+
+                        Log.d(TAG, "Successfully fetched " + orderStatuses.size() + " order statuses");
                         callback.onSuccess(orderStatuses);
                     } else {
-                        callback.onError("HTTP error: " + response.code());
+                        Log.e(TAG, "Order statuses fetch failed with code: " + response.code());
+
+                        // Fall back to cached data
+                        List<OrderStatus> cachedStatuses = getOrderStatuses();
+                        if (!cachedStatuses.isEmpty()) {
+                            Log.d(TAG, "Using cached order statuses due to API error");
+                            callback.onSuccess(cachedStatuses);
+                        } else {
+                            callback.onError("HTTP error: " + response.code());
+                        }
                     }
                 } catch (Exception e) {
-                    callback.onError("Error parsing order statuses");
+                    Log.e(TAG, "Error parsing order statuses", e);
+
+                    // Fall back to cached data
+                    List<OrderStatus> cachedStatuses = getOrderStatuses();
+                    if (!cachedStatuses.isEmpty()) {
+                        Log.d(TAG, "Using cached order statuses due to parsing error");
+                        callback.onSuccess(cachedStatuses);
+                    } else {
+                        callback.onError("Error parsing order statuses");
+                    }
                 }
             }
         });
@@ -184,10 +232,19 @@ public class OrderListApiHelper {
 
         Request request = requestBuilder.build();
 
+        Log.d(TAG, "Fetching order types from API");
+
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(Call call, IOException e) {
-                if (callback != null) {
+                Log.e(TAG, "Failed to fetch order types", e);
+
+                // Fall back to cached data
+                Log.d(TAG, "Falling back to cached order types");
+                List<OrderType> cachedTypes = getOrderTypes();
+                if (!cachedTypes.isEmpty()) {
+                    callback.onSuccess(cachedTypes);
+                } else {
                     callback.onError("Failed to fetch order types: " + e.getMessage());
                 }
             }
@@ -196,53 +253,79 @@ public class OrderListApiHelper {
             public void onResponse(Call call, Response response) throws IOException {
                 try {
                     if (!response.isSuccessful()) {
-                        if (callback != null) {
+                        Log.e(TAG, "Order types fetch failed with code: " + response.code());
+
+                        // Fall back to cached data
+                        List<OrderType> cachedTypes = getOrderTypes();
+                        if (!cachedTypes.isEmpty()) {
+                            Log.d(TAG, "Using cached order types due to API error");
+                            callback.onSuccess(cachedTypes);
+                        } else {
                             callback.onError("HTTP error: " + response.code());
                         }
                         return;
                     }
 
                     String responseBody = response.body().string();
+                    List<OrderType> orderTypes = parseOrderTypesResponse(responseBody);
 
-                    // Try to parse as array first (direct array response)
-                    try {
-                        JSONArray dataArray = new JSONArray(responseBody);
-                        List<OrderType> orderTypes = parseOrderTypesFromArray(dataArray);
-                        if (callback != null) {
-                            callback.onSuccess(orderTypes);
-                        }
-                        return;
-                    } catch (JSONException e) {
-                        // Not a direct array, try object format
-                    }
+                    if (orderTypes != null && !orderTypes.isEmpty()) {
+                        // Cache the fresh data
+                        cacheFreshOrderTypes(orderTypes);
 
-                    // Try to parse as object with data field
-                    try {
-                        JSONObject jsonResponse = new JSONObject(responseBody);
-                        if ("success".equals(jsonResponse.optString("status")) && jsonResponse.has("data")) {
-                            JSONArray dataArray = jsonResponse.getJSONArray("data");
-                            List<OrderType> orderTypes = parseOrderTypesFromArray(dataArray);
-                            if (callback != null) {
-                                callback.onSuccess(orderTypes);
-                            }
+                        Log.d(TAG, "Successfully fetched " + orderTypes.size() + " order types");
+                        callback.onSuccess(orderTypes);
+                    } else {
+                        // Fall back to cached data
+                        List<OrderType> cachedTypes = getOrderTypes();
+                        if (!cachedTypes.isEmpty()) {
+                            Log.d(TAG, "Using cached order types due to empty API response");
+                            callback.onSuccess(cachedTypes);
                         } else {
-                            if (callback != null) {
-                                callback.onError("API returned non-success status");
-                            }
-                        }
-                    } catch (JSONException e) {
-                        if (callback != null) {
-                            callback.onError("Error parsing response");
+                            callback.onError("No order types found");
                         }
                     }
 
                 } catch (Exception e) {
-                    if (callback != null) {
+                    Log.e(TAG, "Error processing order types response", e);
+
+                    // Fall back to cached data
+                    List<OrderType> cachedTypes = getOrderTypes();
+                    if (!cachedTypes.isEmpty()) {
+                        Log.d(TAG, "Using cached order types due to processing error");
+                        callback.onSuccess(cachedTypes);
+                    } else {
                         callback.onError("Error processing response");
                     }
                 }
             }
         });
+    }
+
+    private List<OrderType> parseOrderTypesResponse(String responseBody) {
+        try {
+            // Try to parse as array first (direct array response)
+            try {
+                JSONArray dataArray = new JSONArray(responseBody);
+                return parseOrderTypesFromArray(dataArray);
+            } catch (JSONException e) {
+                // Not a direct array, try object format
+            }
+
+            // Try to parse as object with data field
+            JSONObject jsonResponse = new JSONObject(responseBody);
+            if ("success".equals(jsonResponse.optString("status")) && jsonResponse.has("data")) {
+                JSONArray dataArray = jsonResponse.getJSONArray("data");
+                return parseOrderTypesFromArray(dataArray);
+            } else {
+                Log.e(TAG, "API returned non-success status or missing data field");
+                return null;
+            }
+
+        } catch (JSONException e) {
+            Log.e(TAG, "Error parsing order types response", e);
+            return null;
+        }
     }
 
     private List<OrderType> parseOrderTypesFromArray(JSONArray dataArray) throws JSONException {
@@ -252,7 +335,10 @@ public class OrderListApiHelper {
             OrderType orderType = new OrderType();
             orderType.setId(orderTypeJson.optLong("id"));
             orderType.setName(orderTypeJson.optString("name"));
-            orderTypes.add(orderType);
+
+            if (orderType.getId() > 0 && orderType.getName() != null && !orderType.getName().isEmpty()) {
+                orderTypes.add(orderType);
+            }
         }
         return orderTypes;
     }
@@ -265,7 +351,7 @@ public class OrderListApiHelper {
             orderData.put("cashier_session_id", sessionId);
             orderData.put("order_type_id", orderType.getId());
 
-            if (!customerName.isEmpty()) {
+            if (customerName != null && !customerName.trim().isEmpty()) {
                 orderData.put("customer_name", customerName);
             }
 
@@ -282,10 +368,13 @@ public class OrderListApiHelper {
 
             Request request = requestBuilder.build();
 
+            Log.d(TAG, "Creating order: Table " + tableNumber + ", Type: " + orderType.getName());
+
             client.newCall(request).enqueue(new Callback() {
                 @Override
                 public void onFailure(Call call, IOException e) {
-                    callback.onError("Network error occurred");
+                    Log.e(TAG, "Order creation failed", e);
+                    callback.onError("Network error occurred: " + e.getMessage());
                 }
 
                 @Override
@@ -298,21 +387,27 @@ public class OrderListApiHelper {
                             String status = jsonResponse.optString("status", "");
 
                             if ("success".equals(status)) {
-                                callback.onSuccess("Order created successfully (" + orderType.getName() + ")");
+                                String successMessage = "Order created successfully (" + orderType.getName() + ")";
+                                Log.d(TAG, successMessage);
+                                callback.onSuccess(successMessage);
                             } else {
                                 String message = jsonResponse.optString("message", "Order creation failed");
+                                Log.e(TAG, "Order creation failed: " + message);
                                 callback.onError(message);
                             }
                         } else {
+                            Log.e(TAG, "Order creation failed with code: " + response.code());
                             handleErrorResponse(responseBody, callback);
                         }
                     } catch (JSONException e) {
+                        Log.e(TAG, "Error processing order creation response", e);
                         callback.onError("Error processing response: " + e.getMessage());
                     }
                 }
             });
 
         } catch (Exception e) {
+            Log.e(TAG, "Error creating order request", e);
             callback.onError("Error creating request: " + e.getMessage());
         }
     }
@@ -322,6 +417,11 @@ public class OrderListApiHelper {
         try {
             JSONObject errorJson = new JSONObject(responseBody);
             errorMessage = errorJson.optString("message", "Order creation failed");
+
+            // Log additional error details if available
+            if (errorJson.has("errors")) {
+                Log.e(TAG, "Order creation errors: " + errorJson.getJSONObject("errors").toString());
+            }
         } catch (JSONException e) {
             errorMessage = "Order creation failed";
         }
@@ -339,32 +439,15 @@ public class OrderListApiHelper {
             String orderStatusName = orderJson.optString("order_status_name", "").toLowerCase();
             order.setStatus(orderStatusName);
 
-            // Parse amounts
-            String totalAmountStr = orderJson.optString("total_amount", "0").replace(",", "");
-            try {
-                order.setTotalAmount(Double.parseDouble(totalAmountStr));
-            } catch (NumberFormatException e) {
-                order.setTotalAmount(0.0);
-            }
-
-            String finalAmountStr = orderJson.optString("final_amount", "0").replace(",", "");
-            try {
-                order.setFinalAmount(Double.parseDouble(finalAmountStr));
-            } catch (NumberFormatException e) {
-                order.setFinalAmount(order.getTotalAmount());
-            }
+            // Parse amounts with better error handling
+            order.setTotalAmount(parseAmount(orderJson.optString("total_amount", "0")));
+            order.setFinalAmount(parseAmount(orderJson.optString("final_amount",
+                    String.valueOf(order.getTotalAmount()))));
 
             order.setCreatedAt(orderJson.optString("created_at", ""));
 
             // Parse customer info
-            if (!orderJson.isNull("customer_name") && !orderJson.optString("customer_name", "").isEmpty()) {
-                order.setCustomerName(orderJson.optString("customer_name", ""));
-            } else if (!orderJson.isNull("customer_id")) {
-                long customerId = orderJson.optLong("customer_id", -1);
-                if (customerId > 0) {
-                    order.setCustomerName("Customer #" + customerId);
-                }
-            }
+            parseCustomerInfo(orderJson, order);
 
             order.setSessionId(orderJson.optLong("cashier_session_id", -1));
             order.setServerId(orderJson.optLong("server_id", -1));
@@ -379,12 +462,12 @@ public class OrderListApiHelper {
                 for (int i = 0; i < itemsArray.length(); i++) {
                     JSONObject itemJson = itemsArray.getJSONObject(i);
 
-                    if (itemJson.isNull("id")) {
-                        continue;
+                    if (!itemJson.isNull("id")) {
+                        OrderItem item = parseOrderItem(itemJson);
+                        if (item != null) {
+                            orderItems.add(item);
+                        }
                     }
-
-                    OrderItem item = parseOrderItem(itemJson);
-                    orderItems.add(item);
                 }
 
                 order.setItems(orderItems);
@@ -392,52 +475,124 @@ public class OrderListApiHelper {
 
             return order;
         } catch (Exception e) {
-            return new Order();
+            Log.e(TAG, "Error parsing order", e);
+            return null;
+        }
+    }
+
+    private double parseAmount(String amountStr) {
+        try {
+            return Double.parseDouble(amountStr.replace(",", ""));
+        } catch (NumberFormatException e) {
+            Log.w(TAG, "Failed to parse amount: " + amountStr);
+            return 0.0;
+        }
+    }
+
+    private void parseCustomerInfo(JSONObject orderJson, Order order) {
+        if (!orderJson.isNull("customer_name") && !orderJson.optString("customer_name", "").isEmpty()) {
+            order.setCustomerName(orderJson.optString("customer_name", ""));
+        } else if (!orderJson.isNull("customer_id")) {
+            long customerId = orderJson.optLong("customer_id", -1);
+            if (customerId > 0) {
+                order.setCustomerName("Customer #" + customerId);
+            }
         }
     }
 
     private OrderItem parseOrderItem(JSONObject itemJson) {
-        OrderItem item = new OrderItem();
-        item.setId(itemJson.optLong("id", -1));
-        item.setOrderId(itemJson.optLong("order_id", -1));
-        item.setMenuItemId(itemJson.optLong("menu_item_id", -1));
-        item.setMenuItemName(itemJson.optString("menu_item_name", ""));
+        try {
+            OrderItem item = new OrderItem();
+            item.setId(itemJson.optLong("id", -1));
+            item.setOrderId(itemJson.optLong("order_id", -1));
+            item.setMenuItemId(itemJson.optLong("menu_item_id", -1));
+            item.setMenuItemName(itemJson.optString("menu_item_name", ""));
 
-        if (!itemJson.isNull("variant_id")) {
-            item.setVariantId(itemJson.optLong("variant_id", -1));
+            if (!itemJson.isNull("variant_id")) {
+                item.setVariantId(itemJson.optLong("variant_id", -1));
+            }
+
+            if (!itemJson.isNull("variant_name") && !itemJson.optString("variant_name", "").isEmpty()) {
+                item.setVariantName(itemJson.optString("variant_name", ""));
+            } else {
+                item.setVariantName(null);
+            }
+
+            item.setQuantity(itemJson.optInt("quantity", 0));
+            item.setUnitPrice(itemJson.optDouble("unit_price", 0.0));
+            item.setTotalPrice(itemJson.optDouble("total_price", 0.0));
+
+            if (!itemJson.isNull("notes") && !itemJson.optString("notes", "").isEmpty()) {
+                item.setNotes(itemJson.optString("notes", ""));
+            } else {
+                item.setNotes(null);
+            }
+
+            item.setStatus(itemJson.optString("status", ""));
+            item.setKitchenPrinted(itemJson.optBoolean("kitchen_printed", false));
+            item.setCreatedAt(itemJson.optString("created_at", ""));
+            item.setUpdatedAt(itemJson.optString("updated_at", ""));
+
+            return item;
+        } catch (Exception e) {
+            Log.e(TAG, "Error parsing order item", e);
+            return null;
         }
-
-        if (!itemJson.isNull("variant_name") && !itemJson.optString("variant_name", "").isEmpty()) {
-            item.setVariantName(itemJson.optString("variant_name", ""));
-        } else {
-            item.setVariantName(null);
-        }
-
-        item.setQuantity(itemJson.optInt("quantity", 0));
-        item.setUnitPrice(itemJson.optDouble("unit_price", 0.0));
-        item.setTotalPrice(itemJson.optDouble("total_price", 0.0));
-
-        if (!itemJson.isNull("notes") && !itemJson.optString("notes", "").isEmpty()) {
-            item.setNotes(itemJson.optString("notes", ""));
-        } else {
-            item.setNotes(null);
-        }
-
-        item.setStatus(itemJson.optString("status", ""));
-        item.setKitchenPrinted(itemJson.optBoolean("kitchen_printed", false));
-        item.setCreatedAt(itemJson.optString("created_at", ""));
-        item.setUpdatedAt(itemJson.optString("updated_at", ""));
-
-        return item;
     }
 
+    // Cache management methods
+    private void cacheFreshOrderStatuses(List<OrderStatus> orderStatuses) {
+        new Thread(() -> {
+            try {
+                databaseManager.saveOrderStatuses(orderStatuses);
+                Log.d(TAG, "Cached " + orderStatuses.size() + " order statuses");
+            } catch (Exception e) {
+                Log.e(TAG, "Error caching order statuses", e);
+            }
+        }).start();
+    }
+
+    private void cacheFreshOrderTypes(List<OrderType> orderTypes) {
+        new Thread(() -> {
+            try {
+                databaseManager.saveOrderTypes(orderTypes);
+                Log.d(TAG, "Cached " + orderTypes.size() + " order types");
+            } catch (Exception e) {
+                Log.e(TAG, "Error caching order types", e);
+            }
+        }).start();
+    }
+
+    // Public methods for accessing cached data
     public List<OrderStatus> getOrderStatuses() {
-        PoodDatabase database = new PoodDatabase(context);
-        return database.getOrderStatuses();
+        try {
+            List<OrderStatus> statuses = databaseManager.getOrderStatuses();
+            Log.d(TAG, "Retrieved " + statuses.size() + " cached order statuses");
+            return statuses;
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting cached order statuses", e);
+            return new ArrayList<>();
+        }
+    }
+
+    public List<OrderType> getOrderTypes() {
+        try {
+            List<OrderType> types = databaseManager.getOrderTypes();
+            Log.d(TAG, "Retrieved " + types.size() + " cached order types");
+            return types;
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting cached order types", e);
+            return new ArrayList<>();
+        }
     }
 
     private String getAuthToken() {
-        return context.getSharedPreferences(context.getString(R.string.pref_file_name), Context.MODE_PRIVATE)
-                .getString(context.getString(R.string.pref_token), "");
+        try {
+            return context.getSharedPreferences(context.getString(R.string.pref_file_name), Context.MODE_PRIVATE)
+                    .getString(context.getString(R.string.pref_token), "");
+        } catch (Exception e) {
+            Log.e(TAG, "Error getting auth token", e);
+            return "";
+        }
     }
 }

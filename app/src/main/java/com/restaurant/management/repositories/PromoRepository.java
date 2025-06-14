@@ -6,7 +6,7 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.models.Promo;
 
 import org.json.JSONArray;
@@ -29,7 +29,7 @@ public class PromoRepository {
     private static final String TAG = "PromoRepository";
     private static final String BASE_API_URL = "https://api.pood.lol/";
 
-    private PoodDatabase database;
+    private DatabaseManager databaseManager;
     private Context context;
     private ExecutorService executor;
     private Handler mainHandler;
@@ -42,7 +42,7 @@ public class PromoRepository {
 
     public PromoRepository(Context context) {
         this.context = context;
-        this.database = new PoodDatabase(context);
+        this.databaseManager = DatabaseManager.getInstance(context);
         this.executor = Executors.newCachedThreadPool();
         this.mainHandler = new Handler(Looper.getMainLooper());
         this.client = new OkHttpClient();
@@ -55,7 +55,7 @@ public class PromoRepository {
     public void getOfflinePromos(PromoCallback callback) {
         executor.execute(() -> {
             try {
-                List<Promo> promos = database.getAllActivePromos();
+                List<Promo> promos = databaseManager.getAllActivePromos();
 
                 // Switch back to main thread for callback
                 mainHandler.post(() -> {
@@ -115,7 +115,7 @@ public class PromoRepository {
                     // Save to database for future offline use
                     executor.execute(() -> {
                         try {
-                            database.savePromos(promos);
+                            databaseManager.savePromos(promos);
                         } catch (Exception e) {
                             Log.e(TAG, "Error saving API promos to database", e);
                         }
@@ -130,6 +130,82 @@ public class PromoRepository {
                     Log.e(TAG, "Error processing API response, falling back to offline data", e);
                     getOfflinePromos(callback);
                 }
+            }
+        });
+    }
+
+    /**
+     * Get all promos from database (including inactive ones)
+     */
+    public void getAllPromos(PromoCallback callback) {
+        executor.execute(() -> {
+            try {
+                List<Promo> promos = databaseManager.getPromos();
+
+                // Switch back to main thread for callback
+                mainHandler.post(() -> {
+                    callback.onSuccess(promos);
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting all promos", e);
+
+                // Switch back to main thread for callback
+                mainHandler.post(() -> {
+                    callback.onError("Failed to retrieve all promos from database: " + e.getMessage());
+                });
+            }
+        });
+    }
+
+    /**
+     * Check if promos exist in database
+     */
+    public void checkPromosExist(PromosExistCallback callback) {
+        executor.execute(() -> {
+            try {
+                boolean hasPromos = databaseManager.hasPromos();
+
+                // Switch back to main thread for callback
+                mainHandler.post(() -> {
+                    callback.onResult(hasPromos);
+                });
+
+            } catch (Exception e) {
+                Log.e(TAG, "Error checking if promos exist", e);
+
+                // Switch back to main thread for callback
+                mainHandler.post(() -> {
+                    callback.onResult(false);
+                });
+            }
+        });
+    }
+
+    /**
+     * Sync promos with server if needed
+     * This method combines fetching from API and falling back to offline data
+     */
+    public void syncPromos(PromoCallback callback) {
+        // Check if we have offline data first
+        checkPromosExist(hasOfflineData -> {
+            if (hasOfflineData) {
+                // Try to fetch fresh data, but fall back to offline if it fails
+                fetchActivePromos(callback);
+            } else {
+                // No offline data, must fetch from API
+                fetchActivePromos(new PromoCallback() {
+                    @Override
+                    public void onSuccess(List<Promo> promos) {
+                        callback.onSuccess(promos);
+                    }
+
+                    @Override
+                    public void onError(String message) {
+                        // No offline data and API failed
+                        callback.onError("No promos available: " + message);
+                    }
+                });
             }
         });
     }
@@ -222,8 +298,14 @@ public class PromoRepository {
         if (executor != null && !executor.isShutdown()) {
             executor.shutdown();
         }
-        if (database != null) {
-            database.close();
-        }
+        // Note: No need to close DatabaseManager as it uses singleton pattern
+        // and handles its own lifecycle
+    }
+
+    /**
+     * Callback interface for checking if promos exist
+     */
+    public interface PromosExistCallback {
+        void onResult(boolean hasPromos);
     }
 }

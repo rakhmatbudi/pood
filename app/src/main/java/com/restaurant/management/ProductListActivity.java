@@ -27,9 +27,10 @@ import androidx.recyclerview.widget.RecyclerView;
 import com.google.android.material.navigation.NavigationView;
 import com.google.android.material.textfield.TextInputEditText;
 import com.restaurant.management.adapters.ProductAdapter;
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.models.Product;
 import com.restaurant.management.models.ProductItem;
+import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.utils.ProductFilter;
 import com.restaurant.management.utils.TableItemDecoration;
 
@@ -37,10 +38,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ProductListActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener, ProductAdapter.OnProductClickListener {
+
+    private static final String TAG = "ProductListActivity";
 
     private DrawerLayout drawerLayout;
     private RecyclerView recyclerView;
@@ -48,7 +53,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     private ProgressBar progressBar;
     private List<Product> productList = new ArrayList<>();
     private List<Product> filteredProductList = new ArrayList<>();
-    private PoodDatabase database;
+    private DatabaseManager databaseManager;
     private ExecutorService executorService;
     private TextView emptyView;
 
@@ -56,6 +61,9 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     private TextInputEditText searchEditText;
     private AutoCompleteTextView categoryAutoComplete;
     private ProductFilter productFilter;
+
+    // Category lookup for better performance
+    private Map<String, MenuCategory> categoryMap = new HashMap<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -76,7 +84,21 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         // Initialize drawer if available
         initializeDrawer(toolbar);
 
-        // Initialize ProgressBar
+        // Initialize views
+        initializeViews();
+
+        // Initialize filter components
+        initializeFilterListeners();
+
+        // Initialize database and executor
+        databaseManager = DatabaseManager.getInstance(this);
+        executorService = Executors.newSingleThreadExecutor();
+
+        // Load products from database
+        loadProductsFromDatabase();
+    }
+
+    private void initializeViews() {
         progressBar = findViewById(R.id.progressBar);
         emptyView = findViewById(R.id.emptyView);
 
@@ -94,16 +116,6 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         // Initialize filter components
         searchEditText = findViewById(R.id.searchEditText);
         categoryAutoComplete = findViewById(R.id.categoryAutoComplete);
-
-        // Initialize filter mechanics
-        initializeFilterListeners();
-
-        // Initialize database and executor
-        database = new PoodDatabase(this);
-        executorService = Executors.newSingleThreadExecutor();
-
-        // Load products from database
-        loadProductsFromDatabase();
     }
 
     private void initializeDrawer(Toolbar toolbar) {
@@ -199,7 +211,11 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         // Show empty view if no results
         if (filteredProductList.isEmpty()) {
             showEmptyView(true);
-            emptyView.setText("No products match your filters");
+            if (productList.isEmpty()) {
+                emptyView.setText("No products available. Please sync data.");
+            } else {
+                emptyView.setText("No products match your filters");
+            }
         } else {
             showEmptyView(false);
         }
@@ -230,15 +246,29 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     }
 
     private void loadProductsFromDatabase() {
-        Log.d("ProductListActivity", "Loading products from database...");
+        Log.d(TAG, "Loading products from database...");
         showLoading(true);
 
         // Execute database query in background thread
         executorService.execute(() -> {
             try {
-                // Get menu items from database
-                List<ProductItem> menuItems = database.getAllMenuItems();
-                Log.d("ProductListActivity", "Database returned " + menuItems.size() + " menu items");
+                // Check if data exists first
+                if (!databaseManager.hasMenuItems()) {
+                    runOnUiThread(() -> {
+                        showLoading(false);
+                        showEmptyView(true);
+                        emptyView.setText("No products available. Please sync data first.");
+                        Log.w(TAG, "No menu items found in database");
+                    });
+                    return;
+                }
+
+                // Load categories first for better categorization
+                loadCategories();
+
+                // Get menu items from database using DatabaseManager
+                List<ProductItem> menuItems = databaseManager.getAllMenuItems();
+                Log.d(TAG, "Database returned " + menuItems.size() + " menu items");
 
                 // Convert ProductItems to Products
                 List<Product> products = convertMenuItemsToProducts(menuItems);
@@ -247,9 +277,9 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
                 runOnUiThread(() -> {
                     showLoading(false);
 
-                    if (products != null && !products.isEmpty()) {
+                    if (!products.isEmpty()) {
                         productList = products;
-                        Log.d("ProductListActivity", "Converted to " + productList.size() + " products");
+                        Log.d(TAG, "Converted to " + productList.size() + " products");
 
                         // Initialize filter with full product list
                         productFilter = new ProductFilter(productList);
@@ -263,14 +293,14 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
 
                         showEmptyView(false);
                     } else {
-                        Log.w("ProductListActivity", "No products found in database");
+                        Log.w(TAG, "No active products found");
                         showEmptyView(true);
-                        emptyView.setText("No products available. Please sync data.");
+                        emptyView.setText("No active products available.");
                     }
                 });
 
             } catch (Exception e) {
-                Log.e("ProductListActivity", "Error loading products from database", e);
+                Log.e(TAG, "Error loading products from database", e);
 
                 // Show error on main thread
                 runOnUiThread(() -> {
@@ -283,6 +313,23 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         });
     }
 
+    private void loadCategories() {
+        try {
+            List<MenuCategory> categories = databaseManager.getAllMenuCategories();
+            categoryMap.clear();
+
+            for (MenuCategory category : categories) {
+                if (category.getName() != null) {
+                    categoryMap.put(category.getName(), category);
+                }
+            }
+
+            Log.d(TAG, "Loaded " + categoryMap.size() + " categories for lookup");
+        } catch (Exception e) {
+            Log.e(TAG, "Error loading categories", e);
+        }
+    }
+
     private Set<String> extractCategoriesFromProducts(List<Product> products) {
         Set<String> categories = new TreeSet<>();
 
@@ -293,7 +340,7 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             }
         }
 
-        Log.d("ProductListActivity", "Extracted categories: " + categories.toString());
+        Log.d(TAG, "Extracted categories: " + categories.toString());
         return categories;
     }
 
@@ -304,52 +351,83 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             return products;
         }
 
+        int activeCount = 0;
+        int inactiveCount = 0;
+
         for (ProductItem menuItem : menuItems) {
             // Skip inactive items
             if (!menuItem.isActive()) {
+                inactiveCount++;
                 continue;
             }
 
-            Product product = new Product();
-
-            // Map fields from ProductItem to Product
-            product.setId(menuItem.getId());
-            product.setName(menuItem.getName());
-            product.setDescription(menuItem.getDescription());
-            product.setPrice(String.valueOf(menuItem.getPrice())); // Convert double to String
-            product.setActive(menuItem.isActive());
-            product.setImagePath(menuItem.getImageUrl()); // Note: using imagePath instead of imageUrl
-
-            // Handle category - create a Category object if category name exists
-            if (menuItem.getCategory() != null && !menuItem.getCategory().isEmpty()) {
-                Product.Category category = new Product.Category();
-                category.setName(menuItem.getCategory()); // Set the category name
-                // You could also set ID if you have it available from MenuCategory lookup
-                product.setCategory(category);
-            }
-
-            // Handle variants if your Product model supports them
-            // You might need to add variant support to Product model or handle separately
-
+            activeCount++;
+            Product product = createProductFromMenuItem(menuItem);
             products.add(product);
         }
 
-        Log.d("ProductListActivity", "Converted " + menuItems.size() + " menu items to " + products.size() + " products");
+        Log.d(TAG, "Converted " + menuItems.size() + " menu items: " +
+                activeCount + " active, " + inactiveCount + " inactive -> " +
+                products.size() + " products");
         return products;
     }
 
+    private Product createProductFromMenuItem(ProductItem menuItem) {
+        Product product = new Product();
+
+        // Map fields from ProductItem to Product
+        product.setId(menuItem.getId());
+        product.setName(menuItem.getName());
+        product.setDescription(menuItem.getDescription());
+        product.setPrice(formatPrice(menuItem.getPrice()));
+        product.setActive(menuItem.isActive());
+        product.setImagePath(menuItem.getImageUrl());
+
+        // Handle category with enhanced lookup
+        if (menuItem.getCategory() != null && !menuItem.getCategory().isEmpty()) {
+            Product.Category category = createCategoryFromName(menuItem.getCategory());
+            product.setCategory(category);
+        }
+
+        return product;
+    }
+
+    private String formatPrice(double price) {
+        // Format price to avoid unnecessary decimal places
+        if (price == (long) price) {
+            return String.valueOf((long) price);
+        } else {
+            return String.valueOf(price);
+        }
+    }
+
+    private Product.Category createCategoryFromName(String categoryName) {
+        Product.Category category = new Product.Category();
+        category.setName(categoryName);
+
+        // Try to get additional category info from loaded categories
+        MenuCategory menuCategory = categoryMap.get(categoryName);
+        if (menuCategory != null) {
+            // Set additional properties if your Product.Category supports them
+            // category.setId(menuCategory.getId());
+            // category.setDescription(menuCategory.getDescription());
+        }
+
+        return category;
+    }
+
     private void showLoading(boolean show) {
-        Log.d("ProductListActivity", "ShowLoading: " + show);
+        Log.d(TAG, "ShowLoading: " + show);
         progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
         recyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
         emptyView.setVisibility(View.GONE); // Always hide empty view when loading
 
         // Add explicit logging to debug visibility states
-        Log.d("ProductListActivity", "ProgressBar visibility: " +
+        Log.d(TAG, "ProgressBar visibility: " +
                 (progressBar.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
-        Log.d("ProductListActivity", "RecyclerView visibility: " +
+        Log.d(TAG, "RecyclerView visibility: " +
                 (recyclerView.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
-        Log.d("ProductListActivity", "EmptyView visibility: " +
+        Log.d(TAG, "EmptyView visibility: " +
                 (emptyView.getVisibility() == View.VISIBLE ? "VISIBLE" : "GONE"));
     }
 
@@ -365,41 +443,44 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
     @Override
     public void onProductClick(Product product) {
         // Handle product click - you could navigate to a detail page
-        Toast.makeText(this, "Selected: " + product.getName(), Toast.LENGTH_SHORT).show();
+        String message = "Selected: " + product.getName();
+        if (product.getPrice() != null) {
+            message += " ($" + product.getPrice() + ")";
+        }
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+
+        Log.d(TAG, "Product clicked: " + product.getName() + " (ID: " + product.getId() + ")");
     }
 
     @Override
     public boolean onNavigationItemSelected(@NonNull MenuItem item) {
-        // Add this log statement
-        Log.d("ProductListActivity", "Navigation item selected: " + item.getTitle());
+        Log.d(TAG, "Navigation item selected: " + item.getTitle());
 
         // Handle navigation view item clicks
         int id = item.getItemId();
 
         if (id == R.id.nav_dashboard) {
-            Log.d("ProductListActivity", "Dashboard selected");
+            Log.d(TAG, "Dashboard selected");
             startActivity(new Intent(this, DashboardActivity.class));
         } else if (id == R.id.nav_orders) {
-            Log.d("ProductListActivity", "Orders selected");
+            Log.d(TAG, "Orders selected");
             startActivity(new Intent(this, OrderListActivity.class));
         } else if (id == R.id.nav_products) {
-            Log.d("ProductListActivity", "Products selected");
+            Log.d(TAG, "Products selected");
             // We are already here
             if (drawerLayout != null) {
                 drawerLayout.closeDrawer(GravityCompat.START);
             }
             return true;
         } else if (id == R.id.nav_transactions) {
-            Log.d("ProductListActivity", "Transactions selected");
+            Log.d(TAG, "Transactions selected");
             startActivity(new Intent(this, TransactionActivity.class));
+        } else if (id == R.id.nav_offline_data) {
+            Log.d(TAG, "Offline Data selected");
+            startActivity(new Intent(this, OfflineDataActivity.class));
         } else if (id == R.id.nav_logout) {
-            Log.d("ProductListActivity", "Logout selected");
-            // Handle logout
-            // Example: clear preferences and redirect to login
-            // SharedPreferences preferences = getSharedPreferences("USER_PREF", MODE_PRIVATE);
-            // preferences.edit().clear().apply();
-            // startActivity(new Intent(this, MainActivity.class));
-            // finish();
+            Log.d(TAG, "Logout selected");
+            handleLogout();
         }
 
         if (drawerLayout != null) {
@@ -408,17 +489,39 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
         return true;
     }
 
+    private void handleLogout() {
+        // Handle logout logic
+        // Example implementation:
+        // SharedPreferences preferences = getSharedPreferences("USER_PREF", MODE_PRIVATE);
+        // preferences.edit().clear().apply();
+        // startActivity(new Intent(this, MainActivity.class));
+        // finish();
+
+        Toast.makeText(this, "Logout functionality to be implemented", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Refresh data when returning to activity
+        if (databaseManager != null && !databaseManager.hasMenuItems()) {
+            // Data might have been cleared, reload
+            loadProductsFromDatabase();
+        }
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
 
         // Clean up resources
-        if (database != null) {
-            database.close();
-        }
+        // Note: No need to close DatabaseManager as it uses singleton pattern
+        // and handles its own lifecycle
 
         if (executorService != null && !executorService.isShutdown()) {
             executorService.shutdown();
         }
+
+        Log.d(TAG, "Activity destroyed, resources cleaned up");
     }
 }

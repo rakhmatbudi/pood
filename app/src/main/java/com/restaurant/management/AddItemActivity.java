@@ -19,7 +19,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.adapters.ProductItemAdapter;
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.models.CreateOrderItemRequest;
 import com.restaurant.management.models.CreateOrderItemResponse;
 import com.restaurant.management.models.ProductItem;
@@ -45,7 +45,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     private List<ProductItem> menuItems = new ArrayList<>();
     private List<ProductItem> allMenuItems = new ArrayList<>();
     private ProductItemAdapter menuItemAdapter;
-    private PoodDatabase database;
+    private DatabaseManager databaseManager;
 
     private long orderId;
     private String tableNumber;
@@ -55,7 +55,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_item);
 
-        database = new PoodDatabase(this);
+        databaseManager = DatabaseManager.getInstance(this);
 
         initializeViews();
         setupToolbar();
@@ -124,7 +124,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
 
         new Thread(() -> {
             try {
-                List<ProductItem> items = database.getAllMenuItems();
+                List<ProductItem> items = databaseManager.getAllMenuItems();
                 Log.d(TAG, "Loaded " + (items != null ? items.size() : 0) + " items from database");
 
                 runOnUiThread(() -> {
@@ -141,7 +141,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                     } else {
                         progressBar.setVisibility(View.GONE);
                         menuItemsRecyclerView.setVisibility(View.VISIBLE);
-                        Toast.makeText(this, "No menu items available", Toast.LENGTH_SHORT).show();
+                        showNoMenuItemsMessage();
                     }
                 });
 
@@ -150,10 +150,18 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     menuItemsRecyclerView.setVisibility(View.VISIBLE);
-                    Toast.makeText(this, "Error loading menu items", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Error loading menu items: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                 });
             }
         }).start();
+    }
+
+    private void showNoMenuItemsMessage() {
+        if (databaseManager.hasMenuItems()) {
+            Toast.makeText(this, "Menu items exist but couldn't be loaded", Toast.LENGTH_SHORT).show();
+        } else {
+            Toast.makeText(this, "No menu items available. Please sync data first.", Toast.LENGTH_LONG).show();
+        }
     }
 
     private void searchMenuItems() {
@@ -164,17 +172,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             menuItems.addAll(allMenuItems);
             menuItemAdapter.notifyDataSetChanged();
         } else {
-            List<ProductItem> filteredItems = new ArrayList<>();
-
-            for (ProductItem item : allMenuItems) {
-                String itemName = item.getName() != null ? item.getName().toLowerCase() : "";
-                String itemDesc = item.getDescription() != null ? item.getDescription().toLowerCase() : "";
-                String itemCategory = item.getCategory() != null ? item.getCategory().toLowerCase() : "";
-
-                if (itemName.contains(query) || itemDesc.contains(query) || itemCategory.contains(query)) {
-                    filteredItems.add(item);
-                }
-            }
+            List<ProductItem> filteredItems = filterMenuItems(query);
 
             menuItems.clear();
             menuItems.addAll(filteredItems);
@@ -184,6 +182,26 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 Toast.makeText(this, "No items found matching '" + query + "'", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    private List<ProductItem> filterMenuItems(String query) {
+        List<ProductItem> filteredItems = new ArrayList<>();
+
+        for (ProductItem item : allMenuItems) {
+            if (isItemMatchingQuery(item, query)) {
+                filteredItems.add(item);
+            }
+        }
+
+        return filteredItems;
+    }
+
+    private boolean isItemMatchingQuery(ProductItem item, String query) {
+        String itemName = item.getName() != null ? item.getName().toLowerCase() : "";
+        String itemDesc = item.getDescription() != null ? item.getDescription().toLowerCase() : "";
+        String itemCategory = item.getCategory() != null ? item.getCategory().toLowerCase() : "";
+
+        return itemName.contains(query) || itemDesc.contains(query) || itemCategory.contains(query);
     }
 
     @Override
@@ -222,8 +240,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
             return;
         }
 
-        progressBar.setVisibility(View.VISIBLE);
-        menuItemsRecyclerView.setVisibility(View.GONE);
+        showProgressIndicator(true);
 
         // Calculate pricing
         double unitPrice = calculateUnitPrice(menuItem, variantId, customPrice, isComplimentary);
@@ -236,23 +253,32 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         saveOrderItemLocally(request, menuItem, variantId, quantity, notes, unitPrice, totalPrice, isComplimentary, customPrice);
     }
 
+    private void showProgressIndicator(boolean show) {
+        progressBar.setVisibility(show ? View.VISIBLE : View.GONE);
+        menuItemsRecyclerView.setVisibility(show ? View.GONE : View.VISIBLE);
+    }
+
     private double calculateUnitPrice(ProductItem menuItem, Long variantId, Double customPrice, boolean isComplimentary) {
         if (isComplimentary) {
             return 0.0;
         } else if (customPrice != null) {
             return customPrice;
         } else if (variantId != null) {
-            double unitPrice = menuItem.getPrice();
-            for (Variant variant : menuItem.getVariants()) {
-                if (Objects.equals(variant.getId(), variantId)) {
-                    unitPrice = variant.getPrice();
-                    break;
-                }
-            }
-            return unitPrice;
+            return getVariantPrice(menuItem, variantId);
         } else {
             return menuItem.getPrice();
         }
+    }
+
+    private double getVariantPrice(ProductItem menuItem, Long variantId) {
+        if (menuItem.getVariants() != null) {
+            for (Variant variant : menuItem.getVariants()) {
+                if (Objects.equals(variant.getId(), variantId)) {
+                    return variant.getPrice();
+                }
+            }
+        }
+        return menuItem.getPrice(); // Fallback to base price
     }
 
     private CreateOrderItemRequest createOrderItemRequest(ProductItem menuItem, Long variantId, int quantity, String notes, double unitPrice, double totalPrice, boolean isComplimentary, Double customPrice) {
@@ -285,37 +311,47 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     private void saveOrderItemLocally(CreateOrderItemRequest request, ProductItem menuItem, Long variantId, int quantity, String notes, double unitPrice, double totalPrice, boolean isComplimentary, Double customPrice) {
         new Thread(() -> {
             try {
-                // Save to local database
-                long localItemId = database.saveOrderItemLocally(orderId, request);
+                // Save to local database using DatabaseManager
+                long localItemId = databaseManager.saveOrderItemLocally(orderId, request);
 
                 runOnUiThread(() -> {
-                    // Show success message
-                    String successMessage = buildSuccessMessage(isComplimentary, customPrice, unitPrice);
-                    Toast.makeText(this, successMessage + " (Saved locally)", Toast.LENGTH_SHORT).show();
-
-                    // If online, attempt to sync immediately
-                    if (NetworkUtils.isNetworkAvailable(this)) {
-                        syncOrderItemToServer(localItemId, request);
-                    } else {
-                        // Show offline indicator
-                        Toast.makeText(this, "Item saved offline - will sync when online", Toast.LENGTH_LONG).show();
-                    }
-
-                    progressBar.setVisibility(View.GONE);
-                    menuItemsRecyclerView.setVisibility(View.VISIBLE);
-                    setResult(RESULT_OK);
-                    finish();
+                    handleLocalSaveSuccess(localItemId, request, isComplimentary, customPrice, unitPrice);
                 });
 
             } catch (Exception e) {
                 Log.e(TAG, "Error saving order item locally", e);
                 runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    menuItemsRecyclerView.setVisibility(View.VISIBLE);
-                    Toast.makeText(this, "Failed to save item", Toast.LENGTH_SHORT).show();
+                    handleLocalSaveError(e);
                 });
             }
         }).start();
+    }
+
+    private void handleLocalSaveSuccess(long localItemId, CreateOrderItemRequest request, boolean isComplimentary, Double customPrice, double unitPrice) {
+        // Show success message
+        String successMessage = buildSuccessMessage(isComplimentary, customPrice, unitPrice);
+        Toast.makeText(this, successMessage + " (Saved locally)", Toast.LENGTH_SHORT).show();
+
+        // If online, attempt to sync immediately
+        if (NetworkUtils.isNetworkAvailable(this)) {
+            syncOrderItemToServer(localItemId, request);
+        } else {
+            // Show offline indicator
+            Toast.makeText(this, "Item saved offline - will sync when online", Toast.LENGTH_LONG).show();
+        }
+
+        showProgressIndicator(false);
+        setResult(RESULT_OK);
+        finish();
+    }
+
+    private void handleLocalSaveError(Exception e) {
+        showProgressIndicator(false);
+        String errorMessage = "Failed to save item";
+        if (e.getMessage() != null) {
+            errorMessage += ": " + e.getMessage();
+        }
+        Toast.makeText(this, errorMessage, Toast.LENGTH_SHORT).show();
     }
 
     private void syncOrderItemToServer(long localItemId, CreateOrderItemRequest request) {
@@ -330,7 +366,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                                 try {
                                     // Try different possible method names for getting the server ID
                                     long serverId = getServerIdFromResponse(response.body());
-                                    database.markOrderItemAsSynced(localItemId, serverId);
+                                    databaseManager.markOrderItemAsSynced(localItemId, serverId);
                                     Log.d(TAG, "Order item synced successfully - Local ID: " + localItemId + " -> Server ID: " + serverId);
                                 } catch (Exception e) {
                                     Log.e(TAG, "Error marking item as synced", e);
@@ -362,7 +398,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
                 return (Long) response.getClass().getMethod("getItemId").invoke(response);
             } else if (hasMethod(response, "getOrderItemId")) {
                 return (Long) response.getClass().getMethod("getOrderItemId").invoke(response);
-            } else if (hasMethod(response, "id")) {
+            } else if (hasField(response, "id")) {
                 return (Long) response.getClass().getField("id").get(response);
             } else {
                 Log.w(TAG, "No ID method found in CreateOrderItemResponse, using timestamp as fallback");
@@ -386,13 +422,21 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
         }
     }
 
+    /**
+     * Check if object has a specific field
+     */
+    private boolean hasField(Object obj, String fieldName) {
+        try {
+            obj.getClass().getField(fieldName);
+            return true;
+        } catch (NoSuchFieldException e) {
+            return false;
+        }
+    }
+
     private double getOriginalPrice(ProductItem menuItem, Long variantId) {
         if (variantId != null) {
-            for (Variant variant : menuItem.getVariants()) {
-                if (Objects.equals(variant.getId(), variantId)) {
-                    return variant.getPrice();
-                }
-            }
+            return getVariantPrice(menuItem, variantId);
         }
         return menuItem.getPrice();
     }
@@ -421,8 +465,7 @@ public class AddItemActivity extends AppCompatActivity implements ProductItemAda
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (database != null) {
-            database.close();
-        }
+        // Note: No need to close DatabaseManager as it uses singleton pattern
+        // and handles its own lifecycle
     }
 }

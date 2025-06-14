@@ -10,7 +10,7 @@ import android.net.ConnectivityManager;
 import android.os.SystemClock;
 import android.util.Log;
 
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Variant;
 import com.restaurant.management.models.MenuCategory;
@@ -20,6 +20,7 @@ import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.utils.NetworkUtils;
 import com.restaurant.management.receivers.NetworkChangeReceiver;
 import com.restaurant.management.services.OfflineSyncService;
+import com.restaurant.management.helpers.OrderItemSyncData;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -44,7 +45,7 @@ public class RestaurantApplication extends Application {
     private NetworkChangeReceiver networkChangeReceiver;
     private static final long SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
-    private PoodDatabase database;
+    private DatabaseManager databaseManager;
     private OkHttpClient client;
     private AtomicInteger pendingRequests = new AtomicInteger(0);
 
@@ -52,7 +53,7 @@ public class RestaurantApplication extends Application {
     public void onCreate() {
         super.onCreate();
 
-        database = new PoodDatabase(this);
+        databaseManager = DatabaseManager.getInstance(this);
         client = new OkHttpClient();
 
         // Register network change receiver
@@ -68,6 +69,8 @@ public class RestaurantApplication extends Application {
         if (NetworkUtils.isNetworkAvailable(this)) {
             startSyncService();
         }
+
+        Log.d(TAG, "RestaurantApplication initialized with DatabaseManager");
     }
 
     private void registerNetworkChangeReceiver() {
@@ -116,8 +119,10 @@ public class RestaurantApplication extends Application {
     public void getUnsyncedItemsCount(UnsyncedCountCallback callback) {
         new Thread(() -> {
             try {
-                int count = database.getUnsyncedOrderItems().size();
+                List<OrderItemSyncData> unsyncedItems = databaseManager.getUnsyncedOrderItems();
+                int count = unsyncedItems.size();
                 callback.onResult(count);
+                Log.d(TAG, "Unsynced items count: " + count);
             } catch (Exception e) {
                 Log.e(TAG, "Error getting unsynced items count", e);
                 callback.onResult(0);
@@ -130,6 +135,7 @@ public class RestaurantApplication extends Application {
      */
     public void forceSyncNow() {
         if (NetworkUtils.isNetworkAvailable(this)) {
+            Log.d(TAG, "Force sync initiated");
             startSyncService();
         } else {
             Log.w(TAG, "Cannot force sync - no network available");
@@ -142,11 +148,38 @@ public class RestaurantApplication extends Application {
     public void hasPendingOfflineItems(PendingItemsCallback callback) {
         new Thread(() -> {
             try {
-                boolean hasPending = !database.getUnsyncedOrderItems().isEmpty();
+                List<OrderItemSyncData> unsyncedItems = databaseManager.getUnsyncedOrderItems();
+                boolean hasPending = !unsyncedItems.isEmpty();
                 callback.onResult(hasPending);
+                Log.d(TAG, "Has pending offline items: " + hasPending);
             } catch (Exception e) {
                 Log.e(TAG, "Error checking pending offline items", e);
                 callback.onResult(false);
+            }
+        }).start();
+    }
+
+    /**
+     * Get app database statistics
+     */
+    public void getDatabaseStats(DatabaseStatsCallback callback) {
+        new Thread(() -> {
+            try {
+                DatabaseStats stats = new DatabaseStats();
+                stats.menuItemsCount = databaseManager.getAllMenuItems().size();
+                stats.categoriesCount = databaseManager.getAllMenuCategories().size();
+                stats.promosCount = databaseManager.getPromos().size();
+                stats.orderTypesCount = databaseManager.getOrderTypes().size();
+                stats.orderStatusesCount = databaseManager.getOrderStatuses().size();
+                stats.ordersCount = databaseManager.getAllOrdersCount();
+                stats.orderItemsCount = databaseManager.getAllOrderItemsCount();
+                stats.variantsCount = databaseManager.getAllVariantsCount();
+                stats.unsyncedItemsCount = databaseManager.getUnsyncedOrderItems().size();
+
+                callback.onResult(stats);
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting database stats", e);
+                callback.onResult(new DatabaseStats());
             }
         }).start();
     }
@@ -160,11 +193,35 @@ public class RestaurantApplication extends Application {
         void onResult(boolean hasPending);
     }
 
+    public interface DatabaseStatsCallback {
+        void onResult(DatabaseStats stats);
+    }
+
+    // Database statistics class
+    public static class DatabaseStats {
+        public int menuItemsCount = 0;
+        public int categoriesCount = 0;
+        public int promosCount = 0;
+        public int orderTypesCount = 0;
+        public int orderStatusesCount = 0;
+        public int ordersCount = 0;
+        public int orderItemsCount = 0;
+        public int variantsCount = 0;
+        public int unsyncedItemsCount = 0;
+
+        public int getTotalItemsCount() {
+            return menuItemsCount + categoriesCount + promosCount + orderTypesCount +
+                    orderStatusesCount + ordersCount + orderItemsCount + variantsCount;
+        }
+    }
+
     private void downloadAllDataOnStart() {
         if (!NetworkUtils.isNetworkAvailable(this)) {
+            Log.w(TAG, "No network available for data download");
             return;
         }
 
+        Log.d(TAG, "Starting download of all data");
         // Download categories, menu items, promos, order types, and order statuses
         pendingRequests.set(5);
         downloadMenuCategories();
@@ -199,7 +256,8 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<MenuCategory> categories = parseMenuCategories(jsonResponse);
 
-                    database.saveMenuCategories(categories);
+                    databaseManager.saveMenuCategories(categories);
+                    Log.d(TAG, "Saved " + categories.size() + " menu categories");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing categories download: " + e.getMessage());
@@ -235,7 +293,8 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<ProductItem> items = parseMenuItems(jsonResponse);
 
-                    database.saveMenuItems(items);
+                    databaseManager.saveMenuItems(items);
+                    Log.d(TAG, "Saved " + items.size() + " menu items");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing menu items download: " + e.getMessage());
@@ -271,7 +330,8 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<Promo> promos = parsePromos(jsonResponse);
 
-                    database.savePromos(promos);
+                    databaseManager.savePromos(promos);
+                    Log.d(TAG, "Saved " + promos.size() + " promos");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing promos download: " + e.getMessage());
@@ -307,7 +367,8 @@ public class RestaurantApplication extends Application {
                     JSONObject jsonResponse = new JSONObject(responseBody);
                     List<OrderType> orderTypes = parseOrderTypes(jsonResponse);
 
-                    database.saveOrderTypes(orderTypes);
+                    databaseManager.saveOrderTypes(orderTypes);
+                    Log.d(TAG, "Saved " + orderTypes.size() + " order types");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing order types download: " + e.getMessage());
@@ -349,7 +410,8 @@ public class RestaurantApplication extends Application {
                         orderStatuses = parseOrderStatuses(jsonResponse);
                     }
 
-                    database.saveOrderStatuses(orderStatuses);
+                    databaseManager.saveOrderStatuses(orderStatuses);
+                    Log.d(TAG, "Saved " + orderStatuses.size() + " order statuses");
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing order statuses download: " + e.getMessage());
@@ -646,6 +708,16 @@ public class RestaurantApplication extends Application {
 
     private void onAllDownloadsComplete() {
         Log.d(TAG, "All downloads completed successfully");
+
+        // Log database statistics after download
+        getDatabaseStats(stats -> {
+            Log.d(TAG, "Database populated with: " +
+                    stats.menuItemsCount + " menu items, " +
+                    stats.categoriesCount + " categories, " +
+                    stats.promosCount + " promos, " +
+                    stats.orderTypesCount + " order types, " +
+                    stats.orderStatusesCount + " order statuses");
+        });
     }
 
     private double parsePrice(String priceString) {
@@ -665,20 +737,46 @@ public class RestaurantApplication extends Application {
         }
     }
 
+    // Convenience methods for accessing cached data
     public List<OrderType> getCachedOrderTypes() {
-        return database.getOrderTypes();
+        return databaseManager.getOrderTypes();
     }
 
     public List<OrderStatus> getCachedOrderStatuses() {
-        return database.getOrderStatuses();
+        return databaseManager.getOrderStatuses();
     }
 
+    public List<MenuCategory> getCachedMenuCategories() {
+        return databaseManager.getAllMenuCategories();
+    }
+
+    public List<ProductItem> getCachedMenuItems() {
+        return databaseManager.getAllMenuItems();
+    }
+
+    public List<Promo> getCachedPromos() {
+        return databaseManager.getAllActivePromos();
+    }
+
+    // Order management methods
     public long saveOrderLocally(long sessionId, String tableNumber, String customerName, long orderTypeId) {
-        return database.saveOrderLocally(sessionId, tableNumber, customerName, orderTypeId);
+        return databaseManager.saveOrderLocally(sessionId, tableNumber, customerName, orderTypeId);
     }
 
     public void markOrderAsSynced(long localOrderId, long serverOrderId) {
-        database.markOrderAsSynced(localOrderId, serverOrderId);
+        databaseManager.markOrderAsSynced(localOrderId, serverOrderId);
+    }
+
+    public void markOrderItemAsSynced(long localItemId, long serverItemId) {
+        databaseManager.markOrderItemAsSynced(localItemId, serverItemId);
+    }
+
+    /**
+     * Clear all cached data (use with caution)
+     */
+    public void clearAllCachedData() {
+        databaseManager.clearAllCachedData();
+        Log.d(TAG, "All cached data cleared");
     }
 
     @Override
@@ -689,13 +787,14 @@ public class RestaurantApplication extends Application {
         if (networkChangeReceiver != null) {
             try {
                 unregisterReceiver(networkChangeReceiver);
+                Log.d(TAG, "Network receiver unregistered");
             } catch (Exception e) {
                 Log.e(TAG, "Error unregistering network receiver", e);
             }
         }
 
-        if (database != null) {
-            database.close();
-        }
+        // Note: No need to close DatabaseManager as it uses singleton pattern
+        // and handles its own lifecycle
+        Log.d(TAG, "RestaurantApplication terminated");
     }
 }

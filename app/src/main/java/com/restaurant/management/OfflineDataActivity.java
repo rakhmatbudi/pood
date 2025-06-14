@@ -21,17 +21,20 @@ import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 import com.restaurant.management.R;
 import com.restaurant.management.RestaurantApplication;
 import com.restaurant.management.adapters.OfflineDataAdapter;
-import com.restaurant.management.database.PoodDatabase;
+import com.restaurant.management.database.DatabaseManager;
 import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.models.OfflineDataItem;
 import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.models.OrderType;
 import com.restaurant.management.models.ProductItem;
 import com.restaurant.management.models.Promo;
+import com.restaurant.management.models.Variant;
+import com.restaurant.management.helpers.OrderItemSyncData;
 import com.restaurant.management.utils.NetworkUtils;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -48,7 +51,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     private ProgressBar progressBar;
     private SwipeRefreshLayout swipeRefreshLayout;
 
-    private PoodDatabase database;
+    private DatabaseManager databaseManager;
     private RestaurantApplication app;
     private ExecutorService executor;
 
@@ -87,7 +90,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private void initializeDatabase() {
-        database = new PoodDatabase(this);
+        databaseManager = DatabaseManager.getInstance(this);
         app = (RestaurantApplication) getApplication();
         executor = Executors.newSingleThreadExecutor();
     }
@@ -127,10 +130,13 @@ public class OfflineDataActivity extends AppCompatActivity {
 
                 Log.d(TAG, "=== LOADING ALL OFFLINE DATA ===");
 
+                // Get all table counts efficiently using DatabaseManager
+                Map<String, Integer> tableCounts = databaseManager.getAllTableCounts();
+
                 // 1. DOWNLOADED DATA (from server)
 
                 // Get cached menu categories
-                int categories = database.getMenuCategories().size();
+                int categories = tableCounts.getOrDefault("menu_categories", 0);
                 Log.d(TAG, "Menu categories: " + categories);
                 if (categories > 0) {
                     items.add(new OfflineDataItem(
@@ -142,7 +148,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get cached menu items
-                int menuItems = database.getMenuItems().size();
+                int menuItems = tableCounts.getOrDefault("menu_items", 0);
                 Log.d(TAG, "Menu items: " + menuItems);
                 if (menuItems > 0) {
                     items.add(new OfflineDataItem(
@@ -154,7 +160,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get cached promos
-                int promos = database.getPromos().size();
+                int promos = tableCounts.getOrDefault("promos", 0);
                 Log.d(TAG, "Promos: " + promos);
                 if (promos > 0) {
                     items.add(new OfflineDataItem(
@@ -166,7 +172,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get cached order types
-                int orderTypes = database.getOrderTypes().size();
+                int orderTypes = tableCounts.getOrDefault("order_types", 0);
                 Log.d(TAG, "Order types: " + orderTypes);
                 if (orderTypes > 0) {
                     items.add(new OfflineDataItem(
@@ -178,7 +184,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get cached order statuses
-                int orderStatuses = database.getOrderStatuses().size();
+                int orderStatuses = tableCounts.getOrDefault("order_statuses", 0);
                 Log.d(TAG, "Order statuses: " + orderStatuses);
                 if (orderStatuses > 0) {
                     items.add(new OfflineDataItem(
@@ -192,13 +198,14 @@ public class OfflineDataActivity extends AppCompatActivity {
                 // 2. LOCALLY GENERATED DATA
 
                 // Get all orders (synced + unsynced)
-                int totalOrders = database.getAllOrdersCount();
-                int unsyncedOrders = database.getUnsyncedOrderItems().size();
-                Log.d(TAG, "Total orders: " + totalOrders + ", Unsynced: " + unsyncedOrders);
+                int totalOrders = tableCounts.getOrDefault("orders", 0);
+                List<OrderItemSyncData> unsyncedItems = databaseManager.getUnsyncedOrderItems();
+                int unsyncedOrderItems = unsyncedItems.size();
+                Log.d(TAG, "Total orders: " + totalOrders + ", Unsynced order items: " + unsyncedOrderItems);
                 if (totalOrders > 0) {
                     String description = totalOrders + " orders total";
-                    if (unsyncedOrders > 0) {
-                        description += " (" + unsyncedOrders + " unsynced)";
+                    if (unsyncedOrderItems > 0) {
+                        description += " (" + unsyncedOrderItems + " unsynced items)";
                     }
                     items.add(new OfflineDataItem(
                             "Orders",
@@ -209,19 +216,23 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get all order items
-                int totalOrderItems = database.getAllOrderItemsCount();
+                int totalOrderItems = tableCounts.getOrDefault("order_items", 0);
                 Log.d(TAG, "Order items: " + totalOrderItems);
                 if (totalOrderItems > 0) {
+                    String description = totalOrderItems + " order items stored";
+                    if (unsyncedOrderItems > 0) {
+                        description += " (" + unsyncedOrderItems + " unsynced)";
+                    }
                     items.add(new OfflineDataItem(
                             "Order Items",
-                            totalOrderItems + " order items stored",
+                            description,
                             totalOrderItems,
                             "order_items"
                     ));
                 }
 
                 // Get variants (usually generated with menu items)
-                int variants = database.getAllVariantsCount();
+                int variants = tableCounts.getOrDefault("variants", 0);
                 Log.d(TAG, "Variants: " + variants);
                 if (variants > 0) {
                     items.add(new OfflineDataItem(
@@ -233,7 +244,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                 }
 
                 // Get cashier sessions (if table exists)
-                int cashierSessions = database.getCashierSessionsCount();
+                int cashierSessions = databaseManager.getCashierSessionsCount();
                 Log.d(TAG, "Cashier sessions: " + cashierSessions);
                 if (cashierSessions > 0) {
                     items.add(new OfflineDataItem(
@@ -251,7 +262,7 @@ public class OfflineDataActivity extends AppCompatActivity {
                     offlineDataItems.addAll(items);
                     adapter.notifyDataSetChanged();
 
-                    updateSummary();
+                    updateSummary(unsyncedOrderItems);
                     progressBar.setVisibility(View.GONE);
 
                     // Show message based on what we found
@@ -272,15 +283,11 @@ public class OfflineDataActivity extends AppCompatActivity {
         });
     }
 
-    private void updateSummary() {
+    private void updateSummary(int unsyncedCount) {
         int totalItems = 0;
-        int unsyncedCount = 0;
 
         for (OfflineDataItem item : offlineDataItems) {
             totalItems += item.getCount();
-            if ("orders".equals(item.getType())) {
-                unsyncedCount = item.getCount();
-            }
         }
 
         tvTotalItems.setText("Total Items: " + totalItems);
@@ -296,6 +303,19 @@ public class OfflineDataActivity extends AppCompatActivity {
         // Update button states
         btnSync.setEnabled(unsyncedCount > 0 && NetworkUtils.isNetworkAvailable(this));
         btnDeleteAll.setEnabled(totalItems > 0);
+    }
+
+    private void updateSummary() {
+        // Overloaded method for backward compatibility
+        executor.execute(() -> {
+            try {
+                List<OrderItemSyncData> unsyncedItems = databaseManager.getUnsyncedOrderItems();
+                runOnUiThread(() -> updateSummary(unsyncedItems.size()));
+            } catch (Exception e) {
+                Log.e(TAG, "Error getting unsynced count", e);
+                runOnUiThread(() -> updateSummary(0));
+            }
+        });
     }
 
     private void updateNetworkStatus() {
@@ -372,7 +392,7 @@ public class OfflineDataActivity extends AppCompatActivity {
         // Add action buttons
         builder.setPositiveButton("Close", null);
 
-        if ("orders".equals(item.getType())) {
+        if ("orders".equals(item.getType()) || "order_items".equals(item.getType())) {
             builder.setNeutralButton("Sync Now", (dialog, which) -> {
                 if (NetworkUtils.isNetworkAvailable(this)) {
                     syncData();
@@ -434,7 +454,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private String getMenuCategoriesPreview() {
-        List<MenuCategory> categories = database.getMenuCategories();
+        List<MenuCategory> categories = databaseManager.getMenuCategories();
         StringBuilder sb = new StringBuilder();
 
         sb.append("MENU CATEGORIES\n");
@@ -458,7 +478,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private String getMenuItemsPreview() {
-        List<ProductItem> items = database.getMenuItems();
+        List<ProductItem> items = databaseManager.getMenuItems();
         StringBuilder sb = new StringBuilder();
 
         sb.append("MENU ITEMS\n");
@@ -485,7 +505,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private String getPromosPreview() {
-        List<Promo> promos = database.getPromos();
+        List<Promo> promos = databaseManager.getPromos();
         StringBuilder sb = new StringBuilder();
 
         sb.append("PROMOTIONS\n");
@@ -512,7 +532,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private String getOrderTypesPreview() {
-        List<OrderType> orderTypes = database.getOrderTypes();
+        List<OrderType> orderTypes = databaseManager.getOrderTypes();
         StringBuilder sb = new StringBuilder();
 
         sb.append("ORDER TYPES\n");
@@ -528,7 +548,7 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private String getOrderStatusesPreview() {
-        List<OrderStatus> orderStatuses = database.getOrderStatuses();
+        List<OrderStatus> orderStatuses = databaseManager.getOrderStatuses();
         StringBuilder sb = new StringBuilder();
 
         sb.append("ORDER STATUSES\n");
@@ -544,36 +564,32 @@ public class OfflineDataActivity extends AppCompatActivity {
     }
 
     private String getOrdersPreview() {
-        // Since we don't have Order objects, we'll query the database directly
         StringBuilder sb = new StringBuilder();
 
         sb.append("ORDERS\n");
         sb.append("======\n\n");
 
-        android.database.Cursor cursor = null;
         try {
-            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
-            cursor = db.rawQuery("SELECT * FROM orders ORDER BY order_created_at DESC LIMIT 10", null);
+            List<Long> unsyncedOrderIds = databaseManager.getUnsyncedOrderIds();
+            int totalOrders = databaseManager.getAllOrdersCount();
 
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    sb.append(String.format("Order ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("order_id"))));
-                    sb.append(String.format("Session ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("session_id"))));
-                    sb.append(String.format("Table: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("table_number"))));
-                    sb.append(String.format("Customer: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("customer_name"))));
-                    sb.append(String.format("Synced: %s\n", cursor.getInt(cursor.getColumnIndexOrThrow("is_synced")) == 1 ? "Yes" : "No"));
-                    sb.append(String.format("Created: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("order_created_at"))));
-                    sb.append("---\n");
-                } while (cursor.moveToNext());
+            sb.append(String.format("Total Orders: %d\n", totalOrders));
+            sb.append(String.format("Unsynced Orders: %d\n", unsyncedOrderIds.size()));
+            sb.append("\n");
+
+            if (!unsyncedOrderIds.isEmpty()) {
+                sb.append("Unsynced Order IDs:\n");
+                for (int i = 0; i < Math.min(unsyncedOrderIds.size(), 10); i++) {
+                    sb.append(String.format("Order ID: %d\n", unsyncedOrderIds.get(i)));
+                }
+                if (unsyncedOrderIds.size() > 10) {
+                    sb.append(String.format("... and %d more unsynced orders\n", unsyncedOrderIds.size() - 10));
+                }
             } else {
-                sb.append("No orders found.");
+                sb.append("All orders are synced.\n");
             }
         } catch (Exception e) {
             sb.append("Error loading orders: ").append(e.getMessage());
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
 
         return sb.toString();
@@ -585,71 +601,55 @@ public class OfflineDataActivity extends AppCompatActivity {
         sb.append("ORDER ITEMS\n");
         sb.append("===========\n\n");
 
-        android.database.Cursor cursor = null;
         try {
-            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
-            String query = "SELECT oi.*, mi.name as menu_item_name FROM order_items oi " +
-                    "LEFT JOIN menu_items mi ON oi.menu_item_id = mi.id " +
-                    "ORDER BY oi.item_created_at DESC LIMIT 10";
-            cursor = db.rawQuery(query, null);
+            List<OrderItemSyncData> allItems = databaseManager.getAllOrderItems();
+            List<OrderItemSyncData> unsyncedItems = databaseManager.getUnsyncedOrderItems();
 
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    sb.append(String.format("Item ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("item_id"))));
-                    sb.append(String.format("Order ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("order_id"))));
-                    sb.append(String.format("Item: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("menu_item_name"))));
-                    sb.append(String.format("Quantity: %d\n", cursor.getInt(cursor.getColumnIndexOrThrow("quantity"))));
-                    sb.append(String.format("Unit Price: $%.2f\n", cursor.getDouble(cursor.getColumnIndexOrThrow("unit_price"))));
-                    sb.append(String.format("Total: $%.2f\n", cursor.getDouble(cursor.getColumnIndexOrThrow("total_price"))));
-                    sb.append(String.format("Synced: %s\n", cursor.getInt(cursor.getColumnIndexOrThrow("is_synced")) == 1 ? "Yes" : "No"));
-                    sb.append("---\n");
-                } while (cursor.moveToNext());
-            } else {
-                sb.append("No order items found.");
+            sb.append(String.format("Total Order Items: %d\n", allItems.size()));
+            sb.append(String.format("Unsynced Items: %d\n", unsyncedItems.size()));
+            sb.append("\n");
+
+            // Show recent items (first 10)
+            sb.append("Recent Order Items:\n");
+            for (int i = 0; i < Math.min(allItems.size(), 10); i++) {
+                OrderItemSyncData item = allItems.get(i);
+                sb.append(String.format("Item ID: %d\n", item.getLocalId()));
+                sb.append(String.format("Order ID: %d\n", item.getOrderId()));
+                sb.append(String.format("Menu Item ID: %d\n", item.getMenuItemId()));
+                sb.append(String.format("Quantity: %d\n", item.getQuantity()));
+                sb.append(String.format("Total: $%.2f\n", item.getTotalPrice()));
+                sb.append(String.format("Synced: %s\n", item.isSynced() ? "Yes" : "No"));
+                sb.append("---\n");
+            }
+
+            if (allItems.size() > 10) {
+                sb.append(String.format("\n... and %d more items", allItems.size() - 10));
             }
         } catch (Exception e) {
             sb.append("Error loading order items: ").append(e.getMessage());
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
 
         return sb.toString();
     }
 
     private String getVariantsPreview() {
+        List<Variant> variants = databaseManager.getAllVariants();
         StringBuilder sb = new StringBuilder();
 
         sb.append("PRODUCT VARIANTS\n");
         sb.append("================\n\n");
 
-        android.database.Cursor cursor = null;
-        try {
-            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
-            String query = "SELECT v.*, mi.name as menu_item_name FROM variants v " +
-                    "LEFT JOIN menu_items mi ON v.menu_item_id = mi.id " +
-                    "ORDER BY v.variant_name ASC LIMIT 10";
-            cursor = db.rawQuery(query, null);
+        for (int i = 0; i < Math.min(variants.size(), 10); i++) {
+            Variant variant = variants.get(i);
+            sb.append(String.format("Variant ID: %d\n", variant.getId()));
+            sb.append(String.format("Name: %s\n", variant.getName()));
+            sb.append(String.format("Price: $%.2f\n", variant.getPrice()));
+            sb.append(String.format("Active: %s\n", variant.isActive() ? "Yes" : "No"));
+            sb.append("---\n");
+        }
 
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    sb.append(String.format("Variant ID: %d\n", cursor.getLong(cursor.getColumnIndexOrThrow("variant_id"))));
-                    sb.append(String.format("Name: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("variant_name"))));
-                    sb.append(String.format("Menu Item: %s\n", cursor.getString(cursor.getColumnIndexOrThrow("menu_item_name"))));
-                    sb.append(String.format("Price: $%.2f\n", cursor.getDouble(cursor.getColumnIndexOrThrow("variant_price"))));
-                    sb.append(String.format("Active: %s\n", cursor.getInt(cursor.getColumnIndexOrThrow("variant_is_active")) == 1 ? "Yes" : "No"));
-                    sb.append("---\n");
-                } while (cursor.moveToNext());
-            } else {
-                sb.append("No variants found.");
-            }
-        } catch (Exception e) {
-            sb.append("Error loading variants: ").append(e.getMessage());
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
+        if (variants.size() > 10) {
+            sb.append(String.format("\n... and %d more variants", variants.size() - 10));
         }
 
         return sb.toString();
@@ -661,26 +661,16 @@ public class OfflineDataActivity extends AppCompatActivity {
         sb.append("CASHIER SESSIONS\n");
         sb.append("================\n\n");
 
-        android.database.Cursor cursor = null;
         try {
-            android.database.sqlite.SQLiteDatabase db = database.getReadableDatabase();
-            cursor = db.rawQuery("SELECT * FROM cashier_sessions ORDER BY created_at DESC LIMIT 10", null);
-
-            if (cursor != null && cursor.moveToFirst()) {
-                do {
-                    // Add session data based on your actual table structure
-                    sb.append("Session found\n");
-                    sb.append("---\n");
-                } while (cursor.moveToNext());
+            int sessionCount = databaseManager.getCashierSessionsCount();
+            if (sessionCount > 0) {
+                sb.append(String.format("Total Sessions: %d\n", sessionCount));
+                sb.append("(Detailed session data preview not available)\n");
             } else {
-                sb.append("No cashier sessions found.");
+                sb.append("No cashier sessions found.\n");
             }
         } catch (Exception e) {
             sb.append("Cashier sessions table not available or error: ").append(e.getMessage());
-        } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
         }
 
         return sb.toString();
@@ -726,8 +716,8 @@ public class OfflineDataActivity extends AppCompatActivity {
 
         executor.execute(() -> {
             try {
-                // Clear all cached data
-                database.clearAllCachedData();
+                // Clear all cached data using DatabaseManager
+                databaseManager.clearAllCachedData();
 
                 runOnUiThread(() -> {
                     Toast.makeText(this, "All offline data deleted", Toast.LENGTH_SHORT).show();
@@ -737,7 +727,7 @@ public class OfflineDataActivity extends AppCompatActivity {
             } catch (Exception e) {
                 Log.e(TAG, "Error deleting offline data", e);
                 runOnUiThread(() -> {
-                    Toast.makeText(this, "Error deleting offline data", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(this, "Error deleting offline data: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     progressBar.setVisibility(View.GONE);
                     btnDeleteAll.setEnabled(true);
                 });
@@ -767,8 +757,7 @@ public class OfflineDataActivity extends AppCompatActivity {
         if (executor != null) {
             executor.shutdown();
         }
-        if (database != null) {
-            database.close();
-        }
+        // Note: No need to close DatabaseManager as it uses singleton pattern
+        // and handles its own lifecycle
     }
 }
