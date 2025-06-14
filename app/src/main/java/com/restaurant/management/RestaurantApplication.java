@@ -18,7 +18,7 @@ import com.restaurant.management.models.Promo;
 import com.restaurant.management.models.OrderType;
 import com.restaurant.management.models.OrderStatus;
 import com.restaurant.management.utils.NetworkUtils;
-import com.restaurant.management.receivers.NetworkChangeReceiver;
+import com.restaurant.management.services.NetworkChangeReceiver;
 import com.restaurant.management.services.OfflineSyncService;
 import com.restaurant.management.helpers.OrderItemSyncData;
 
