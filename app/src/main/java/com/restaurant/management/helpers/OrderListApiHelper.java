@@ -3,6 +3,7 @@ package com.restaurant.management.helpers;
 import android.content.Context;
 
 import com.restaurant.management.R;
+import com.restaurant.management.database.PoodDatabase;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderItem;
 import com.restaurant.management.models.OrderStatus;
@@ -430,23 +431,9 @@ public class OrderListApiHelper {
         return item;
     }
 
-    public List<OrderStatus> getFallbackOrderStatuses() {
-        List<OrderStatus> fallbackStatuses = new ArrayList<>();
-        fallbackStatuses.add(new OrderStatus(1, "open", "Order is open"));
-        fallbackStatuses.add(new OrderStatus(2, "closed", "Order has been paid"));
-        fallbackStatuses.add(new OrderStatus(3, "cancelled", "Order was cancelled"));
-        return fallbackStatuses;
-    }
-
-    public List<OrderType> getFallbackOrderTypes() {
-        List<OrderType> fallbackTypes = new ArrayList<>();
-        fallbackTypes.add(new OrderType(1, "Dine In"));
-        fallbackTypes.add(new OrderType(2, "Take Away"));
-        fallbackTypes.add(new OrderType(3, "GoFood"));
-        fallbackTypes.add(new OrderType(4, "GrabFood"));
-        fallbackTypes.add(new OrderType(5, "ShopeeFood"));
-        fallbackTypes.add(new OrderType(6, "Self Order"));
-        return fallbackTypes;
+    public List<OrderStatus> getOrderStatuses() {
+        PoodDatabase database = new PoodDatabase(context);
+        return database.getOrderStatuses();
     }
 
     private String getAuthToken() {

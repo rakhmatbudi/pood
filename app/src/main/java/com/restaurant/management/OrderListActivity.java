@@ -40,7 +40,7 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         setupClickListeners();
 
         // Start by fetching order statuses, then orders
-        fetchOrderStatuses();
+        setupOrderStatuses();
     }
 
     private void initializeHelpers() {
@@ -119,27 +119,11 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         return true;
     }
 
-    private void fetchOrderStatuses() {
-        apiHelper.fetchOrderStatuses(new OrderListApiHelper.OrderStatusesCallback() {
-            @Override
-            public void onSuccess(List<OrderStatus> orderStatuses) {
-                runOnUiThread(() -> {
-                    uiHelper.setupStatusFilterSpinner(orderStatuses);
-                    fetchOrders();
-                });
-            }
-
-            @Override
-            public void onError(String errorMessage) {
-                runOnUiThread(() -> {
-                    // Use fallback data
-                    uiHelper.setupStatusFilterSpinner(apiHelper.getFallbackOrderStatuses());
-                    Toast.makeText(OrderListActivity.this,
-                            "Using offline order statuses", Toast.LENGTH_SHORT).show();
-                    fetchOrders();
-                });
-            }
-        });
+    private void setupOrderStatuses() {
+        // Get statuses from local storage/cache loaded at app start
+        List<OrderStatus> orderStatuses = apiHelper.getOrderStatuses(); // or from local cache
+        uiHelper.setupStatusFilterSpinner(orderStatuses);
+        fetchOrders(); // Then proceed to fetch actual orders
     }
 
     private void fetchOrders() {

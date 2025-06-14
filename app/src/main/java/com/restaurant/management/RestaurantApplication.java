@@ -176,15 +176,8 @@ public class RestaurantApplication extends Application {
 
     private void downloadMenuCategories() {
         String apiUrl = BASE_API_URL + "menu-categories";
-        String authToken = getAuthToken();
 
-        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
-
-        if (authToken != null && !authToken.isEmpty()) {
-            requestBuilder.header("Authorization", "Bearer " + authToken);
-        }
-
-        Request request = requestBuilder.build();
+        Request request = new Request.Builder().url(apiUrl).build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
@@ -219,15 +212,8 @@ public class RestaurantApplication extends Application {
 
     private void downloadMenuItems() {
         String apiUrl = BASE_API_URL + "menu-items";
-        String authToken = getAuthToken();
 
-        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
-
-        if (authToken != null && !authToken.isEmpty()) {
-            requestBuilder.header("Authorization", "Bearer " + authToken);
-        }
-
-        Request request = requestBuilder.build();
+        Request request = new Request.Builder().url(apiUrl).build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
@@ -262,15 +248,8 @@ public class RestaurantApplication extends Application {
 
     private void downloadPromos() {
         String apiUrl = BASE_API_URL + "promos";
-        String authToken = getAuthToken();
 
-        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
-
-        if (authToken != null && !authToken.isEmpty()) {
-            requestBuilder.header("Authorization", "Bearer " + authToken);
-        }
-
-        Request request = requestBuilder.build();
+        Request request = new Request.Builder().url(apiUrl).build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
@@ -305,15 +284,8 @@ public class RestaurantApplication extends Application {
 
     private void downloadOrderTypes() {
         String apiUrl = BASE_API_URL + "order-types";
-        String authToken = getAuthToken();
 
-        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
-
-        if (authToken != null && !authToken.isEmpty()) {
-            requestBuilder.header("Authorization", "Bearer " + authToken);
-        }
-
-        Request request = requestBuilder.build();
+        Request request = new Request.Builder().url(apiUrl).build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
@@ -348,15 +320,8 @@ public class RestaurantApplication extends Application {
 
     private void downloadOrderStatuses() {
         String apiUrl = BASE_API_URL + "order-statuses";
-        String authToken = getAuthToken();
 
-        Request.Builder requestBuilder = new Request.Builder().url(apiUrl);
-
-        if (authToken != null && !authToken.isEmpty()) {
-            requestBuilder.header("Authorization", "Bearer " + authToken);
-        }
-
-        Request request = requestBuilder.build();
+        Request request = new Request.Builder().url(apiUrl).build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
@@ -375,8 +340,14 @@ public class RestaurantApplication extends Application {
                         return;
                     }
 
-                    JSONObject jsonResponse = new JSONObject(responseBody);
-                    List<OrderStatus> orderStatuses = parseOrderStatuses(jsonResponse);
+                    // Try parsing as direct array first, then as object
+                    List<OrderStatus> orderStatuses;
+                    try {
+                        orderStatuses = parseOrderStatusesFromArray(responseBody);
+                    } catch (Exception e) {
+                        JSONObject jsonResponse = new JSONObject(responseBody);
+                        orderStatuses = parseOrderStatuses(jsonResponse);
+                    }
 
                     database.saveOrderStatuses(orderStatuses);
 
@@ -447,10 +418,33 @@ public class RestaurantApplication extends Application {
                     orderStatuses.add(orderStatus);
                 }
             }
-
-            Collections.sort(orderStatuses, (status1, status2) ->
-                    status1.getName().compareToIgnoreCase(status2.getName()));
         }
+
+        Collections.sort(orderStatuses, (status1, status2) ->
+                status1.getName().compareToIgnoreCase(status2.getName()));
+
+        return orderStatuses;
+    }
+
+    private List<OrderStatus> parseOrderStatusesFromArray(String responseBody) throws JSONException {
+        List<OrderStatus> orderStatuses = new ArrayList<>();
+
+        JSONArray statusesArray = new JSONArray(responseBody);
+
+        for (int i = 0; i < statusesArray.length(); i++) {
+            JSONObject statusJson = statusesArray.getJSONObject(i);
+            OrderStatus orderStatus = new OrderStatus();
+
+            orderStatus.setId(statusJson.optLong("id", -1));
+            orderStatus.setName(statusJson.optString("name", ""));
+
+            if (orderStatus.getId() > 0 && !orderStatus.getName().isEmpty()) {
+                orderStatuses.add(orderStatus);
+            }
+        }
+
+        Collections.sort(orderStatuses, (status1, status2) ->
+                status1.getName().compareToIgnoreCase(status2.getName()));
 
         return orderStatuses;
     }
@@ -651,7 +645,7 @@ public class RestaurantApplication extends Application {
     }
 
     private void onAllDownloadsComplete() {
-        // This method is called when all data downloads are completed
+        Log.d(TAG, "All downloads completed successfully");
     }
 
     private double parsePrice(String priceString) {
