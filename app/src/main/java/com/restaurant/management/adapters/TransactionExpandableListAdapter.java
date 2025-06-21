@@ -101,22 +101,26 @@ public class TransactionExpandableListAdapter extends BaseExpandableListAdapter 
 
         // Find all views from your existing layout
         TextView sessionIdTextView = convertView.findViewById(R.id.session_id_text_view);
-        TextView startTimeTextView = convertView.findViewById(R.id.start_time_text_view);
+        TextView startTimeTextView = convertView.findViewById(R.id.start_time_text_view); // This ID is now present in XML
         TextView totalTextView = convertView.findViewById(R.id.total_text_view);
 
         // Get total transactions amount for this session
         List<Transaction> transactions = transactionMap.get(session);
         double totalAmount = 0;
-        for (Transaction transaction : transactions) {
-            totalAmount += transaction.getAmount();
+        if (transactions != null) { // Add null check for transactions list
+            for (Transaction transaction : transactions) {
+                totalAmount += transaction.getAmount();
+            }
         }
 
-        // Set session information
-        sessionIdTextView.setText(String.valueOf(session.getId()));
 
-        // Format and set date in dd/MM/yyyy HH:mm format
-        startTimeTextView.setText(session.getStartTime() != null ?
-                timeFormat.format(session.getStartTime()) : "N/A");
+        // Set session information
+        // Corrected: Use getSessionId() instead of getId()
+        sessionIdTextView.setText(session.getSessionId() != null ? String.valueOf(session.getSessionId()) : "N/A");
+
+        // Format and set date using 'openedAt' from the CashierSession model
+        startTimeTextView.setText(session.getOpenedAt() != null ?
+                timeFormat.format(session.getOpenedAt()) : "N/A");
 
         // Set the total amount
         totalTextView.setText(formatCurrency(totalAmount));

@@ -348,4 +348,6 @@
     <string name="products">Products</string>
     <string name="reprint_receipt">Reprint Receipt</string>
 
+    <string name="session_expired_relogin">Your session has expired. Please log in again.</string>
+    <string name="login_failed_api_issue">Login failed due to an API issue. Please try again or contact support.</string>
 </resources>

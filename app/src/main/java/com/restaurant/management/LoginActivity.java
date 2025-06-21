@@ -39,7 +39,7 @@ import java.util.concurrent.Executors;
 public class LoginActivity extends AppCompatActivity {
     private static final String API_URL = "https://api.pood.lol/users/login";
 
-    private static final String TAG = "MainActivity";
+    private static final String TAG = "LoginActivity"; // Changed from MainActivity for consistency
     private EditText emailEditText;
     private EditText passwordEditText;
     private Button loginButton;
@@ -63,21 +63,8 @@ public class LoginActivity extends AppCompatActivity {
 
         executorService = Executors.newSingleThreadExecutor();
 
-        // Check if already logged in
-        checkLoginStatus();
-
         // Set up login button click listener
         loginButton.setOnClickListener(v -> attemptLogin());
-    }
-
-    private void checkLoginStatus() {
-        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
-        boolean isLoggedIn = sharedPreferences.getBoolean(getString(R.string.pref_is_logged_in), false);
-        int userId = sharedPreferences.getInt(getString(R.string.pref_user_id), -1);
-
-        if (isLoggedIn && userId != -1) {
-            navigateToDashboardActivity(userId);
-        }
     }
 
     private void attemptLogin() {
@@ -129,98 +116,112 @@ public class LoginActivity extends AppCompatActivity {
                 Log.d(TAG, "API Response Code: " + responseCode);
 
                 // Read response
-                StringBuilder response = new StringBuilder();
+                StringBuilder responseBuilder = new StringBuilder(); // Renamed to avoid clash with method
                 try (BufferedReader br = new BufferedReader(new InputStreamReader(
                         responseCode == HttpURLConnection.HTTP_OK ?
                                 connection.getInputStream() : connection.getErrorStream(),
                         StandardCharsets.UTF_8))) {
                     String responseLine;
                     while ((responseLine = br.readLine()) != null) {
-                        response.append(responseLine.trim());
+                        responseBuilder.append(responseLine.trim());
                     }
                 }
 
-                final String responseData = response.toString();
+                final String responseData = responseBuilder.toString(); // Use the renamed StringBuilder
                 Log.d(TAG, "API Response: " + responseData);
 
-                // Process response
-                final boolean loginSuccess = responseCode == HttpURLConnection.HTTP_OK;
-
-                // Initialize user data variables
+                // --- START OF AUTHORIZATION CHECK FIX ---
+                boolean loginSuccessfulBasedOnAPI = false; // Default to false
                 int userId = -1;
                 String userName = "";
                 int userRole = -1;
                 String token = "";
+                String apiMessage = getString(R.string.network_error); // Default message for general issues
 
-                if (loginSuccess) {
-                    try {
-                        JSONObject jsonResponse = new JSONObject(responseData);
+                try {
+                    JSONObject jsonResponse = new JSONObject(responseData);
 
-                        // Check if the response has a "data" field
+                    // Extract status and message first, as they are usually top-level
+                    String status = jsonResponse.optString("status", "error"); // Use optString for safety
+                    apiMessage = jsonResponse.optString("message", getString(R.string.invalid_credentials));
+
+                    // Only consider successful if HTTP OK AND API's internal status is "success"
+                    if (responseCode == HttpURLConnection.HTTP_OK && "success".equals(status)) {
+                        loginSuccessfulBasedOnAPI = true; // Potentially successful, now parse data
+
+                        // Check for "data" field
                         if (jsonResponse.has("data")) {
                             JSONObject data = jsonResponse.getJSONObject("data");
 
-                            // The user data is now nested under "data.user"
+                            // Check for "user" object within "data"
                             if (data.has("user")) {
                                 JSONObject userData = data.getJSONObject("user");
 
                                 // Log the full userData for debugging
                                 Log.d(TAG, "User data from API: " + userData.toString());
 
-                                // Extract user ID
-                                if (userData.has("id")) {
-                                    userId = userData.getInt("id");
-                                    Log.d(TAG, "Extracted user ID: " + userId);
-                                } else {
-                                    Log.e(TAG, "User data missing 'id' field");
+                                // Extract user details using opt methods for robustness
+                                userId = userData.optInt("id", -1);
+                                userName = userData.optString("name", "");
+                                userRole = userData.optInt("role_id", -1);
+
+                                Log.d(TAG, "Extracted user ID: " + userId + ", Name: " + userName + ", Role: " + userRole);
+
+                                // Basic validation for essential user data
+                                if (userId == -1 || userName.isEmpty() || userRole == -1) {
+                                    Log.e(TAG, "Critical user data missing despite success status.");
+                                    loginSuccessfulBasedOnAPI = false; // Mark as failure if critical data is missing
+                                    apiMessage = getString(R.string.login_failed_api_issue); // Specific error
                                 }
 
-                                // Extract user name
-                                if (userData.has("name")) {
-                                    userName = userData.getString("name");
-                                    Log.d(TAG, "Extracted user name: " + userName);
-                                } else {
-                                    Log.e(TAG, "User data missing 'name' field");
-                                }
-
-                                // Extract user role
-                                if (userData.has("role_id")) {
-                                    userRole = userData.getInt("role_id");
-                                    Log.d(TAG, "Extracted user role: " + userRole);
-                                } else {
-                                    Log.e(TAG, "User data missing 'role_id' field");
-                                }
                             } else {
-                                Log.e(TAG, "API response missing 'data.user' field");
+                                Log.e(TAG, "API response missing 'data.user' field for success.");
+                                loginSuccessfulBasedOnAPI = false; // Mark as failure if user data is missing
+                                apiMessage = getString(R.string.login_failed_api_issue);
                             }
 
                             // Extract the authentication token
-                            if (data.has("token")) {
-                                token = data.getString("token");
-                                Log.d(TAG, "Extracted auth token: " + token);
-                            } else {
-                                Log.e(TAG, "API response missing 'data.token' field");
+                            token = data.optString("token", "");
+                            Log.d(TAG, "Extracted auth token: " + token);
+
+                            if (token.isEmpty()) {
+                                Log.e(TAG, "Authentication token missing despite success status.");
+                                loginSuccessfulBasedOnAPI = false; // Mark as failure if token is missing
+                                apiMessage = getString(R.string.login_failed_api_issue);
                             }
+
                         } else {
-                            Log.e(TAG, "API response missing 'data' field");
+                            Log.e(TAG, "API response missing 'data' field for success.");
+                            loginSuccessfulBasedOnAPI = false; // Mark as failure if data object is missing
+                            apiMessage = getString(R.string.login_failed_api_issue);
                         }
-                    } catch (JSONException e) {
-                        Log.e(TAG, "Error parsing JSON response: " + e.getMessage(), e);
+                    } else {
+                        // If HTTP is not 200 OK, or API status is not "success",
+                        // apiMessage is already extracted from the JSON response or defaulted.
+                        Log.w(TAG, "Login failed. HTTP: " + responseCode + ", API Status: " + status + ", Message: " + apiMessage);
                     }
+
+                } catch (JSONException e) {
+                    Log.e(TAG, "Error parsing JSON response for login: " + e.getMessage(), e);
+                    loginSuccessfulBasedOnAPI = false; // JSON parsing error means login failed
+                    apiMessage = getString(R.string.login_failed_api_issue); // General API issue message
                 }
+                // --- END OF AUTHORIZATION CHECK FIX ---
+
 
                 // Store final values for UI thread
+                final boolean finalLoginSuccess = loginSuccessfulBasedOnAPI;
                 final int finalUserId = userId;
                 final String finalUserName = userName;
                 final int finalUserRole = userRole;
                 final String finalToken = token;
+                final String finalApiMessage = apiMessage; // Pass the specific API message
 
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     loginButton.setEnabled(true);
 
-                    if (loginSuccess) {
-
+                    if (finalLoginSuccess) {
                         // Save login state
                         SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                         SharedPreferences.Editor editor = sharedPreferences.edit();
@@ -237,29 +238,29 @@ public class LoginActivity extends AppCompatActivity {
                         Toast.makeText(LoginActivity.this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show();
                         navigateToDashboardActivity(finalUserId);
                     } else {
-                        // Try to extract error message from response
-                        String errorMessage = getString(R.string.invalid_credentials);
-                        try {
-                            JSONObject jsonResponse = new JSONObject(responseData);
-                            if (jsonResponse.has("message")) {
-                                errorMessage = jsonResponse.getString("message");
-                            }
-                        } catch (JSONException e) {
-                            Log.e(TAG, "Error parsing error response", e);
-                        }
-
-                        Toast.makeText(LoginActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
+                        // Display the error message obtained from the API or default
+                        Toast.makeText(LoginActivity.this, finalApiMessage, Toast.LENGTH_LONG).show(); // Use LONG for error messages
                     }
                 });
 
-            } catch (IOException | JSONException e) {
-                Log.e(TAG, "Error during login: " + e.getMessage(), e);
+            } catch (IOException | JSONException e) { // <--- COMBINED CATCH BLOCK
+                Log.e(TAG, "Error during login process (IO/JSON): " + e.getMessage(), e);
+
+                final String displayMessage;
+                // Determine the specific error message based on the exception type
+                if (e instanceof JSONException) {
+                    // This covers JSON errors when building requestBody OR parsing responseData
+                    displayMessage = getString(R.string.login_failed_api_issue);
+                } else {
+                    // This covers network/IO errors
+                    displayMessage = getString(R.string.network_error);
+                }
 
                 runOnUiThread(() -> {
                     progressBar.setVisibility(View.GONE);
                     loginButton.setEnabled(true);
                     Toast.makeText(LoginActivity.this,
-                            getString(R.string.network_error),
+                            displayMessage, // Use the determined message
                             Toast.LENGTH_SHORT).show();
                 });
             } finally {

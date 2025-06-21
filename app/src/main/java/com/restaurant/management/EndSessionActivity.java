@@ -137,7 +137,19 @@ public class EndSessionActivity extends AppCompatActivity {
 
                 if (response.isSuccessful() && response.body() != null) {
                     activeSession = response.body();
-                    expectedAmount = activeSession.getStartAmount();
+                    // Corrected: Convert the String from getOpeningAmount() to a double
+                    if (activeSession.getOpeningAmount() != null) {
+                        try {
+                            expectedAmount = Double.parseDouble(activeSession.getOpeningAmount());
+                        } catch (NumberFormatException e) {
+                            Log.e(TAG, "Error parsing opening amount '" + activeSession.getOpeningAmount() + "': " + e.getMessage());
+                            expectedAmount = 0.0; // Set a default/safe value on error
+                            Toast.makeText(EndSessionActivity.this, "Warning: Invalid opening amount received. Using 0.", Toast.LENGTH_LONG).show();
+                        }
+                    } else {
+                        expectedAmount = 0.0; // Handle case where openingAmount is null
+                        Log.w(TAG, "Opening amount is null for session " + activeSession.getSessionId() + ", setting expectedAmount to 0.0");
+                    }
 
                     // Update the UI with session data
                     expectedAmountTextView.setText(String.format(Locale.getDefault(), "Expected: %.2f", expectedAmount));
@@ -145,11 +157,6 @@ public class EndSessionActivity extends AppCompatActivity {
                     // Set up the denominations and payment mode views
                     createDenominationInputs();
                     createPaymentModeViews();
-
-                    // Set any existing notes
-                    if (activeSession.getUserName() != null) {
-                        notesEditText.setText(activeSession.getUserName());
-                    }
 
                     // Update calculations
                     updateTotalAmount();

@@ -14,6 +14,7 @@ import com.restaurant.management.models.CreateOrderRequest;
 import com.restaurant.management.models.CreateOrderResponse;
 import com.restaurant.management.models.CreateOrderItemRequest;
 import com.restaurant.management.models.CreateOrderItemResponse;
+import com.restaurant.management.models.ApiResponse; // Import the new ApiResponse class
 
 import java.util.List;
 import retrofit2.Call;
@@ -28,6 +29,10 @@ public interface ApiService {
     // Existing cashier session methods
     @GET("cashier/sessions/active")
     Call<CashierSession> getActiveSession(@Query("userId") int userId);
+
+    // UPDATED METHOD: Get current active session for the authenticated user (JWT-based)
+    @GET("cashier-sessions/current")
+    Call<ApiResponse<CashierSession>> getCurrentCashierSession();
 
     @GET("cashier/sessions")
     Call<List<CashierSession>> getCashierSessions();
@@ -53,51 +58,21 @@ public interface ApiService {
     Call<MenuItemResponse> getMenuItems();
 
     // ORDER-RELATED METHODS:
-
-    /**
-     * Get all orders for a session
-     * @param sessionId The ID of the session
-     * @return Call object with List of Orders
-     */
     @GET("sessions/{sessionId}/orders")
     Call<List<Order>> getOrdersBySession(@Path("sessionId") long sessionId);
 
-    /**
-     * Create a new order
-     * @param request The order creation request
-     * @return Call object with CreateOrderResponse
-     */
     @POST("orders")
     Call<CreateOrderResponse> createOrder(@Body CreateOrderRequest request);
 
-    /**
-     * Get all order types - FIXED to use wrapper response
-     * @return Call object with OrderTypesResponse
-     */
     @GET("order-types")
     Call<OrderTypesResponse> getOrderTypes();
 
-    /**
-     * Get all order statuses - FIXED to use wrapper response
-     * @return Call object with OrderStatusesResponse
-     */
     @GET("order-statuses")
     Call<OrderStatusesResponse> getOrderStatuses();
 
-    /**
-     * Get a specific order by ID
-     * @param orderId The ID of the order
-     * @return Call object with Order response
-     */
     @GET("orders/{id}")
     Call<Order> getOrderById(@Path("id") long orderId);
 
-    /**
-     * Add an item to an existing order
-     * @param orderId The ID of the order to add the item to
-     * @param request The item details to add
-     * @return Call object with the response
-     */
     @POST("orders/{orderId}/items")
     Call<CreateOrderItemResponse> addItemToOrder(
             @Path("orderId") long orderId,

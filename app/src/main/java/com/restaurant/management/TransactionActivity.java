@@ -7,11 +7,14 @@ import android.bluetooth.BluetoothSocket;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.ExpandableListView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.content.SharedPreferences;
+import android.content.Intent;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
@@ -21,6 +24,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Set;
 import java.util.UUID;
+
 
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
@@ -45,11 +49,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
+import retrofit2.Call; // Use Retrofit's Call
+import retrofit2.Callback; // Use Retrofit's Callback
+import retrofit2.Response; // Use Retrofit's Response
+
+// Remove OkHttp specific imports as ApiService handles them
+// import okhttp3.Call;
+// import okhttp3.Callback;
+// import okhttp3.OkHttpClient;
+// import okhttp3.Request;
+// import okhttp3.Response;
 
 public class TransactionActivity extends AppCompatActivity implements TransactionExpandableListAdapter.OnPrintClickListener {
+    private static final String TAG = "TransactionActivity";
 
     private static final int BLUETOOTH_PERMISSION_REQUEST = 105;
     private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
@@ -65,6 +77,8 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
     private Map<CashierSession, List<Transaction>> transactionMap;
     private ProgressBar progressBar;
     private TextView emptyView;
+
+    // Use ApiService instead of raw OkHttpClient
     private ApiService apiService;
 
     @Override
@@ -80,8 +94,8 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
             getSupportActionBar().setDisplayHomeAsUpEnabled(true);
         }
 
-        // Initialize API service
-        apiService = ApiClient.getClient(this).create(ApiService.class);
+        // Initialize API service using ApiClient
+        apiService = ApiClient.getApiService(this); // Correctly initialize ApiService with context
 
         // Initialize printing components
         templateManager = new PrintTemplateManager(this);
@@ -338,8 +352,8 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
     private void fetchTransactions() {
         showLoading(true);
 
-        Call<SessionPaymentsResponse> call = apiService.getSessionPayments();
-        call.enqueue(new Callback<SessionPaymentsResponse>() {
+        // Use ApiService to make the call to get session payments
+        apiService.getSessionPayments().enqueue(new Callback<SessionPaymentsResponse>() {
             @Override
             public void onResponse(Call<SessionPaymentsResponse> call, Response<SessionPaymentsResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -348,10 +362,32 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
                         parseSessionsAndTransactions(data);
                         setupExpandableListView();
                     } else {
-                        handleError("API returned non-success status");
+                        handleError("API returned non-success status: " + data.getMessage()); // Log API message
                     }
                 } else {
-                    handleError("API error: " + response.code());
+                    // Log HTTP error details
+                    String errorBody = "";
+                    try {
+                        if (response.errorBody() != null) {
+                            errorBody = response.errorBody().string();
+                        }
+                    } catch (IOException e) {
+                        Log.e(TAG, "Error reading error body", e);
+                    }
+                    handleError("HTTP error: " + response.code() + " " + response.message() + " - " + errorBody);
+                    // Handle 401 Unauthorized specifically
+                    if (response.code() == 401) {
+                        Toast.makeText(TransactionActivity.this, getString(R.string.session_expired_relogin), Toast.LENGTH_LONG).show();
+                        // Clear session data and force logout
+                        SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
+                        SharedPreferences.Editor editor = sharedPreferences.edit();
+                        editor.clear();
+                        editor.apply();
+                        Intent intent = new Intent(TransactionActivity.this, LoginActivity.class);
+                        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
+                        startActivity(intent);
+                        finish();
+                    }
                 }
                 showLoading(false);
             }
@@ -376,19 +412,24 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
         sessionList.clear();
         transactionMap.clear();
 
-        SimpleDateFormat apiDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US);
-        apiDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        // Use the Gson converter in ApiClient; manual SimpleDateFormat parsing
+        // for model fields should ideally be avoided if models are correctly mapped to Date.
+        // If SessionWithPayments.getCashierSessionOpenedAt() returns a Date, use it directly.
+        // If PaymentData.getPaymentDate() returns a Date, use it directly.
+        // Assuming your models (SessionWithPayments, PaymentData) are updated to use java.util.Date.
 
         for (SessionWithPayments sessionData : sessionsData) {
-            int sessionId = sessionData.getCashierSessionId();
+            // Get ID and OpenedAt directly from SessionWithPayments if they are Date/Long
+            Long sessionId = (long) sessionData.getCashierSessionId(); // Ensure this returns Long
+            Date sessionOpenedAt = sessionData.getCashierSessionOpenedAt(); // Ensure this returns Date
 
             CashierSession session = new CashierSession();
-            session.setId(sessionId);
+            session.setSessionId(sessionId); // Use setSessionId (expects Long)
+            session.setOpenedAt(sessionOpenedAt); // Use setOpenedAt (expects Date)
 
-            if (sessionData.getCashierSessionOpenedAt() != null) {
-                Date startTime = sessionData.getCashierSessionOpenedAt();
-                session.setStartTime(startTime);
-            }
+            // As per CashierSession model, if you want to set the userId, you'd get it from sessionData if available
+            // session.setUserId(sessionData.getUserId()); // Add this if SessionWithPayments has getUserId()
+
 
             sessionList.add(session);
 
@@ -397,6 +438,7 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
             List<Transaction> transactions = new ArrayList<>();
 
             if (payments != null) {
+                // If payment.getPaymentDate() returns Date, this manual parsing is not needed.
                 SimpleDateFormat paymentDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSSSS", Locale.US);
                 paymentDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
@@ -405,15 +447,19 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
                     int orderId = payment.getOrderId();
                     String tableNumber = payment.getOrderTableNumber();
                     double amount = payment.getPaymentAmount();
-                    int paymentMode = payment.getPaymentMode();
+                    // int paymentMode = payment.getPaymentMode(); // Not directly used in Transaction constructor
                     String paymentModeText = payment.getPaymentModeName();
 
-                    Date paymentDate = null;
+                    Date paymentDate = null; // Initialize to null
                     try {
-                        String dateStr = payment.getPaymentDate();
-                        paymentDate = paymentDateFormat.parse(dateStr);
+                        String dateStr = payment.getPaymentDate(); // This returns a String
+                        if (dateStr != null && !dateStr.isEmpty()) {
+                            paymentDate = paymentDateFormat.parse(dateStr); // <--- PARSE THE STRING TO DATE
+                        }
                     } catch (ParseException e) {
-                        paymentDate = new Date();
+                        // Handle parsing error, e.g., log it and use current date or null
+                        Log.e(TAG, "Error parsing payment date: " + payment.getPaymentDate(), e);
+                        paymentDate = new Date(); // Fallback to current date or handle as error
                     }
 
                     // Parse order items
@@ -495,7 +541,12 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
             expandableListView.setVisibility(View.GONE);
             emptyView.setVisibility(View.GONE);
         } else {
-            expandableListView.setVisibility(View.VISIBLE);
+            // Only make expandableListView visible if it's not empty
+            if (!sessionList.isEmpty()) {
+                expandableListView.setVisibility(View.VISIBLE);
+            } else {
+                showEmptyView(true); // If list is empty, show empty view
+            }
         }
     }
 
@@ -505,10 +556,10 @@ public class TransactionActivity extends AppCompatActivity implements Transactio
     }
 
     private void handleError(String message) {
-        Toast.makeText(this, "Error loading transactions", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Error loading transactions: " + message, Toast.LENGTH_LONG).show(); // Show detailed error
         showLoading(false);
         showEmptyView(true);
-        emptyView.setText(R.string.error_loading_transactions);
+        emptyView.setText(getString(R.string.error_loading_transactions) + "\n" + message); // Show error message in UI
     }
 
     private String formatCurrency(double amount) {
