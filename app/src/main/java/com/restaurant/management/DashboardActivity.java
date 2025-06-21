@@ -46,20 +46,9 @@ import retrofit2.Call; // Retrofit Call
 import retrofit2.Callback; // Retrofit Callback
 import retrofit2.Response; // Retrofit Response
 
-// No longer need these OkHttp specific imports since we're using Retrofit's Callbacks
-// import okhttp3.Call;
-// import okhttp3.Callback;
-// import okhttp3.OkHttpClient;
-// import okhttp3.Request;
-// import okhttp3.Response;
-// import org.json.JSONException; // No longer needed for parsing
-// import org.json.JSONObject; // No longer needed for parsing
-// import java.util.Iterator; // No longer needed for parsing
-
 public class DashboardActivity extends AppCompatActivity implements NavigationView.OnNavigationItemSelectedListener {
 
     private static final String TAG = "DashboardActivity";
-    // private static final String API_URL = "https://api.pood.lol/cashier-sessions/current"; // REMOVED: Handled by ApiService
 
     private DrawerLayout drawerLayout;
     private TextView userNameTextView;
@@ -68,7 +57,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     private Button openSessionButton;
     private Button endSessionButton;
 
-    // These may be null since they're not in your layout
     private RecyclerView pastSessionsRecyclerView;
     private ProgressBar loadingProgressBar;
     private TextView noPastSessionsTextView;
@@ -82,13 +70,11 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     private PromoAdapter promoAdapter;
 
     private int userId;
-    private String userName; // This will be used to display the cashier's name if not provided by API
+    private String userName; // This holds the name of the currently logged-in user from SharedPreferences
     private List<CashierSession> cashierSessions = new ArrayList<>();
 
-    // CHANGED: Use ApiService for network calls
     private ApiService apiService;
 
-    // NEW: Shake detection fields
     private SensorManager sensorManager;
     private Sensor accelerometer;
     private long lastUpdate = 0;
@@ -101,13 +87,9 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_dashboard);
 
-            // CHANGED: Initialize ApiService using ApiClient
             apiService = ApiClient.getApiService(this);
-
-            // NEW: Initialize shake detection for Chucker
             initializeShakeDetection();
 
-            // Initialize toolbar
             Toolbar toolbar = findViewById(R.id.toolbar);
             setSupportActionBar(toolbar);
 
@@ -121,35 +103,30 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             endSessionButton = findViewById(R.id.end_session_button);
 
             initializePromoComponents();
-
-            // NEW: Setup debug options (long press to open Chucker)
             setupDebugOptions();
 
-            // Try to find the RecyclerView components, but don't crash if not found
             pastSessionsRecyclerView = findViewById(R.id.past_sessions_recycler_view);
             noPastSessionsTextView = findViewById(R.id.no_past_sessions_text_view);
             loadingProgressBar = findViewById(R.id.loading_progress_bar);
 
-            // Initial button visibility setup
             openSessionButton.setVisibility(View.VISIBLE);
             endSessionButton.setVisibility(View.GONE);
 
-            // Set up navigation drawer
             ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
                     this, drawerLayout, toolbar, R.string.navigation_drawer_open, R.string.navigation_drawer_close);
             drawerLayout.addDrawerListener(toggle);
             toggle.syncState();
             navigationView.setNavigationItemSelectedListener(this);
 
-            // Get user info from shared preferences
+            // Get user info from shared preferences (this is the LOGGED-IN USER'S NAME)
             SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
             userId = sharedPreferences.getInt(getString(R.string.pref_user_id), -1);
-            userName = sharedPreferences.getString(getString(R.string.pref_user_name), ""); // Get user name for display
+            userName = sharedPreferences.getString(getString(R.string.pref_user_name), "");
 
+            // Set the TextView for the logged-in user's name
             userNameTextView.setText(userName);
             updateDateTime();
 
-            // Setup RecyclerView ONLY if it's not null
             if (pastSessionsRecyclerView != null) {
                 pastSessionsRecyclerView.setLayoutManager(new LinearLayoutManager(this));
                 pastSessionsRecyclerView.setAdapter(new CashierSessionAdapter(cashierSessions));
@@ -160,23 +137,16 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 }
             }
 
-            // Set initial UI state
             sessionStatusTextView.setText(getString(R.string.checking_session_status));
 
-            // Check if there's an active cashier session
             checkActiveCashierSession();
 
-            // Set button click listeners
             openSessionButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     try {
-                        // Navigate to OpenSessionActivity
                         Intent intent = new Intent(DashboardActivity.this, OpenSessionActivity.class);
-                        // No need to pass userId if OpenSessionActivity can read from SharedPreferences
                         startActivity(intent);
-
-                        // After returning from OpenSessionActivity, onResume will handle session check
                     } catch (Exception e) {
                         Log.e(TAG, "Error navigating to OpenSessionActivity", e);
                         Toast.makeText(DashboardActivity.this,
@@ -192,7 +162,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                     try {
                         Log.d(TAG, getString(R.string.navigating_to_end_session));
 
-                        // Check if we have a session ID before navigating
                         SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                         long sessionId = sharedPreferences.getLong(getString(R.string.pref_active_session_id), -1);
 
@@ -203,7 +172,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                             return;
                         }
 
-                        // Navigate to ReconciliationActivity
                         Intent intent = new Intent(DashboardActivity.this, ReconciliationActivity.class);
                         startActivity(intent);
 
@@ -224,9 +192,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         }
     }
 
-    // REMOVED: initializeHttpClient() method is no longer needed as ApiClient handles it
-
-    // NEW METHOD: Initialize shake detection
     private void initializeShakeDetection() {
         try {
             sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
@@ -242,7 +207,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         }
     }
 
-    // NEW: Shake detection listener
     private final SensorEventListener shakeListener = new SensorEventListener() {
         @Override
         public void onSensorChanged(SensorEvent event) {
@@ -274,7 +238,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         }
     };
 
-    // NEW METHOD: Launch Chucker manually
     private void launchChucker() {
         try {
             startActivity(Chucker.getLaunchIntent(this));
@@ -283,9 +246,7 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         }
     }
 
-    // NEW METHOD: Setup debug options (long press to open Chucker)
     private void setupDebugOptions() {
-        // Long press on user name to open Chucker (alternative to shake)
         if (userNameTextView != null) {
             userNameTextView.setOnLongClickListener(v -> {
                 launchChucker();
@@ -294,9 +255,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         }
     }
 
-    // REMOVED: testChuckerRequest() is not needed as ApiService handles network calls
-
-    // UPDATED: Using PromoRepository instead of PromoApiHelper
     private void loadPromos() {
         if (promosProgressBar != null) {
             promosProgressBar.setVisibility(View.VISIBLE);
@@ -310,7 +268,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
             noPromosTextView.setVisibility(View.GONE);
         }
 
-        // Load from offline database instead of API
         promoRepository.getOfflinePromos(new PromoRepository.PromoCallback() {
             @Override
             public void onSuccess(List<Promo> fetchedPromos) {
@@ -340,7 +297,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                         }
                     }
 
-                    // Update header text with count
                     if (promosHeaderTextView != null) {
                         String headerText = "Promotions (" + promos.size() + ")";
                         promosHeaderTextView.setText(headerText);
@@ -371,16 +327,13 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     }
 
     private void initializePromoComponents() {
-        // Initialize repository instead of API helper
         promoRepository = new PromoRepository(this);
 
-        // Find promo views (only if they exist in your layout)
         promosRecyclerView = findViewById(R.id.promos_recycler_view);
         noPromosTextView = findViewById(R.id.no_promos_text_view);
         promosProgressBar = findViewById(R.id.promos_progress_bar);
         promosHeaderTextView = findViewById(R.id.promos_header_text_view);
 
-        // Setup promos RecyclerView if it exists
         if (promosRecyclerView != null) {
             promosRecyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
             promoAdapter = new PromoAdapter(this, promos);
@@ -391,8 +344,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 Toast.makeText(this, "Clicked on: " + displayText, Toast.LENGTH_SHORT).show();
             });
             promosRecyclerView.setAdapter(promoAdapter);
-
-            // Load promos
             loadPromos();
         }
     }
@@ -400,10 +351,8 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     @Override
     protected void onResume() {
         super.onResume();
-        // Check for active session when activity resumes
         checkActiveCashierSession();
 
-        // Re-register shake detection if needed
         if (sensorManager != null && accelerometer != null) {
             sensorManager.registerListener(shakeListener, accelerometer,
                     SensorManager.SENSOR_DELAY_NORMAL);
@@ -413,7 +362,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     @Override
     protected void onPause() {
         super.onPause();
-        // Unregister shake detection to save battery
         if (sensorManager != null) {
             sensorManager.unregisterListener(shakeListener);
         }
@@ -422,8 +370,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
-        // Clean up shake detection
         if (sensorManager != null) {
             sensorManager.unregisterListener(shakeListener);
         }
@@ -440,7 +386,6 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
 
         sessionStatusTextView.setText(getString(R.string.checking_session_status));
 
-        // Use ApiService to make the call to the /cashier-sessions/open endpoint
         apiService.getCurrentCashierSession().enqueue(new Callback<ApiResponse<CashierSession>>() {
             @Override
             public void onResponse(Call<ApiResponse<CashierSession>> call, Response<ApiResponse<CashierSession>> response) {
@@ -451,62 +396,63 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                             loadingProgressBar.setVisibility(View.GONE);
                         }
 
-                        if (response.isSuccessful()) { // HTTP 200-299 status code
+                        if (response.isSuccessful()) {
                             ApiResponse<CashierSession> apiResponse = response.body();
 
-                            // Check if the API response itself indicates success and has data
                             if (apiResponse != null && apiResponse.isSuccess() && apiResponse.getData() != null) {
-                                CashierSession sessionData = apiResponse.getData(); // Get the actual session object
+                                CashierSession sessionData = apiResponse.getData();
 
-                                if (sessionData.getSessionId() != null) {
-                                    // Active session found
+                                // Helper method to check if session is genuinely active
+                                // (sessionId must be non-null and greater than 0)
+                                if (sessionData.getSessionId() != null && sessionData.getSessionId() > 0) {
                                     Log.d(TAG, "Active session found: ID=" + sessionData.getSessionId() + ", User ID=" + sessionData.getUserId());
 
-                                    // Store the session ID
                                     long activeSessionId = sessionData.getSessionId();
                                     SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                                     SharedPreferences.Editor editor = sharedPreferences.edit();
                                     editor.putLong(getString(R.string.pref_active_session_id), activeSessionId);
-                                    editor.apply();
 
-                                    // Display user name from SharedPreferences as API response doesn't provide it directly
-                                    sessionStatusTextView.setText(getString(R.string.active_session_cashier, userName));
+                                    // --- IMPORTANT CHANGE START ---
+                                    // Removed the line that overwrites 'pref_user_name' with 'cashier_name'
+                                    // The 'userName' variable (logged-in user) is already set in onCreate
+                                    // and userNameTextView displays that.
+                                    // Now, we specifically use sessionData.getCashierName() for the session status.
+                                    // --- IMPORTANT CHANGE END ---
 
+                                    editor.apply(); // Apply changes (only active_session_id is affected now)
+
+                                    // Set the session status text using the Cashier's Name (Session Opener)
+                                    sessionStatusTextView.setText(getString(R.string.active_session_cashier, sessionData.getCashierName()));
                                     openSessionButton.setVisibility(View.GONE);
                                     endSessionButton.setVisibility(View.VISIBLE);
+
                                 } else {
-                                    // API responded successfully, but data is empty/null, or session ID is null
-                                    Log.d(TAG, "API Response indicates no active session data or null session ID: " + apiResponse.getMessage());
+                                    Log.d(TAG, "API Response indicates no active session data or null/invalid session ID: " + apiResponse.getMessage());
                                     sessionStatusTextView.setText(getString(R.string.no_active_session));
                                     openSessionButton.setVisibility(View.VISIBLE);
                                     endSessionButton.setVisibility(View.GONE);
 
-                                    // Clear potentially stale active session ID from SharedPreferences
                                     SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                                     SharedPreferences.Editor editor = sharedPreferences.edit();
                                     editor.remove(getString(R.string.pref_active_session_id));
                                     editor.apply();
                                 }
                             } else {
-                                // API responded successfully (e.g., 200 OK) but internal status is 'error'
-                                // or 'data' is explicitly null indicating no active session via the API's logic.
                                 String message = apiResponse != null && apiResponse.getMessage() != null
                                         ? apiResponse.getMessage()
-                                        : getString(R.string.no_active_session); // Default message if API message is null
+                                        : getString(R.string.no_active_session);
                                 Log.d(TAG, "API success response, but no active session or status not 'success': " + message);
                                 sessionStatusTextView.setText(getString(R.string.no_active_session));
                                 Toast.makeText(DashboardActivity.this, message, Toast.LENGTH_SHORT).show();
                                 openSessionButton.setVisibility(View.VISIBLE);
                                 endSessionButton.setVisibility(View.GONE);
 
-                                // Clear potentially stale active session ID
                                 SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                                 SharedPreferences.Editor editor = sharedPreferences.edit();
                                 editor.remove(getString(R.string.pref_active_session_id));
                                 editor.apply();
                             }
                         } else {
-                            // HTTP error (e.g., 400, 401, 500)
                             String errorBody = "";
                             try {
                                 if (response.errorBody() != null) {
@@ -521,10 +467,8 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                                     getString(R.string.failed_to_check_session, response.message()),
                                     Toast.LENGTH_SHORT).show();
 
-                            // Handle 401 Unauthorized specifically
                             if (response.code() == 401) {
                                 Toast.makeText(DashboardActivity.this, getString(R.string.session_expired_relogin), Toast.LENGTH_LONG).show();
-                                // Clear session data and force logout
                                 SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                                 SharedPreferences.Editor editor = sharedPreferences.edit();
                                 editor.clear();
@@ -578,27 +522,22 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
         int id = item.getItemId();
 
         if (id == R.id.nav_dashboard) {
-            // Already in dashboard activity
             Toast.makeText(this, getString(R.string.already_in_dashboard), Toast.LENGTH_SHORT).show();
         } else if (id == R.id.nav_orders) {
             try {
-                // Navigate to OrderActivity
                 Intent intent = new Intent(DashboardActivity.this, OrderListActivity.class);
 
-                // Get session ID from SharedPreferences
                 SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
                 long sessionId = sharedPreferences.getLong(getString(R.string.pref_active_session_id), -1);
 
-                // If no session ID found, inform the user or handle appropriately
                 if (sessionId == -1) {
                     Toast.makeText(DashboardActivity.this, R.string.error_no_active_session, Toast.LENGTH_SHORT).show();
                     Log.w(TAG, "Attempted to navigate to Orders without an active session ID.");
-                    return true; // Stay on dashboard
+                    return true;
                 } else {
                     Log.d(TAG, "Using session ID from SharedPreferences: " + sessionId);
                 }
 
-                // Pass the session ID to OrderActivity
                 intent.putExtra("session_id", sessionId);
 
                 startActivity(intent);
@@ -607,15 +546,12 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         } else if (id == R.id.nav_transactions) {
-            // Handle the new transaction menu item
             Intent intent = new Intent(this, TransactionActivity.class);
             startActivity(intent);
         } else if (id == R.id.nav_products) {
-            // Handle the new transaction menu item
             Intent intent = new Intent(this, ProductListActivity.class);
             startActivity(intent);
         } else if (id == R.id.nav_taxes) {
-            // Handle the new tax menu item
             try {
                 Intent intent = new Intent(this, TaxListActivity.class);
                 startActivity(intent);
@@ -624,30 +560,26 @@ public class DashboardActivity extends AppCompatActivity implements NavigationVi
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         } else if (id == R.id.nav_cashier) {
-            // Navigate to CashierActivity
             try {
                 Intent intent = new Intent(DashboardActivity.this, CashierActivity.class);
                 startActivity(intent);
-            } catch (Exception e) {
+            }
+            catch (Exception e) {
                 Log.e(TAG, "Error starting CashierActivity", e);
                 Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
             }
         } else if (id == R.id.nav_offline_data) {
-            // Launch Offline Data Management Activity
             Intent intent = new Intent(this, OfflineDataActivity.class);
             startActivity(intent);
         } else if (id == R.id.nav_discounts) {
-            // Handle discounts navigation
             Intent intent = new Intent(this, DiscountListActivity.class);
             startActivity(intent);
         } else if (id == R.id.nav_logout) {
-            // Clear session data
             SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
             SharedPreferences.Editor editor = sharedPreferences.edit();
             editor.clear();
             editor.apply();
 
-            // Navigate to login screen
             Intent intent = new Intent(DashboardActivity.this, LoginActivity.class);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             startActivity(intent);
