@@ -15,7 +15,9 @@
     <color name="md_theme_onSurfaceVariant">#424242</color>
     <color name="md_theme_onError">#FFFFFF</color>
 
-    <color name="green_accent">#4CAF50</color> <color name="orange_accent">#FF9800</color> <color name="dark_green_accent">#00C853</color>
+    <color name="green_accent">#4CAF50</color>
+    <color name="orange_accent">#FF9800</color>
+    <color name="dark_green_accent">#00C853</color>
     <!-- Main Theme -->
     <color name="colorPrimary">#6E0058</color>
     <color name="colorPrimaryDark">#3A0926</color>

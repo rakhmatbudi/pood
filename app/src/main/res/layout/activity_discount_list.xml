@@ -5,6 +5,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@color/md_theme_background"
+    android:fitsSystemWindows="true"
     tools:context=".DiscountListActivity">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -17,6 +19,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
+            app:title="Discount List" app:titleTextColor="@android:color/white"
             app:popupTheme="@style/AppTheme.PopupOverlay" />
 
     </com.google.android.material.appbar.AppBarLayout>
@@ -26,10 +29,9 @@
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <!-- Discount List -->
         <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
             android:id="@+id/swipe_refresh_layout"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="0dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -41,11 +43,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:clipToPadding="false"
-                android:padding="8dp" />
-
+                android:paddingHorizontal="16dp"
+                android:paddingVertical="8dp" />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
-        <!-- Progress Bar -->
         <ProgressBar
             android:id="@+id/progress_bar"
             android:layout_width="wrap_content"
@@ -56,15 +57,16 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- No Discounts Text View -->
         <TextView
             android:id="@+id/no_discounts_text_view"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:gravity="center"
-            android:padding="24dp"
             android:text="@string/no_discounts_found"
             android:textSize="18sp"
+            android:textColor="@android:color/darker_gray"
+            android:fontFamily="sans-serif-medium"
+            android:gravity="center"
+            android:padding="24dp"
             android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -73,7 +75,6 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <!-- Add Floating Action Button for creating new discounts -->
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab_add_discount"
         android:layout_width="wrap_content"
@@ -81,8 +82,8 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="16dp"
         android:contentDescription="@string/add_new_discount"
-        app:srcCompat="@android:drawable/ic_input_add"
-        app:backgroundTint="@color/colorPrimaryDark"
-        app:tint="@android:color/white" />
-
+        app:srcCompat="@drawable/ic_add"
+        app:backgroundTint="?attr/colorSecondary"
+        app:tint="@android:color/white"
+        app:fabSize="normal" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
