@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.navigation.ui)
 
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    implementation("com.google.android.material:material:1.10.0")
 
     // Network dependencies
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
