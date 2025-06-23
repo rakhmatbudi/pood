@@ -25,6 +25,7 @@ import retrofit2.http.GET;
 import retrofit2.http.POST;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
+import retrofit2.http.Header;
 
 public interface ApiService {
 
@@ -82,10 +83,10 @@ public interface ApiService {
     );
 
     // METHOD FOR DISCOUNTS
-    @GET("discounts")
-    Call<DiscountResponse> getDiscounts();
+    @GET("discounts") // Assuming the endpoint is /discounts
+    Call<DiscountResponse> getDiscounts(@Header("Authorization") String authToken);
 
     // NEW METHOD FOR TAX RATES
     @GET("taxes/rates") // Endpoint for tax rates
-    Call<TaxResponse> getTaxRates();
+    Call<TaxResponse> getTaxRates(@Header("Authorization") String authToken);
 }

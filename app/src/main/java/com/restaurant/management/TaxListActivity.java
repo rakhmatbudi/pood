@@ -20,6 +20,7 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.chuckerteam.chucker.api.Chucker; // Import Chucker
 import com.restaurant.management.adapters.TaxAdapter;
+import com.restaurant.management.models.DiscountResponse;
 import com.restaurant.management.models.Tax;
 import com.restaurant.management.models.TaxResponse;
 import com.restaurant.management.network.ApiClient;
@@ -184,8 +185,11 @@ public class TaxListActivity extends AppCompatActivity { // Removed 'implements 
         recyclerView.setVisibility(View.GONE);
         noTaxesTextView.setVisibility(View.GONE);
 
+        // Get auth token
+        String authToken = getAuthToken();
+
         // Use ApiService to make the network call
-        apiService.getTaxRates().enqueue(new Callback<TaxResponse>() {
+        apiService.getTaxRates("Bearer " + authToken).enqueue(new Callback<TaxResponse>() {
             @Override
             public void onResponse(Call<TaxResponse> call, Response<TaxResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
@@ -240,6 +244,11 @@ public class TaxListActivity extends AppCompatActivity { // Removed 'implements 
                 });
             }
         });
+    }
+
+    private String getAuthToken() {
+        return getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE)
+                .getString(getString(R.string.pref_token), "");
     }
 
     @Override

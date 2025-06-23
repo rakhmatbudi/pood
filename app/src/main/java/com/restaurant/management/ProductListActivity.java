@@ -34,6 +34,15 @@ import com.restaurant.management.models.MenuCategory;
 import com.restaurant.management.utils.ProductFilter;
 import com.restaurant.management.utils.TableItemDecoration;
 
+// --- START: Chucker Shake Imports ---
+import com.chuckerteam.chucker.api.Chucker;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+import android.content.Context; // Needed for getSystemService
+// --- END: Chucker Shake Imports ---
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -64,6 +73,14 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
 
     // Category lookup for better performance
     private Map<String, MenuCategory> categoryMap = new HashMap<>();
+
+    // --- START: Chucker Shake Detection Variables ---
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private long lastUpdate = 0;
+    private float last_x, last_y, last_z;
+    private static final int SHAKE_THRESHOLD = 600; // Using the same threshold as DashboardActivity
+    // --- END: Chucker Shake Detection Variables ---
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -96,6 +113,12 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
 
         // Load products from database
         loadProductsFromDatabase();
+
+        // --- START: Chucker Shake Detection Initialization ---
+        // This call must be after the method is defined as a member of the class.
+        // It's defined further down, but that's fine for Java compilation as long as it's in the class.
+        initializeShakeDetection();
+        // --- END: Chucker Shake Detection Initialization ---
     }
 
     private void initializeViews() {
@@ -508,6 +531,22 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             // Data might have been cleared, reload
             loadProductsFromDatabase();
         }
+        // --- START: Sensor registration (Copied from DashboardActivity) ---
+        if (sensorManager != null && accelerometer != null) {
+            sensorManager.registerListener(shakeListener, accelerometer,
+                    SensorManager.SENSOR_DELAY_NORMAL);
+        }
+        // --- END: Sensor registration ---
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // --- START: Sensor unregistration (Copied from DashboardActivity) ---
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
+        }
+        // --- END: Sensor unregistration ---
     }
 
     @Override
@@ -522,6 +561,72 @@ public class ProductListActivity extends AppCompatActivity implements Navigation
             executorService.shutdown();
         }
 
+        // --- START: Sensor unregistration (Copied from DashboardActivity) ---
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
+        }
+        // --- END: Sensor unregistration ---
+
         Log.d(TAG, "Activity destroyed, resources cleaned up");
     }
+
+    // --- START: Chucker Shake Detection Methods (Copied from DashboardActivity) ---
+    // These methods MUST be defined as member methods of the ProductListActivity class.
+    // Ensure they are not nested inside onCreate or any other method.
+    private void initializeShakeDetection() {
+        try {
+            sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE); // Use Context.SENSOR_SERVICE
+            if (sensorManager != null) {
+                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                if (accelerometer != null) {
+                    sensorManager.registerListener(shakeListener, accelerometer,
+                            SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize shake detection", e);
+        }
+    }
+
+    private final SensorEventListener shakeListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            long curTime = System.currentTimeMillis();
+
+            if ((curTime - lastUpdate) > 100) { // Using 100ms interval as in DashboardActivity
+                long diffTime = (curTime - lastUpdate);
+                lastUpdate = curTime;
+
+                float x = event.values[0];
+                float y = event.values[1];
+                float z = event.values[2];
+
+                // Using the exact speed calculation from DashboardActivity
+                float speed = Math.abs(x + y + z - last_x - last_y - last_z) / diffTime * 10000;
+
+                if (speed > SHAKE_THRESHOLD) {
+                    launchChucker();
+                }
+
+                last_x = x;
+                last_y = y;
+                last_z = z;
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            // Not needed
+        }
+    };
+
+    private void launchChucker() {
+        try {
+            // Using the exact launch method from DashboardActivity
+            startActivity(Chucker.getLaunchIntent(this));
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to launch Chucker", e);
+        }
+    }
+    // --- END: Chucker Shake Detection Methods ---
 }
