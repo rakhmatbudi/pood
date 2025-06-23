@@ -393,8 +393,13 @@ public class PaymentApiHelper {
                 String name = discountJson.optString("name", "");
                 String description = discountJson.optString("description", "");
                 int amount = discountJson.optInt("amount", 0);
+                // Extract new fields
+                String createdAt = discountJson.optString("created_at", null);
+                String updatedAt = discountJson.optString("updated_at", null);
+                String tenant = discountJson.optString("tenant", null);
 
-                Discount discount = new Discount(id, name, description, amount);
+                // Use the 7-argument constructor
+                Discount discount = new Discount(id, name, description, amount, createdAt, updatedAt, tenant);
                 discounts.add(discount);
             }
         }

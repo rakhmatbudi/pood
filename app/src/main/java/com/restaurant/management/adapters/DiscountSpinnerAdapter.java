@@ -23,7 +23,16 @@ public class DiscountSpinnerAdapter extends ArrayAdapter<Discount> {
         this.inflater = LayoutInflater.from(context);
 
         // Add "No Discount" option as the first item
-        discounts.add(0, new Discount(-1, context.getString(R.string.no_discount), "", 0));
+        // UPDATED: Provide values for createdAt, updatedAt, and tenant
+        discounts.add(0, new Discount(
+                -1,
+                context.getString(R.string.no_discount),
+                "",
+                0,
+                null, // or ""
+                null, // or ""
+                null  // or ""
+        ));
     }
 
     @NonNull

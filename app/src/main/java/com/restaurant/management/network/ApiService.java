@@ -14,7 +14,8 @@ import com.restaurant.management.models.CreateOrderRequest;
 import com.restaurant.management.models.CreateOrderResponse;
 import com.restaurant.management.models.CreateOrderItemRequest;
 import com.restaurant.management.models.CreateOrderItemResponse;
-import com.restaurant.management.models.ApiResponse; // Import the new ApiResponse class
+import com.restaurant.management.models.ApiResponse;
+import com.restaurant.management.models.DiscountResponse; // Import the new DiscountResponse model
 
 import java.util.List;
 import retrofit2.Call;
@@ -78,4 +79,8 @@ public interface ApiService {
             @Path("orderId") long orderId,
             @Body CreateOrderItemRequest request
     );
+
+    // METHOD FOR DISCOUNTS
+    @GET("discounts") // The endpoint is confirmed as "discounts" relative to the base URL
+    Call<DiscountResponse> getDiscounts();
 }
