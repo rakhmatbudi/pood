@@ -15,7 +15,8 @@ import com.restaurant.management.models.CreateOrderResponse;
 import com.restaurant.management.models.CreateOrderItemRequest;
 import com.restaurant.management.models.CreateOrderItemResponse;
 import com.restaurant.management.models.ApiResponse;
-import com.restaurant.management.models.DiscountResponse; // Import the new DiscountResponse model
+import com.restaurant.management.models.DiscountResponse;
+import com.restaurant.management.models.TaxResponse; // Import the new TaxResponse model
 
 import java.util.List;
 import retrofit2.Call;
@@ -81,6 +82,10 @@ public interface ApiService {
     );
 
     // METHOD FOR DISCOUNTS
-    @GET("discounts") // The endpoint is confirmed as "discounts" relative to the base URL
+    @GET("discounts")
     Call<DiscountResponse> getDiscounts();
+
+    // NEW METHOD FOR TAX RATES
+    @GET("taxes/rates") // Endpoint for tax rates
+    Call<TaxResponse> getTaxRates();
 }

@@ -15,31 +15,30 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import com.restaurant.management.adapters.TaxAdapter;
 import com.restaurant.management.models.Tax;
+import com.restaurant.management.models.TaxResponse; // Import TaxResponse
+import com.restaurant.management.network.ApiClient; // Import ApiClient
+import com.restaurant.management.network.ApiService; // Import ApiService
 
-import org.json.JSONArray;
-import org.json.JSONObject;
-
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import okhttp3.Call;
-import okhttp3.Callback;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class TaxListActivity extends AppCompatActivity {
 
     private static final String TAG = "TaxListActivity";
-    private static final String API_URL = "https://api.pood.lol/taxes/rates";
+    // Removed API_URL constant as it's now handled by ApiService and ApiClient
 
     private RecyclerView recyclerView;
     private ProgressBar progressBar;
     private TextView noTaxesTextView;
     private TaxAdapter taxAdapter;
     private List<Tax> taxList = new ArrayList<>();
-    private OkHttpClient client = new OkHttpClient();
+
+    // Retrofit ApiService instance
+    private ApiService apiService;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,6 +58,9 @@ public class TaxListActivity extends AppCompatActivity {
         progressBar = findViewById(R.id.progress_bar);
         noTaxesTextView = findViewById(R.id.text_view_no_taxes);
 
+        // Initialize ApiService
+        apiService = ApiClient.getApiService(this); // Pass context for token
+
         // Set up RecyclerView
         recyclerView.setLayoutManager(new LinearLayoutManager(this));
         taxAdapter = new TaxAdapter(taxList);
@@ -74,83 +76,60 @@ public class TaxListActivity extends AppCompatActivity {
         recyclerView.setVisibility(View.GONE);
         noTaxesTextView.setVisibility(View.GONE);
 
-        Request request = new Request.Builder()
-                .url(API_URL)
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+        // Use ApiService to make the network call
+        apiService.getTaxRates().enqueue(new Callback<TaxResponse>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to load tax rates", e);
-                runOnUiThread(() -> {
-                    progressBar.setVisibility(View.GONE);
-                    Toast.makeText(TaxListActivity.this,
-                            getString(R.string.error_loading_taxes) + ": " + e.getMessage(),
-                            Toast.LENGTH_SHORT).show();
-                });
-            }
+            public void onResponse(Call<TaxResponse> call, Response<TaxResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    TaxResponse taxResponse = response.body();
+                    List<Tax> taxes = taxResponse.getData(); // Get the list of Tax objects
 
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                try {
-                    if (!response.isSuccessful()) {
-                        throw new IOException("Unexpected response code: " + response);
-                    }
-
-                    String responseBody = response.body().string();
-                    Log.d(TAG, "API Response: " + responseBody);
-
-                    JSONObject jsonObject = new JSONObject(responseBody);
-
-                    if ("success".equals(jsonObject.getString("status")) &&
-                            jsonObject.has("data")) {
-
-                        JSONArray dataArray = jsonObject.getJSONArray("data");
-                        List<Tax> taxes = new ArrayList<>();
-
-                        for (int i = 0; i < dataArray.length(); i++) {
-                            JSONObject taxObject = dataArray.getJSONObject(i);
-                            int id = taxObject.getInt("id");
-                            String name = taxObject.getString("name");
-                            String description = taxObject.getString("description");
-                            String amount = taxObject.getString("amount");
-
-                            taxes.add(new Tax(id, name, description, amount));
-                        }
-
-                        runOnUiThread(() -> {
-                            progressBar.setVisibility(View.GONE);
-
-                            if (taxes.isEmpty()) {
-                                noTaxesTextView.setVisibility(View.VISIBLE);
-                                recyclerView.setVisibility(View.GONE);
-                            } else {
-                                taxList.clear();
-                                taxList.addAll(taxes);
-                                taxAdapter.notifyDataSetChanged();
-                                recyclerView.setVisibility(View.VISIBLE);
-                                noTaxesTextView.setVisibility(View.GONE);
-                            }
-                        });
-                    } else {
-                        runOnUiThread(() -> {
-                            progressBar.setVisibility(View.GONE);
-                            noTaxesTextView.setVisibility(View.VISIBLE);
-                            recyclerView.setVisibility(View.GONE);
-                            Toast.makeText(TaxListActivity.this,
-                                    R.string.error_loading_taxes,
-                                    Toast.LENGTH_SHORT).show();
-                        });
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error processing response", e);
                     runOnUiThread(() -> {
                         progressBar.setVisibility(View.GONE);
+
+                        if (taxes == null || taxes.isEmpty()) {
+                            noTaxesTextView.setVisibility(View.VISIBLE);
+                            recyclerView.setVisibility(View.GONE);
+                        } else {
+                            taxList.clear();
+                            taxList.addAll(taxes);
+                            taxAdapter.notifyDataSetChanged();
+                            recyclerView.setVisibility(View.VISIBLE);
+                            noTaxesTextView.setVisibility(View.GONE);
+                        }
+                    });
+                } else {
+                    String errorBody = "";
+                    try {
+                        if (response.errorBody() != null) {
+                            errorBody = response.errorBody().string();
+                        }
+                    } catch (Exception e) {
+                        Log.e(TAG, "Error reading error body", e);
+                    }
+                    Log.e(TAG, "API request failed: " + response.code() + " - " + errorBody);
+                    runOnUiThread(() -> {
+                        progressBar.setVisibility(View.GONE);
+                        noTaxesTextView.setVisibility(View.VISIBLE); // Show no taxes text on error
+                        recyclerView.setVisibility(View.GONE);
                         Toast.makeText(TaxListActivity.this,
-                                getString(R.string.error_loading_taxes) + ": " + e.getMessage(),
+                                getString(R.string.error_loading_taxes) + ": HTTP " + response.code(),
                                 Toast.LENGTH_SHORT).show();
                     });
                 }
+            }
+
+            @Override
+            public void onFailure(Call<TaxResponse> call, Throwable t) {
+                Log.e(TAG, "Failed to load tax rates", t);
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    noTaxesTextView.setVisibility(View.VISIBLE); // Show no taxes text on network failure
+                    recyclerView.setVisibility(View.GONE);
+                    Toast.makeText(TaxListActivity.this,
+                            getString(R.string.network_error), // Use generic network error string
+                            Toast.LENGTH_SHORT).show();
+                });
             }
         });
     }

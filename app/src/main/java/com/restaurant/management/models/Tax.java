@@ -1,10 +1,16 @@
 package com.restaurant.management.models;
 
+import com.google.gson.annotations.SerializedName;
+
 public class Tax {
+    @SerializedName("id")
     private int id;
+    @SerializedName("name")
     private String name;
+    @SerializedName("description")
     private String description;
-    private String amount;
+    @SerializedName("amount")
+    private String amount; // Keep as String if the API sends it that way (e.g., "10.00")
 
     public Tax(int id, String name, String description, String amount) {
         this.id = id;
@@ -13,6 +19,7 @@ public class Tax {
         this.amount = amount;
     }
 
+    // Getters
     public int getId() {
         return id;
     }
@@ -28,4 +35,7 @@ public class Tax {
     public String getAmount() {
         return amount;
     }
+
+    // You might want setters if you modify these objects after creation,
+    // but for simple display, getters are enough.
 }
