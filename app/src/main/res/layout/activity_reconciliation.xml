@@ -4,6 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:fitsSystemWindows="true"
     tools:context=".ReconciliationActivity">
 
     <com.google.android.material.appbar.AppBarLayout
@@ -30,7 +31,6 @@
             android:layout_height="wrap_content"
             android:padding="16dp">
 
-            <!-- Session Summary Card -->
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardSessionSummary"
                 android:layout_width="match_parent"
@@ -59,7 +59,6 @@
                         android:background="@android:color/darker_gray"
                         android:layout_marginBottom="8dp"/>
 
-                    <!-- Session ID -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -80,7 +79,6 @@
                             android:text="@string/default_zero" />
                     </LinearLayout>
 
-                    <!-- Opened By -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -101,7 +99,6 @@
                             android:text="@string/default_user" />
                     </LinearLayout>
 
-                    <!-- Open Time -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -183,7 +180,6 @@
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
 
-            <!-- Payment Methods Title -->
             <TextView
                 android:id="@+id/payment_methods_title"
                 android:layout_width="wrap_content"
@@ -195,7 +191,6 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/cardSessionSummary" />
 
-            <!-- Payment Modes Container -->
             <LinearLayout
                 android:id="@+id/paymentModesContainer"
                 android:layout_width="match_parent"
@@ -203,10 +198,8 @@
                 android:orientation="vertical"
                 android:layout_marginTop="12dp"
                 app:layout_constraintTop_toBottomOf="@id/payment_methods_title">
-                <!-- Payment modes will be added here dynamically -->
             </LinearLayout>
 
-            <!-- Notes Section -->
             <com.google.android.material.textfield.TextInputLayout
                 android:id="@+id/notes_layout"
                 style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
@@ -225,7 +218,6 @@
                     android:lines="4" />
             </com.google.android.material.textfield.TextInputLayout>
 
-            <!-- End Session Button -->
             <Button
                 android:id="@+id/btnEndSession"
                 android:layout_width="match_parent"
@@ -233,8 +225,8 @@
                 android:layout_marginTop="24dp"
                 android:padding="12dp"
                 android:text="@string/end_session"
-                app:layout_constraintTop_toBottomOf="@id/notes_layout" />
-
+                app:layout_constraintTop_toBottomOf="@id/notes_layout"
+                app:layout_constraintBottom_toBottomOf="parent" />
             <ProgressBar
                 android:id="@+id/progressBar"
                 style="?android:attr/progressBarStyle"
