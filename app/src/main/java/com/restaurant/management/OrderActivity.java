@@ -24,20 +24,21 @@ import androidx.core.content.ContextCompat;
 import com.restaurant.management.helpers.OrderApiHelper;
 import com.restaurant.management.helpers.OrderUiHelper;
 import com.restaurant.management.models.Order;
+import com.restaurant.management.models.Tax;
 import com.restaurant.management.printing.PrintTemplateManager;
-
-import org.json.JSONArray;
-import org.json.JSONException;
-import org.json.JSONObject;
-import java.io.BufferedReader;
-import java.io.InputStreamReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+import com.restaurant.management.network.ApiClient; // Import ApiClient
+import com.restaurant.management.network.ApiService; // Import ApiService
+import com.restaurant.management.models.TaxResponse; // Import TaxResponse
 
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class OrderActivity extends AppCompatActivity {
     private static final int CANCEL_ITEM_REQUEST_CODE = 200;
@@ -58,7 +59,7 @@ public class OrderActivity extends AppCompatActivity {
     private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static final int CHAR_WIDTH = 32;
 
-    // ESC/POS Commands
+    // ESC/POS Commands (keep as is if needed, but not directly used in this snippet's modification)
     private static final byte[] ESC_INIT = {0x1B, 0x40};
     private static final byte[] ESC_ALIGN_CENTER = {0x1B, 0x61, 0x01};
     private static final byte[] ESC_ALIGN_LEFT = {0x1B, 0x61, 0x00};
@@ -91,10 +92,16 @@ public class OrderActivity extends AppCompatActivity {
     private boolean pendingBillPrint = false;
     private boolean pendingCheckerPrint = false;
 
+    // Retrofit ApiService instance
+    private ApiService apiService;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order_details);
+
+        // Initialize ApiService
+        apiService = ApiClient.getApiService(); // Assuming you have an ApiClient to get the service
 
         initializeHelpers();
         setupToolbar();
@@ -170,76 +177,54 @@ public class OrderActivity extends AppCompatActivity {
     }
 
     private void fetchTaxAndServiceRates() {
-        new Thread(() -> {
-            try {
-                URL url = new URL("https://api.pood.lol/taxes/rates");
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestMethod("GET");
-                connection.setConnectTimeout(5000);
-                connection.setReadTimeout(5000);
-
-                int responseCode = connection.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(connection.getInputStream()));
-                    StringBuilder response = new StringBuilder();
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        response.append(line);
+        // Use the ApiService to make the call
+        apiService.getTaxRates().enqueue(new Callback<TaxResponse>() {
+            @Override
+            public void onResponse(Call<TaxResponse> call, Response<TaxResponse> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    TaxResponse taxResponse = response.body();
+                    if ("success".equals(taxResponse.getStatus()) && taxResponse.getData() != null) {
+                        parseRatesResponse(taxResponse.getData());
+                    } else {
+                        // Handle API success but 'status' not success or data is null
+                        runOnUiThread(() -> setDefaultRates());
                     }
-                    reader.close();
-
-                    parseRatesResponse(response.toString());
                 } else {
-                    runOnUiThread(() -> {
-                        // Use default values if API fails
-                        setDefaultRates();
-                    });
+                    // Handle HTTP error (e.g., 404, 500)
+                    runOnUiThread(() -> setDefaultRates());
                 }
-            } catch (Exception e) {
+            }
+
+            @Override
+            public void onFailure(Call<TaxResponse> call, Throwable t) {
+                // Handle network error or unexpected exception
                 runOnUiThread(() -> {
-                    // Use default values if API fails
                     setDefaultRates();
+                    // Optional: Log the error or show a more specific toast
+                    // Toast.makeText(OrderActivity.this, "Failed to fetch rates: " + t.getMessage(), Toast.LENGTH_LONG).show();
                 });
             }
-        }).start();
+        });
     }
 
-    private void parseRatesResponse(String jsonResponse) {
-        try {
-            JSONObject root = new JSONObject(jsonResponse);
-            String status = root.getString("status");
+    private void parseRatesResponse(List<Tax> dataArray) {
+        for (Tax item : dataArray) {
+            int id = item.getId();
+            String description = item.getDescription();
+            double amount = Double.parseDouble(item.getAmount());
 
-            if ("success".equals(status)) {
-                JSONArray dataArray = root.getJSONArray("data");
-
-                for (int i = 0; i < dataArray.length(); i++) {
-                    JSONObject item = dataArray.getJSONObject(i);
-                    int id = item.getInt("id");
-                    String description = item.getString("description");
-                    double amount = item.getDouble("amount");
-
-                    if (id == 1) { // Tax
-                        taxRate = amount / 100.0; // Convert percentage to decimal
-                        taxDescription = description;
-                    } else if (id == 2) { // Service Charge
-                        serviceRate = amount / 100.0; // Convert percentage to decimal
-                        serviceDescription = description;
-                    }
-                }
-
-                runOnUiThread(() -> {
-                    ratesLoaded = true;
-                });
-            } else {
-                runOnUiThread(() -> {
-                    setDefaultRates();
-                });
+            if (id == 1) { // Tax
+                taxRate = amount / 100.0; // Convert percentage to decimal
+                taxDescription = description;
+            } else if (id == 2) { // Service Charge
+                serviceRate = amount / 100.0; // Convert percentage to decimal
+                serviceDescription = description;
             }
-        } catch (JSONException e) {
-            runOnUiThread(() -> {
-                setDefaultRates();
-            });
         }
+
+        runOnUiThread(() -> {
+            ratesLoaded = true;
+        });
     }
 
     private void setDefaultRates() {
@@ -248,9 +233,11 @@ public class OrderActivity extends AppCompatActivity {
         serviceRate = 0.02; // 2% default
         serviceDescription = "Service Charge";
         ratesLoaded = true;
+        // Optional: Notify user that default rates are being used
+        // Toast.makeText(this, "Using default tax and service rates.", Toast.LENGTH_SHORT).show();
     }
 
-    // Thermal Printing Implementation
+    // Thermal Printing Implementation (unchanged)
     private void printBill() {
         try {
             if (order == null) {
