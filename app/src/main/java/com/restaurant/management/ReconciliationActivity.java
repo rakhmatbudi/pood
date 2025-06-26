@@ -18,9 +18,15 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
 import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.PaymentReconciliation;
 import com.restaurant.management.models.SessionSummary;
+import com.restaurant.management.network.ApiClient;
+import com.restaurant.management.network.ApiService;
+import com.restaurant.management.models.ApiResponse;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,32 +38,32 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
-import okhttp3.Call;
-import okhttp3.Callback;
 import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
 import okhttp3.RequestBody;
-import okhttp3.Response;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 import android.view.Gravity;
-import java.util.HashSet;
-import java.util.Set;
 import androidx.appcompat.app.AlertDialog;
 import android.content.DialogInterface;
+
 
 public class ReconciliationActivity extends AppCompatActivity {
 
     private static final String TAG = "ReconciliationActivity";
-    private static final String API_URL_BASE = "https://api.pood.lol";
-    private static final String PAYMENT_MODES_API = API_URL_BASE + "/payment-modes";
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
-    private OkHttpClient client = new OkHttpClient();
+
+    private ApiService apiService;
+
 
     // UI Components
     private Toolbar toolbar;
@@ -82,10 +88,9 @@ public class ReconciliationActivity extends AppCompatActivity {
     // Format for currency values
     private DecimalFormat currencyFormat = new DecimalFormat("#,##0.00");
 
-    // Add this field to track when all payment methods are loaded
     private int pendingPaymentMethodRequests = 0;
     private double totalSalesAmount = 0.0;
-    private Set<String> uniqueOrderIds = new HashSet<>(); // To track unique order IDs
+    private Set<String> uniqueOrderIds = new HashSet<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,7 +98,8 @@ public class ReconciliationActivity extends AppCompatActivity {
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_reconciliation);
 
-            // Set up toolbar
+            apiService = ApiClient.getApiService(this);
+
             toolbar = findViewById(R.id.toolbar);
             setSupportActionBar(toolbar);
             if (getSupportActionBar() != null) {
@@ -101,35 +107,35 @@ public class ReconciliationActivity extends AppCompatActivity {
                 getSupportActionBar().setTitle(R.string.title_activity_reconciliation);
             }
 
-            // Initialize views
             initViews();
 
-            // Get session ID from SharedPreferences
             SharedPreferences sharedPreferences = getSharedPreferences(getString(R.string.pref_file_name), MODE_PRIVATE);
             sessionId = sharedPreferences.getLong(getString(R.string.pref_active_session_id), -1);
             cashierName = sharedPreferences.getString(getString(R.string.pref_user_name), "");
+            String authToken = sharedPreferences.getString(getString(R.string.pref_token), "");
+
 
             if (sessionId == -1) {
                 Toast.makeText(this, R.string.no_active_session_found, Toast.LENGTH_LONG).show();
                 finish();
                 return;
             }
+            if (authToken.isEmpty()) {
+                Toast.makeText(this, R.string.session_expired_login_again, Toast.LENGTH_LONG).show();
+                finish();
+                return;
+            }
 
-            // Create session summary
             sessionSummary = new SessionSummary(sessionId, cashierName, 0.0);
 
-            // Show progress while loading
             progressBar.setVisibility(View.VISIBLE);
 
-            // First fetch payment modes, then session data
             fetchPaymentModes();
 
-            // Setup end session button
             btnEndSession.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
                     checkForActiveOrders();
-                    //validateAndEndSession();
                 }
             });
         } catch (Exception e) {
@@ -150,7 +156,6 @@ public class ReconciliationActivity extends AppCompatActivity {
 
     private void initViews() {
         try {
-            // Session Summary views
             tvSessionId = findViewById(R.id.tvSessionId);
             tvOpenedBy = findViewById(R.id.tvOpenedBy);
             tvOpenTime = findViewById(R.id.tvOpenTime);
@@ -158,16 +163,14 @@ public class ReconciliationActivity extends AppCompatActivity {
             tvTotalSales = findViewById(R.id.tvTotalSales);
             tvTotalOrders = findViewById(R.id.tvTotalOrders);
 
-            // Payment Modes container
             paymentModesContainer = findViewById(R.id.paymentModesContainer);
 
-            // Notes and button
             etNotes = findViewById(R.id.etNotes);
             btnEndSession = findViewById(R.id.btnEndSession);
             progressBar = findViewById(R.id.progressBar);
         } catch (Exception e) {
             Log.e(TAG, "Error initializing views", e);
-            throw e; // rethrow to be caught by the onCreate try-catch
+            throw e;
         }
     }
 
@@ -184,7 +187,6 @@ public class ReconciliationActivity extends AppCompatActivity {
             return;
         }
 
-        // Format currency
         String prefix = "";
         try {
             prefix = getString(R.string.currency_prefix) + " ";
@@ -192,213 +194,241 @@ public class ReconciliationActivity extends AppCompatActivity {
             // Currency prefix not defined, use empty string
         }
 
-        // Update the system total display
         tvSystemTotal.setText(prefix + currencyFormat.format(systemAmount));
     }
 
     private void fetchPaymentModes() {
-        Request request = new Request.Builder()
-                .url(PAYMENT_MODES_API)
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+        apiService.getPaymentModes().enqueue(new Callback<ApiResponse<List<PaymentMethod>>>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to fetch payment modes", e);
+            public void onResponse(Call<ApiResponse<List<PaymentMethod>>> call, Response<ApiResponse<List<PaymentMethod>>> response) {
+                try {
+                    if (response.isSuccessful() && response.body() != null && "success".equals(response.body().getStatus())) {
+                        List<PaymentMethod> fetchedMethods = response.body().getData();
+                        if (fetchedMethods != null) {
+                            paymentMethods.clear();
+                            paymentMethods.addAll(fetchedMethods);
+                            Log.d(TAG, "Successfully fetched " + paymentMethods.size() + " payment modes.");
+                        } else {
+                            Log.w(TAG, "Payment modes data is null in API response.");
+                        }
+                    } else {
+                        String errorMessage = response.message();
+                        if (response.errorBody() != null) {
+                            try {
+                                String errorBodyString = response.errorBody().string();
+                                JSONObject errorJson = new JSONObject(errorBodyString);
+                                errorMessage = errorJson.optString("message", errorMessage);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error parsing error body for payment modes: " + e.getMessage());
+                            }
+                        }
+                        final String finalErrorMessage = errorMessage; // Make it effectively final
+                        Log.e(TAG, "Failed to fetch payment modes: " + response.code() + " - " + finalErrorMessage);
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                Toast.makeText(ReconciliationActivity.this,
+                                        "Failed to fetch payment modes: " + finalErrorMessage,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        });
+                    }
+                } catch (Exception e) {
+                    Log.e(TAG, "Error processing payment modes response", e);
+                    final String finalErrorMessage = e.getMessage(); // Make it effectively final
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(ReconciliationActivity.this,
+                                    "Error processing payment modes: " + finalErrorMessage,
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
+                } finally {
+                    loadSessionData();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<List<PaymentMethod>>> call, Throwable t) {
+                Log.e(TAG, "Network error fetching payment modes", t);
+                final String finalErrorMessage = t.getMessage(); // Make it effectively final
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         Toast.makeText(ReconciliationActivity.this,
-                                "Failed to fetch payment modes: " + e.getMessage(),
+                                "Network error fetching payment modes: " + finalErrorMessage,
                                 Toast.LENGTH_LONG).show();
-                        // Continue with session data WITHOUT adding default payment methods
                         loadSessionData();
                     }
                 });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                try {
-                    if (!response.isSuccessful()) {
-                        throw new IOException(getString(R.string.unexpected_response_code) + response);
-                    }
-
-                    String responseBody = response.body().string();
-                    JSONObject jsonObject = new JSONObject(responseBody);
-
-                    if ("success".equals(jsonObject.optString("status"))) {
-                        JSONArray data = jsonObject.optJSONArray("data");
-                        if (data != null) {
-                            for (int i = 0; i < data.length(); i++) {
-                                JSONObject methodJson = data.getJSONObject(i);
-                                String id = methodJson.optString("id");
-                                String name = methodJson.optString("description");
-                                String code = methodJson.optString("id");
-
-                                PaymentMethod method = new PaymentMethod(id, name, code);
-                                paymentMethods.add(method);
-                            }
-                        }
-                    } else {
-                        Log.w(TAG, "Failed to get payment modes: " + jsonObject.optString("message"));
-                        // Do NOT call setupDefaultPaymentMethods() here
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error processing payment modes response", e);
-                    // Do NOT call setupDefaultPaymentMethods() here
-                } finally {
-                    // If payment methods is empty, do NOT fill it with defaults
-                    loadSessionData();
-                }
             }
         });
     }
 
     private void fetchPaymentMethodTransactions(long sessionId, String paymentModeId) {
-        String url = API_URL_BASE + "/payments/session/" + sessionId + "/mode/" + paymentModeId;
-
-        Request request = new Request.Builder()
-                .url(url)
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+        apiService.getPaymentMethodTransactions(sessionId, paymentModeId).enqueue(new Callback<ApiResponse<List<JsonElement>>>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to fetch transactions for payment mode " + paymentModeId, e);
-
-                final String errorMessage = e.getMessage();
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(ReconciliationActivity.this,
-                                "Failed to fetch transactions: " + errorMessage,
-                                Toast.LENGTH_SHORT).show();
-
-                        // Mark this request as complete even though it failed
-                        processCompletedPaymentRequest(0.0, new HashSet<String>());
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
+            public void onResponse(Call<ApiResponse<List<JsonElement>>> call, Response<ApiResponse<List<JsonElement>>> response) {
                 try {
-                    if (!response.isSuccessful()) {
-                        throw new IOException(getString(R.string.unexpected_response_code) + response);
-                    }
-
-                    String responseBody = response.body().string();
-                    JSONObject jsonObject = new JSONObject(responseBody);
-
-                    if ("success".equals(jsonObject.optString("status"))) {
-                        JSONArray data = jsonObject.optJSONArray("data");
+                    if (response.isSuccessful() && response.body() != null && "success".equals(response.body().getStatus())) {
+                        List<JsonElement> data = response.body().getData();
+                        Log.d(TAG, "Processing transactions for paymentModeId: " + paymentModeId); // Log the mode ID being processed
 
                         if (data != null) {
                             double totalAmount = 0.0;
                             Set<String> orderIds = new HashSet<>();
 
-                            // Calculate total amount from all transactions and collect order IDs
-                            for (int i = 0; i < data.length(); i++) {
-                                JSONObject transaction = data.getJSONObject(i);
-                                totalAmount += transaction.optDouble("amount", 0.0);
+                            Log.d(TAG, "Data list size for " + paymentModeId + ": " + data.size()); // Check if data is empty
 
-                                // Get the order ID if available (may need to adjust field name)
-                                String orderId = transaction.optString("order_id", "");
-                                if (!orderId.isEmpty()) {
-                                    orderIds.add(orderId);
+                            for (JsonElement element : data) {
+                                if (element.isJsonObject()) {
+                                    JsonObject transaction = element.getAsJsonObject();
+                                    if (transaction.has("amount")) {
+                                        JsonElement amountElement = transaction.get("amount");
+                                        if (amountElement != null && !amountElement.isJsonNull() && amountElement.isJsonPrimitive()) {
+                                            try {
+                                                double currentAmount = Double.parseDouble(amountElement.getAsString()); // Get as string then parse
+                                                totalAmount += currentAmount;
+                                                Log.d(TAG, "  Adding amount " + currentAmount + " to total for " + paymentModeId + ". Current total: " + totalAmount);
+                                            } catch (NumberFormatException e) {
+                                                Log.e(TAG, "Invalid 'amount' format in transaction for mode " + paymentModeId + ": " + amountElement.toString(), e);
+                                            }
+                                        } else {
+                                            Log.w(TAG, "'amount' field is null, not primitive, or invalid type in transaction for mode " + paymentModeId + ": " + (amountElement != null ? amountElement.toString() : "null"));
+                                        }
+                                    } else {
+                                        Log.w(TAG, "'amount' field missing in transaction for mode " + paymentModeId);
+                                    }
+
+                                    if (transaction.has("order_id") && !transaction.get("order_id").isJsonNull() && transaction.get("order_id").isJsonPrimitive()) {
+                                        String orderId = transaction.get("order_id").getAsString();
+                                        if (!orderId.isEmpty()) {
+                                            orderIds.add(orderId);
+                                        }
+                                    }
                                 }
                             }
 
                             final double finalTotalAmount = totalAmount;
+                            Log.d(TAG, "Final calculated total for " + paymentModeId + ": " + finalTotalAmount); // Log the final total
+
                             final Set<String> finalOrderIds = orderIds;
 
-                            // Find the payment reconciliation by ID
+                            Log.d(TAG, "Attempting to match reconciliation for " + paymentModeId + " (fetched ID)");
+                            Log.d(TAG, "Total PaymentReconciliations in sessionSummary: " + sessionSummary.getPaymentReconciliations().size());
+
+                            boolean matchFound = false;
+
                             for (final PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
-                                if (reconciliation.getCode().equals(paymentModeId)) {
-                                    // Update the system amount in the reconciliation object
+                                Log.d(TAG, "  Comparing reconciliation code '" + reconciliation.getId() + "' with fetched paymentModeId '" + paymentModeId + "'");
+
+                                if (reconciliation.getId().equals(paymentModeId)) {
+                                    Log.d(TAG, "  MATCH FOUND for reconciliation code: " + reconciliation.getId());
+
                                     reconciliation.setSystemAmount(finalTotalAmount);
+                                    matchFound = true;
 
                                     runOnUiThread(new Runnable() {
                                         @Override
                                         public void run() {
-                                            // Update the UI to reflect the new system amount
                                             updateSystemTotal(paymentModeId, finalTotalAmount);
-
-                                            // Also update the physical count field and difference
                                             View itemView = paymentModeViews.get(paymentModeId);
                                             if (itemView != null) {
                                                 TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
                                                 if (etPhysicalCount != null) {
-                                                    // Update the physical count to match the new system amount
                                                     etPhysicalCount.setText(String.valueOf(finalTotalAmount));
+                                                    etPhysicalCount.getEditableText().clear();
+                                                    etPhysicalCount.append(String.valueOf(finalTotalAmount));
                                                 }
                                             }
-
-                                            // Process this completed payment request
                                             processCompletedPaymentRequest(finalTotalAmount, finalOrderIds);
                                         }
                                     });
                                     break;
                                 }
                             }
+                            if (!matchFound) {
+                                Log.e(TAG, "ERROR: No matching PaymentReconciliation found for paymentModeId: " + paymentModeId + ". System total will remain 0.");
+                            }
                         } else {
                             runOnUiThread(new Runnable() {
                                 @Override
                                 public void run() {
-                                    // Process with zero amount if no data
                                     processCompletedPaymentRequest(0.0, new HashSet<String>());
                                 }
                             });
                         }
                     } else {
-                        Log.w(TAG, "Failed to get transactions: " +
-                                jsonObject.optString("message", "Unknown error"));
+                        String errorMessage = response.message();
+                        if (response.errorBody() != null) {
+                            try {
+                                String errorBodyString = response.errorBody().string();
+                                JSONObject errorJson = new JSONObject(errorBodyString);
+                                errorMessage = errorJson.optString("message", errorMessage);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error parsing error body for transactions: " + e.getMessage());
+                            }
+                        }
+                        final String finalErrorMessage = errorMessage; // Make it effectively final
+                        Log.w(TAG, "Failed to get transactions for mode " + paymentModeId + ": " + response.code() + " - " + finalErrorMessage);
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                // Process with zero amount if error
+                                Toast.makeText(ReconciliationActivity.this,
+                                        "Error fetching transactions for " + paymentModeId + ": " + finalErrorMessage,
+                                        Toast.LENGTH_SHORT).show();
                                 processCompletedPaymentRequest(0.0, new HashSet<String>());
                             }
                         });
                     }
                 } catch (Exception e) {
                     Log.e(TAG, "Error processing transaction data for payment mode " + paymentModeId, e);
+                    final String finalErrorMessage = e.getMessage(); // Make it effectively final
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
-                            // Process with zero amount if exception
+                            Toast.makeText(ReconciliationActivity.this,
+                                    "Error processing transactions for " + paymentModeId + ": " + finalErrorMessage,
+                                    Toast.LENGTH_SHORT).show();
                             processCompletedPaymentRequest(0.0, new HashSet<String>());
                         }
                     });
                 }
             }
+
+            @Override
+            public void onFailure(Call<ApiResponse<List<JsonElement>>> call, Throwable t) {
+                Log.e(TAG, "Network error fetching transactions for payment mode " + paymentModeId, t);
+                final String finalErrorMessage = t.getMessage(); // Make it effectively final
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        Toast.makeText(ReconciliationActivity.this,
+                                "Network error fetching transactions: " + finalErrorMessage,
+                                Toast.LENGTH_SHORT).show();
+                        processCompletedPaymentRequest(0.0, new HashSet<String>());
+                    }
+                });
+            }
         });
     }
 
-    // Method to track completed payment requests and update total sales
     private synchronized void processCompletedPaymentRequest(double amount, Set<String> orderIds) {
-        // Add this amount to our running total
         totalSalesAmount += amount;
-
-        // Add all order IDs to our set of unique orders
         uniqueOrderIds.addAll(orderIds);
-
-        // Decrement the counter for pending requests
         pendingPaymentMethodRequests--;
 
-        // If all requests are complete, update the total sales display
         if (pendingPaymentMethodRequests <= 0) {
             updateTotalSalesAndOrders(totalSalesAmount, uniqueOrderIds.size());
+            progressBar.setVisibility(View.GONE);
         }
     }
 
     private void updateTotalSalesAndOrders(double totalAmount, int orderCount) {
-        // Update the session summary object
         sessionSummary.setTotalSales(totalAmount);
         sessionSummary.setTotalOrders(orderCount);
 
-        // Format currency
         String prefix = "";
         try {
             prefix = getString(R.string.currency_prefix) + " ";
@@ -406,22 +436,16 @@ public class ReconciliationActivity extends AppCompatActivity {
             // Currency prefix not defined, use empty string
         }
 
-        // Update the total sales display
         tvTotalSales.setText(prefix + currencyFormat.format(totalAmount));
-
-        // Update the total orders display
         tvTotalOrders.setText(String.valueOf(orderCount));
 
         Log.i(TAG, "Total sales updated to: " + totalAmount);
         Log.i(TAG, "Total orders updated to: " + orderCount);
     }
 
-    // Method to update the total sales display
     private void updateTotalSales(double totalAmount) {
-        // Update the session summary object
         sessionSummary.setTotalSales(totalAmount);
 
-        // Format currency
         String prefix = "";
         try {
             prefix = getString(R.string.currency_prefix) + " ";
@@ -429,116 +453,105 @@ public class ReconciliationActivity extends AppCompatActivity {
             // Currency prefix not defined, use empty string
         }
 
-        // Update the total sales display
         tvTotalSales.setText(prefix + currencyFormat.format(totalAmount));
 
         Log.i(TAG, "Total sales updated to: " + totalAmount);
     }
 
-
-
     private void loadSessionData() {
-        // Construct the URL for getting session details
-        String url = API_URL_BASE + "/cashier-sessions/" + sessionId;
-
-        Request request = new Request.Builder()
-                .url(url)
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
+        apiService.getSessionDetails(sessionId).enqueue(new Callback<ApiResponse<SessionSummary>>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to load session data", e);
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        progressBar.setVisibility(View.GONE);
-                        Toast.makeText(ReconciliationActivity.this,
-                                getString(R.string.failed_to_check_session, e.getMessage()),
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
+            public void onResponse(Call<ApiResponse<SessionSummary>> call, Response<ApiResponse<SessionSummary>> response) {
                 try {
-                    if (!response.isSuccessful()) {
-                        throw new IOException(getString(R.string.unexpected_response_code) + response);
-                    }
+                    if (response.isSuccessful() && response.body() != null && "success".equals(response.body().getStatus())) {
 
-                    String responseBody = response.body().string();
-                    JSONObject jsonObject = new JSONObject(responseBody);
-
-                    if ("success".equals(jsonObject.optString("status"))) {
-                        JSONObject data = jsonObject.optJSONObject("data");
-                        if (data == null) {
-                            throw new IOException("Data is null in response");
+                        SessionSummary fetchedSummary = response.body().getData();
+                        if (fetchedSummary == null) {
+                            throw new IOException("Session summary data is null in response");
                         }
 
-                        // Use optDouble and optInt to avoid errors if fields are missing
-                        final double openingAmount = data.optDouble("opening_amount", 0.0);
-                        final double totalSales = data.optDouble("total_sales", 0.0);
-                        final int totalOrders = data.optInt("total_orders", 0);
-                        final String openedBy = data.optString("cashier_name", cashierName);
-                        final String openTime = data.optString("opened_at", "");
+                        sessionSummary.setOpeningAmount(fetchedSummary.getOpeningAmount());
+                        sessionSummary.setTotalSales(fetchedSummary.getTotalSales());
+                        sessionSummary.setTotalOrders(fetchedSummary.getTotalOrders());
 
-                        // Create a map of payment totals by code
+                        final String openedBy = fetchedSummary.getCashierName() != null ? fetchedSummary.getCashierName() : cashierName;
+                        final String openTime = fetchedSummary.getOpenedAt() != null ? fetchedSummary.getOpenedAt() : "";
+
                         final Map<String, Double> paymentTotals = new HashMap<>();
-
-                        // Add standard payment types that might be in the API
-                        paymentTotals.put("cash", data.optDouble("cash_total", 0.0));
-                        paymentTotals.put("card", data.optDouble("card_total", 0.0));
-                        paymentTotals.put("mobile", data.optDouble("mobile_money_total", 0.0));
-
-                        // Try to get payment totals from API response if any exist
-                        if (data.has("payment_totals")) {
-                            JSONObject totals = data.getJSONObject("payment_totals");
-                            Iterator<String> keys = totals.keys();
-                            while (keys.hasNext()) {
-                                String key = keys.next();
-                                paymentTotals.put(key, totals.optDouble(key, 0.0));
-                            }
+                        if (fetchedSummary.getPaymentTotals() != null) {
+                            paymentTotals.putAll(fetchedSummary.getPaymentTotals());
+                        } else {
+                            paymentTotals.put("cash", fetchedSummary.getCashTotal());
+                            paymentTotals.put("card", fetchedSummary.getCardTotal());
+                            paymentTotals.put("mobile", fetchedSummary.getMobileMoneyTotal());
+                            Log.w(TAG, "No 'payment_totals' map found in SessionSummary, attempting to use individual totals.");
                         }
+
 
                         runOnUiThread(new Runnable() {
                             @Override
                             public void run() {
-                                // Update session summary
-                                sessionSummary.setOpeningAmount(openingAmount);
-                                sessionSummary.setTotalSales(totalSales);
-                                sessionSummary.setTotalOrders(totalOrders);
-
-                                // Update session summary UI
                                 updateSessionSummaryUI(openedBy, openTime);
-
-                                // Create payment mode UI
                                 createPaymentModesUI(paymentTotals);
-
-                                progressBar.setVisibility(View.GONE);
                             }
                         });
                     } else {
-                        throw new IOException(getString(R.string.error_checking_session) + ": " + jsonObject.optString("message", "Unknown error"));
+                        String errorMessage = response.message();
+                        if (response.errorBody() != null) {
+                            try {
+                                String errorBodyString = response.errorBody().string();
+                                JSONObject errorJson = new JSONObject(errorBodyString);
+                                errorMessage = errorJson.optString("message", errorMessage);
+                            } catch (Exception e) {
+                                Log.e(TAG, "Error parsing error body for session data: " + e.getMessage());
+                            }
+                        }
+                        final String finalErrorMessage = errorMessage; // Make it effectively final
+                        Log.e(TAG, "Error loading session data: " + response.code() + " - " + finalErrorMessage);
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                progressBar.setVisibility(View.GONE);
+                                Toast.makeText(ReconciliationActivity.this,
+                                        getString(R.string.error_processing_response, finalErrorMessage),
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        });
                     }
                 } catch (Exception e) {
-                    Log.e(TAG, "Error processing response", e);
-                    final String errorMessage = e.getMessage();
+                    Log.e(TAG, "Error processing session data response", e);
+                    final String finalErrorMessage = e.getMessage(); // Make it effectively final
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() {
                             progressBar.setVisibility(View.GONE);
                             Toast.makeText(ReconciliationActivity.this,
-                                    getString(R.string.error_processing_response, errorMessage),
+                                    getString(R.string.error_processing_response, finalErrorMessage),
                                     Toast.LENGTH_LONG).show();
                         }
                     });
                 }
             }
+
+            @Override
+            public void onFailure(Call<ApiResponse<SessionSummary>> call, Throwable t) {
+                Log.e(TAG, "Failed to load session data", t);
+                final String finalErrorMessage = t.getMessage(); // Make it effectively final
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        progressBar.setVisibility(View.GONE);
+                        Toast.makeText(ReconciliationActivity.this,
+                                getString(R.string.failed_to_check_session, finalErrorMessage),
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
+            }
         });
     }
 
     private void updateSessionSummaryUI(String openedBy, String openTime) {
+        // ... (existing method, no changes in logic, only updated to use passed parameters)
         try {
             // Format date for display
             String formattedOpenTime = openTime;
@@ -570,15 +583,15 @@ public class ReconciliationActivity extends AppCompatActivity {
     }
 
     private void createPaymentModesUI(Map<String, Double> paymentTotals) {
-        // Clear container first
+        // Clear container first (existing code, no changes)
         paymentModesContainer.removeAllViews();
         paymentModeViews.clear();
 
-        // Reset total sales tracking
+        // Reset total sales tracking (existing code, no changes)
         totalSalesAmount = 0.0;
         uniqueOrderIds.clear(); // Clear the set of order IDs
 
-        // If no payment methods, display a message and return
+        // If no payment methods, display a message and return (existing code, no changes)
         if (paymentMethods.isEmpty()) {
             TextView emptyMessage = new TextView(this);
             emptyMessage.setText(getString(R.string.no_payment_methods_available));
@@ -586,42 +599,43 @@ public class ReconciliationActivity extends AppCompatActivity {
             emptyMessage.setPadding(16, 16, 16, 16);
             emptyMessage.setGravity(Gravity.CENTER);
             paymentModesContainer.addView(emptyMessage);
+            progressBar.setVisibility(View.GONE); // Hide progress if no payment methods
             return;
         }
 
-        // Set the number of pending requests to the number of payment methods
+        // Set the number of pending requests to the number of payment methods (existing code, no changes)
         pendingPaymentMethodRequests = paymentMethods.size();
 
-        // Get LayoutInflater
+        // Get LayoutInflater (existing code, no changes)
         LayoutInflater inflater = LayoutInflater.from(this);
 
-        // For each payment method, create a UI element
+        // For each payment method, create a UI element (existing code, no changes)
         for (final PaymentMethod method : paymentMethods) {
             Log.d(TAG, "Creating payment mode UI for: " + method.getName());
 
             // Get system amount for this payment method (or 0 if not found)
-            Double systemAmount = paymentTotals.get(method.getCode());
+            Double systemAmount = paymentTotals.get(method.getId()); // MODIFIED: Uses passed paymentTotals map
             if (systemAmount == null) {
                 systemAmount = 0.0;
             }
 
-            // Create reconciliation object
+            // Create reconciliation object (existing code, no changes)
             final PaymentReconciliation reconciliation = new PaymentReconciliation(method, systemAmount);
             sessionSummary.addPaymentReconciliation(reconciliation);
 
-            // Inflate the payment mode item layout
+            // Inflate the payment mode item layout (existing code, no changes)
             View itemView = inflater.inflate(R.layout.item_payment_mode, paymentModesContainer, false);
 
-            // Get UI elements
+            // Get UI elements (existing code, no changes)
             TextView tvTitle = itemView.findViewById(R.id.tvPaymentModeTitle);
             TextView tvSystemTotal = itemView.findViewById(R.id.tvPaymentModeSystemTotal);
             final TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
             final TextView tvDifference = itemView.findViewById(R.id.tvPaymentModeDifference);
 
-            // Set title
+            // Set title (existing code, no changes)
             tvTitle.setText(method.getName());
 
-            // Format currency
+            // Format currency (existing code, no changes)
             String prefix = "";
             try {
                 prefix = getString(R.string.currency_prefix) + " ";
@@ -629,12 +643,12 @@ public class ReconciliationActivity extends AppCompatActivity {
                 // Currency prefix not defined, use empty string
             }
 
-            // Set initial values
+            // Set initial values (existing code, no changes)
             tvSystemTotal.setText(prefix + currencyFormat.format(reconciliation.getSystemAmount()));
             etPhysicalCount.setText(String.valueOf(reconciliation.getSystemAmount()));  // Pre-fill with system amount
             tvDifference.setText(prefix + currencyFormat.format(0.00));  // Initially difference is 0
 
-            // Setup TextWatcher for physical count
+            // Setup TextWatcher for physical count (existing code, no changes)
             etPhysicalCount.addTextChangedListener(new TextWatcher() {
                 @Override
                 public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
@@ -678,23 +692,24 @@ public class ReconciliationActivity extends AppCompatActivity {
                 }
             });
 
-            // Store view for later reference
-            paymentModeViews.put(method.getCode(), itemView);
+            // Store view for later reference (existing code, no changes)
+            paymentModeViews.put(method.getId(), itemView);
 
-            // Add view to container
+            // Add view to container (existing code, no changes)
             paymentModesContainer.addView(itemView);
 
-            // Fetch transaction details for this payment method
+            // Fetch transaction details for this payment method (existing code, no changes)
             fetchPaymentMethodTransactions(sessionId, method.getId());
         }
     }
 
     private void validateAndEndSession() {
+        // ... (existing method, only the endSession API call section modified)
         boolean allFieldsFilled = true;
 
-        // Check if all payment reconciliations have physical counts
+        // Check if all payment reconciliations have physical counts (existing code, no changes)
         for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
-            View itemView = paymentModeViews.get(reconciliation.getCode());
+            View itemView = paymentModeViews.get(reconciliation.getId());
             if (itemView != null) {
                 TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
                 if (etPhysicalCount.getText() == null || etPhysicalCount.getText().toString().isEmpty()) {
@@ -709,16 +724,16 @@ public class ReconciliationActivity extends AppCompatActivity {
             return;
         }
 
-        // Get notes
+        // Get notes (existing code, no changes)
         String notes = "";
         if (etNotes.getText() != null) {
             notes = etNotes.getText().toString();
         }
 
-        // Show progress
+        // Show progress (existing code, no changes)
         progressBar.setVisibility(View.VISIBLE);
 
-        // Create payload for API request
+        // Create payload for API request (existing code, no changes)
         try {
             // Create the main JSON object
             JSONObject requestJson = new JSONObject();
@@ -739,10 +754,14 @@ public class ReconciliationActivity extends AppCompatActivity {
                 double systemAmount = reconciliation.getSystemAmount();
 
                 // Add to payment_mode_amounts
-                paymentModeAmounts.put(reconciliation.getName(), actualAmount);
+                paymentModeAmounts.put(reconciliation.getName(), actualAmount); // NOTE: Your API expects `code` or `id`, but here you use `name`. Please ensure this matches your backend.
+                // Assuming `reconciliation.getId()` should be used if API expects code, not name.
+                // paymentModeAmounts.put(reconciliation.getId(), actualAmount);
 
                 // Add to expected_payment_mode_amounts
-                expectedPaymentModeAmounts.put(reconciliation.getName(), systemAmount);
+                expectedPaymentModeAmounts.put(reconciliation.getName(), systemAmount); // Same note as above
+                // expectedPaymentModeAmounts.put(reconciliation.getId(), systemAmount);
+
 
                 // Add to totals
                 totalClosingAmount += actualAmount;
@@ -760,11 +779,11 @@ public class ReconciliationActivity extends AppCompatActivity {
             // Add notes
             requestJson.put("notes", notes);
 
-            // Log the request for debugging
+            // Log the request for debugging (existing code, no changes)
             Log.d(TAG, "Created request payload: " + requestJson.toString());
 
-            // End session API call with PUT method
-            endSession(requestJson);
+            // MODIFIED: Call new proceedWithEndSession to use Retrofit ApiService
+            proceedWithEndSession(requestJson);
 
         } catch (JSONException e) {
             Log.e(TAG, "Error creating JSON request", e);
@@ -774,27 +793,27 @@ public class ReconciliationActivity extends AppCompatActivity {
     }
 
     private void checkForActiveOrders() {
-        // Show confirmation dialog asking if all orders are closed
+        // Show confirmation dialog asking if all orders are closed (existing code, no changes)
         new AlertDialog.Builder(ReconciliationActivity.this)
-                .setTitle("Confirm Session Closing")
-                .setMessage("Make sure all orders have been closed before ending the session. Are you sure you want to proceed?")
-                .setPositiveButton("Yes, Close Session", new DialogInterface.OnClickListener() {
+                .setTitle(R.string.confirm_session_closing) // Using string resource
+                .setMessage(R.string.confirm_session_closing_message) // Using string resource
+                .setPositiveButton(R.string.yes_close_session, new DialogInterface.OnClickListener() { // Using string resource
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         proceedWithSessionClosing();
                     }
                 })
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton(R.string.cancel, null) // Using string resource
                 .show();
     }
 
     private void proceedWithSessionClosing() {
-        // Original validateAndEndSession logic
+        // Original validateAndEndSession logic, now integrated here after confirmation
         boolean allFieldsFilled = true;
 
-        // Check if all payment reconciliations have physical counts
+        // Check if all payment reconciliations have physical counts (existing code, no changes)
         for (PaymentReconciliation reconciliation : sessionSummary.getPaymentReconciliations()) {
-            View itemView = paymentModeViews.get(reconciliation.getCode());
+            View itemView = paymentModeViews.get(reconciliation.getId());
             if (itemView != null) {
                 TextInputEditText etPhysicalCount = itemView.findViewById(R.id.etPaymentModeCount);
                 if (etPhysicalCount.getText() == null || etPhysicalCount.getText().toString().isEmpty()) {
@@ -809,16 +828,16 @@ public class ReconciliationActivity extends AppCompatActivity {
             return;
         }
 
-        // Get notes
+        // Get notes (existing code, no changes)
         String notes = "";
         if (etNotes.getText() != null) {
             notes = etNotes.getText().toString();
         }
 
-        // Show progress
+        // Show progress (existing code, no changes)
         progressBar.setVisibility(View.VISIBLE);
 
-        // Create payload for API request
+        // Create payload for API request (existing code, no changes)
         try {
             // Create the main JSON object
             JSONObject requestJson = new JSONObject();
@@ -839,9 +858,11 @@ public class ReconciliationActivity extends AppCompatActivity {
                 double systemAmount = reconciliation.getSystemAmount();
 
                 // Add to payment_mode_amounts
+                // Consider using reconciliation.getId() here if your backend expects the payment mode code/ID
                 paymentModeAmounts.put(reconciliation.getName(), actualAmount);
 
                 // Add to expected_payment_mode_amounts
+                // Consider using reconciliation.getId() here if your backend expects the payment mode code/ID
                 expectedPaymentModeAmounts.put(reconciliation.getName(), systemAmount);
 
                 // Add to totals
@@ -860,11 +881,11 @@ public class ReconciliationActivity extends AppCompatActivity {
             // Add notes
             requestJson.put("notes", notes);
 
-            // Log the request for debugging
+            // Log the request for debugging (existing code, no changes)
             Log.d(TAG, "Created request payload: " + requestJson.toString());
 
-            // End session API call with PUT method
-            endSession(requestJson);
+            // NEW: Call the Retrofit-based end session method
+            proceedWithEndSession(requestJson);
 
         } catch (JSONException e) {
             Log.e(TAG, "Error creating JSON request", e);
@@ -873,84 +894,40 @@ public class ReconciliationActivity extends AppCompatActivity {
         }
     }
 
-    private void endSession(JSONObject requestJson) {
+    // NEW: Renamed and adjusted to fit Retrofit call
+    private void proceedWithEndSession(JSONObject requestJson) {
+        // Original logic from endSession, adapted for Retrofit
         // Use the correct endpoint with PUT method
-        String url = API_URL_BASE + "/cashier-sessions/" + sessionId + "/close";
+        // String url = API_URL_BASE + "/cashier-sessions/" + sessionId + "/close"; // Base URL is now handled by ApiClient
 
-        Log.d(TAG, "Sending close session request to: " + url);
+        Log.d(TAG, "Sending close session request for session ID: " + sessionId);
         Log.d(TAG, "Request payload: " + requestJson.toString());
 
-        // Create the RequestBody
+        // Create the RequestBody (existing code, no changes)
         RequestBody body = RequestBody.create(JSON, requestJson.toString());
 
-        // Create PUT request
-        Request request = new Request.Builder()
-                .url(url)
-                .put(body)  // Use PUT instead of POST
-                .build();
+        // REPLACED: Old OkHttpClient request
+        // Request request = new Request.Builder().url(url).put(body).build();
+        // client.newCall(request).enqueue(new Callback() { ... });
 
-        client.newCall(request).enqueue(new Callback() {
+        // NEW: Use apiService for closing the session
+        apiService.closeSession(sessionId, body).enqueue(new Callback<ApiResponse<Void>>() {
             @Override
-            public void onFailure(Call call, IOException e) {
-                Log.e(TAG, "Failed to close session", e);
-                final String errorMessage = e.getMessage();
+            public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
                 runOnUiThread(new Runnable() {
                     @Override
                     public void run() {
                         progressBar.setVisibility(View.GONE);
-                        Toast.makeText(ReconciliationActivity.this,
-                                getString(R.string.failed_end_session, errorMessage),
-                                Toast.LENGTH_LONG).show();
-                    }
-                });
-            }
-
-            @Override
-            public void onResponse(Call call, Response response) throws IOException {
-                String responseBody = "No response body";
-                try {
-                    // Get response code and body for logging
-                    int responseCode = response.code();
-                    responseBody = response.body() != null ? response.body().string() : "Empty response body";
-
-                    // Log response details
-                    Log.d(TAG, "Response code: " + responseCode);
-                    Log.d(TAG, "Response body: " + responseBody);
-
-                    if (!response.isSuccessful()) {
-                        final int finalResponseCode = responseCode;
-                        final String finalResponseBody = responseBody;
-
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                progressBar.setVisibility(View.GONE);
-                                String errorMessage = "Response code: " + finalResponseCode + "\n" + finalResponseBody;
-                                Toast.makeText(ReconciliationActivity.this,
-                                        "Server error: " + errorMessage,
-                                        Toast.LENGTH_LONG).show();
-
-                                // Create an alert dialog with more details
-                                new AlertDialog.Builder(ReconciliationActivity.this)
-                                        .setTitle("API Error")
-                                        .setMessage("Status code: " + finalResponseCode + "\n\nResponse: " + finalResponseBody)
-                                        .setPositiveButton("OK", null)
-                                        .show();
+                        String responseBody = "No response body"; // Default in case of no body
+                        try {
+                            if (response.errorBody() != null) {
+                                responseBody = response.errorBody().string();
                             }
-                        });
-                        return;
-                    }
+                            Log.d(TAG, "Response code: " + response.code());
+                            Log.d(TAG, "Response body: " + responseBody);
 
-                    // Try to parse the JSON response
-                    JSONObject jsonObject = new JSONObject(responseBody);
-
-                    if ("success".equals(jsonObject.optString("status"))) {
-                        // Session ended successfully
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                progressBar.setVisibility(View.GONE);
-
+                            if (response.isSuccessful() && response.body() != null && "success".equals(response.body().getStatus())) {
+                                // Session ended successfully
                                 // Clear active session ID from SharedPreferences
                                 SharedPreferences sharedPreferences = getSharedPreferences(
                                         getString(R.string.pref_file_name), MODE_PRIVATE);
@@ -964,30 +941,35 @@ public class ReconciliationActivity extends AppCompatActivity {
 
                                 // Return to Dashboard
                                 finish();
-                            }
-                        });
-                    } else {
-                        // API returned success:false with an error message
-                        final String errorMessage = jsonObject.optString("message", "Unknown error");
-                        runOnUiThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                progressBar.setVisibility(View.GONE);
+                            } else {
+                                // API returned an error or non-successful status
+                                String errorMessage = response.message();
+                                if (response.errorBody() != null) {
+                                    try {
+                                        JSONObject errorJson = new JSONObject(responseBody);
+                                        errorMessage = errorJson.optString("message", errorMessage);
+                                    } catch (JSONException e) {
+                                        Log.e(TAG, "Error parsing error body for end session: " + e.getMessage());
+                                    }
+                                }
+                                final String finalErrorMessage = errorMessage; // Make it effectively final
+                                final String finalResponseBody = responseBody; // Make it effectively final
                                 Toast.makeText(ReconciliationActivity.this,
-                                        "API Error: " + errorMessage,
+                                        "API Error: " + finalErrorMessage,
                                         Toast.LENGTH_LONG).show();
-                            }
-                        });
-                    }
-                } catch (Exception e) {
-                    Log.e(TAG, "Error processing response: " + responseBody, e);
-                    final String errorMessage = e.getMessage();
-                    final String finalResponseBody = responseBody;
 
-                    runOnUiThread(new Runnable() {
-                        @Override
-                        public void run() {
-                            progressBar.setVisibility(View.GONE);
+                                // Create an alert dialog with more details
+                                new AlertDialog.Builder(ReconciliationActivity.this)
+                                        .setTitle("API Error")
+                                        .setMessage("Status code: " + response.code() + "\n\nResponse: " + finalResponseBody)
+                                        .setPositiveButton("OK", null)
+                                        .show();
+                            }
+                        } catch (IOException e) { // MODIFIED: Removed JSONException from here
+                            Log.e(TAG, "Error processing response: " + responseBody, e);
+                            final String errorMessage = e.getMessage(); // This 'errorMessage' is a new declaration within this catch
+                            final String finalResponseBody = responseBody; // Make it effectively final
+
                             Toast.makeText(ReconciliationActivity.this,
                                     "Processing error: " + errorMessage,
                                     Toast.LENGTH_LONG).show();
@@ -999,8 +981,22 @@ public class ReconciliationActivity extends AppCompatActivity {
                                     .setPositiveButton("OK", null)
                                     .show();
                         }
-                    });
-                }
+                    }
+                });
+            }
+
+            @Override
+            public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        progressBar.setVisibility(View.GONE);
+                        final String finalErrorMessage = t.getMessage(); // Make it effectively final
+                        Toast.makeText(ReconciliationActivity.this,
+                                getString(R.string.failed_end_session, finalErrorMessage),
+                                Toast.LENGTH_LONG).show();
+                    }
+                });
             }
         });
     }

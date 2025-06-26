@@ -28,10 +28,6 @@ public class PaymentReconciliation {
         return paymentMethod.getName();
     }
 
-    public String getCode() {
-        return paymentMethod.getCode();
-    }
-
     public String getId() {
         return paymentMethod.getId();
     }

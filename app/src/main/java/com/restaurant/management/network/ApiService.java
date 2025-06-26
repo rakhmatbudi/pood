@@ -1,6 +1,8 @@
 package com.restaurant.management.network;
+import com.google.gson.JsonElement;
 
 import com.restaurant.management.models.CashierSession;
+import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.SessionPaymentsResponse;
 import com.restaurant.management.models.PromoResponse;
 import com.restaurant.management.models.MenuCategoryResponse;
@@ -16,13 +18,17 @@ import com.restaurant.management.models.CreateOrderItemRequest;
 import com.restaurant.management.models.CreateOrderItemResponse;
 import com.restaurant.management.models.ApiResponse;
 import com.restaurant.management.models.DiscountResponse;
-import com.restaurant.management.models.TaxResponse; // Import the new TaxResponse model
+import com.restaurant.management.models.SessionSummary;
+import com.restaurant.management.models.TaxResponse;
 
 import java.util.List;
+
+import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.http.Body;
 import retrofit2.http.GET;
 import retrofit2.http.POST;
+import retrofit2.http.PUT;
 import retrofit2.http.Path;
 import retrofit2.http.Query;
 import retrofit2.http.Header;
@@ -46,7 +52,6 @@ public interface ApiService {
     @GET("payments/grouped/sessions/details")
     Call<SessionPaymentsResponse> getSessionPayments();
 
-    // Existing promo methods
     @GET("promos")
     Call<PromoResponse> getActivePromos();
 
@@ -84,9 +89,29 @@ public interface ApiService {
 
     // METHOD FOR DISCOUNTS
     @GET("discounts") // Assuming the endpoint is /discounts
-    Call<DiscountResponse> getDiscounts(@Header("Authorization") String authToken);
+    Call<DiscountResponse> getDiscounts();
 
     // NEW METHOD FOR TAX RATES
     @GET("taxes/rates") // Endpoint for tax rates
-    Call<TaxResponse> getTaxRates(@Header("Authorization") String authToken);
+    Call<TaxResponse> getTaxRates();
+
+    @GET("payment-modes")
+    Call<ApiResponse<List<PaymentMethod>>> getPaymentModes();
+
+    @GET("payments/session/{sessionId}/mode/{paymentModeId}")
+    Call<ApiResponse<List<JsonElement>>> getPaymentMethodTransactions(
+            @Path("sessionId") long sessionId,
+            @Path("paymentModeId") String paymentModeId
+    );
+
+    @GET("cashier-sessions/{sessionId}")
+    Call<ApiResponse<SessionSummary>> getSessionDetails(
+            @Path("sessionId") long sessionId
+    );
+
+    @PUT("cashier-sessions/{sessionId}/close")
+    Call<ApiResponse<Void>> closeSession(
+            @Path("sessionId") long sessionId,
+            @Body RequestBody requestBody
+    );
 }

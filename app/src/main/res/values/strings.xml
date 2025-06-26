@@ -353,4 +353,12 @@
 
     <string name="login_to_continue">Login to continue</string>
     <string name="forgot_password">Forgot Password?</string>
+
+    <string name="session_expired_login_again">Your session has expired or is invalid. Please log in again.</string>
+    <string name="active_orders_title">Active Orders Found</string>
+    <string name="active_orders_message">There are still open orders. Do you want to proceed with ending the session?</string>
+    <string name="proceed_anyway">Proceed Anyway</string>
+    <string name="confirm_session_closing">Confirm Session Closing</string>
+    <string name="confirm_session_closing_message">Make sure all orders have been closed before ending the session. Are you sure you want to proceed?</string>
+    <string name="yes_close_session">Yes, Close Session</string>
 </resources>

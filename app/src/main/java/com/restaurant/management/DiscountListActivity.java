@@ -201,7 +201,7 @@ public class DiscountListActivity extends AppCompatActivity implements DiscountA
         String authToken = getAuthToken();
 
         // Use ApiService to make the network call
-        apiService.getDiscounts("Bearer " + authToken).enqueue(new Callback<DiscountResponse>() {
+        apiService.getDiscounts().enqueue(new Callback<DiscountResponse>() {
             @Override
             public void onResponse(Call<DiscountResponse> call, Response<DiscountResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {

@@ -1,5 +1,6 @@
 package com.restaurant.management.models;
 
+import com.google.gson.annotations.SerializedName; // NEW: Import for @SerializedName
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -11,6 +12,23 @@ public class SessionSummary {
     private double openingAmount;
     private double totalSales;
     private int totalOrders;
+
+    // NEW: Fields for data expected from the API response
+    @SerializedName("opened_at")
+    private String openedAt;
+
+    @SerializedName("cash_total")
+    private double cashTotal;
+
+    @SerializedName("card_total")
+    private double cardTotal;
+
+    @SerializedName("mobile_money_total")
+    private double mobileMoneyTotal;
+
+    @SerializedName("payment_totals")
+    private Map<String, Double> paymentTotals; // This will map the nested "payment_totals" object
+
     private List<PaymentReconciliation> paymentReconciliations;
     private Map<String, PaymentReconciliation> reconciliationByCode;
     private String notes;
@@ -24,6 +42,12 @@ public class SessionSummary {
         this.paymentReconciliations = new ArrayList<>();
         this.reconciliationByCode = new HashMap<>();
         this.notes = "";
+        // Initialize new fields to default values
+        this.openedAt = "";
+        this.cashTotal = 0.0;
+        this.cardTotal = 0.0;
+        this.mobileMoneyTotal = 0.0;
+        this.paymentTotals = new HashMap<>();
     }
 
     public long getSessionId() {
@@ -65,6 +89,47 @@ public class SessionSummary {
     public void setTotalOrders(int totalOrders) {
         this.totalOrders = totalOrders;
     }
+
+    public String getOpenedAt() {
+        return openedAt;
+    }
+
+    public void setOpenedAt(String openedAt) {
+        this.openedAt = openedAt;
+    }
+
+    public double getCashTotal() {
+        return cashTotal;
+    }
+
+    public void setCashTotal(double cashTotal) {
+        this.cashTotal = cashTotal;
+    }
+
+    public double getCardTotal() {
+        return cardTotal;
+    }
+
+    public void setCardTotal(double cardTotal) {
+        this.cardTotal = cardTotal;
+    }
+
+    public double getMobileMoneyTotal() {
+        return mobileMoneyTotal;
+    }
+
+    public void setMobileMoneyTotal(double mobileMoneyTotal) {
+        this.mobileMoneyTotal = mobileMoneyTotal;
+    }
+
+    public Map<String, Double> getPaymentTotals() {
+        return paymentTotals;
+    }
+
+    public void setPaymentTotals(Map<String, Double> paymentTotals) {
+        this.paymentTotals = paymentTotals;
+    }
+
 
     public List<PaymentReconciliation> getPaymentReconciliations() {
         return paymentReconciliations;

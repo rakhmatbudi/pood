@@ -189,7 +189,7 @@ public class TaxListActivity extends AppCompatActivity { // Removed 'implements 
         String authToken = getAuthToken();
 
         // Use ApiService to make the network call
-        apiService.getTaxRates("Bearer " + authToken).enqueue(new Callback<TaxResponse>() {
+        apiService.getTaxRates().enqueue(new Callback<TaxResponse>() {
             @Override
             public void onResponse(Call<TaxResponse> call, Response<TaxResponse> response) {
                 if (response.isSuccessful() && response.body() != null) {
