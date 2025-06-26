@@ -21,6 +21,12 @@ import com.google.android.material.textfield.TextInputEditText;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 
+import com.chuckerteam.chucker.api.Chucker;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+
 import com.restaurant.management.models.PaymentMethod;
 import com.restaurant.management.models.PaymentReconciliation;
 import com.restaurant.management.models.SessionSummary;
@@ -78,6 +84,14 @@ public class ReconciliationActivity extends AppCompatActivity {
     private Button btnEndSession;
     private ProgressBar progressBar;
 
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private long lastUpdate = 0;
+    private float last_x, last_y, last_z;
+    private static final int SHAKE_THRESHOLD = 600;
+
+
+
     // Data
     private long sessionId;
     private String cashierName;
@@ -97,6 +111,13 @@ public class ReconciliationActivity extends AppCompatActivity {
         try {
             super.onCreate(savedInstanceState);
             setContentView(R.layout.activity_reconciliation);
+
+            // Initialize sensor manager for shake detection
+            //sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
+            //if (sensorManager != null) {
+            //    accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            //}
+            initializeShakeDetection();
 
             apiService = ApiClient.getApiService(this);
 
@@ -142,6 +163,75 @@ public class ReconciliationActivity extends AppCompatActivity {
             Log.e(TAG, "Error initializing ReconciliationActivity", e);
             Toast.makeText(this, getString(R.string.error_initializing, e.getMessage()), Toast.LENGTH_LONG).show();
             finish();
+        }
+    }
+
+    private void initializeShakeDetection() {
+        try {
+            sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+            if (sensorManager != null) {
+                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                if (accelerometer != null) {
+                    sensorManager.registerListener(shakeListener, accelerometer,
+                            SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize shake detection", e);
+        }
+    }
+
+    private final SensorEventListener shakeListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            long curTime = System.currentTimeMillis();
+
+            if ((curTime - lastUpdate) > 100) {
+                long diffTime = (curTime - lastUpdate);
+                lastUpdate = curTime;
+
+                float x = event.values[0];
+                float y = event.values[1];
+                float z = event.values[2];
+
+                float speed = Math.abs(x + y + z - last_x - last_y - last_z) / diffTime * 10000;
+
+                if (speed > SHAKE_THRESHOLD) {
+                    try {
+                        // Use ReconciliationActivity.this instead of just this
+                        startActivity(Chucker.getLaunchIntent(ReconciliationActivity.this));
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to launch Chucker", e);
+                    }
+                }
+
+                last_x = x;
+                last_y = y;
+                last_z = z;
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            // Not needed
+        }
+    };
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Register the sensor listener when activity resumes
+        if (sensorManager != null) {
+            sensorManager.registerListener(shakeListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister the sensor listener when activity pauses
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
         }
     }
 
@@ -881,9 +971,6 @@ public class ReconciliationActivity extends AppCompatActivity {
             // Add notes
             requestJson.put("notes", notes);
 
-            // Log the request for debugging (existing code, no changes)
-            Log.d(TAG, "Created request payload: " + requestJson.toString());
-
             // NEW: Call the Retrofit-based end session method
             proceedWithEndSession(requestJson);
 
@@ -900,8 +987,6 @@ public class ReconciliationActivity extends AppCompatActivity {
         // Use the correct endpoint with PUT method
         // String url = API_URL_BASE + "/cashier-sessions/" + sessionId + "/close"; // Base URL is now handled by ApiClient
 
-        Log.d(TAG, "Sending close session request for session ID: " + sessionId);
-        Log.d(TAG, "Request payload: " + requestJson.toString());
 
         // Create the RequestBody (existing code, no changes)
         RequestBody body = RequestBody.create(JSON, requestJson.toString());
@@ -923,8 +1008,6 @@ public class ReconciliationActivity extends AppCompatActivity {
                             if (response.errorBody() != null) {
                                 responseBody = response.errorBody().string();
                             }
-                            Log.d(TAG, "Response code: " + response.code());
-                            Log.d(TAG, "Response body: " + responseBody);
 
                             if (response.isSuccessful() && response.body() != null && "success".equals(response.body().getStatus())) {
                                 // Session ended successfully
@@ -966,7 +1049,6 @@ public class ReconciliationActivity extends AppCompatActivity {
                                         .show();
                             }
                         } catch (IOException e) { // MODIFIED: Removed JSONException from here
-                            Log.e(TAG, "Error processing response: " + responseBody, e);
                             final String errorMessage = e.getMessage(); // This 'errorMessage' is a new declaration within this catch
                             final String finalResponseBody = responseBody; // Make it effectively final
 

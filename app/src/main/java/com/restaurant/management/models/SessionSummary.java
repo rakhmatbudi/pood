@@ -30,7 +30,7 @@ public class SessionSummary {
     private Map<String, Double> paymentTotals; // This will map the nested "payment_totals" object
 
     private List<PaymentReconciliation> paymentReconciliations;
-    private Map<String, PaymentReconciliation> reconciliationByCode;
+    private Map<String, PaymentReconciliation> reconciliationById;
     private String notes;
 
     public SessionSummary(long sessionId, String cashierName, double openingAmount) {
@@ -40,7 +40,7 @@ public class SessionSummary {
         this.totalSales = 0.0;
         this.totalOrders = 0;
         this.paymentReconciliations = new ArrayList<>();
-        this.reconciliationByCode = new HashMap<>();
+        this.reconciliationById = new HashMap<>();
         this.notes = "";
         // Initialize new fields to default values
         this.openedAt = "";
@@ -137,11 +137,11 @@ public class SessionSummary {
 
     public void addPaymentReconciliation(PaymentReconciliation reconciliation) {
         this.paymentReconciliations.add(reconciliation);
-        this.reconciliationByCode.put(reconciliation.getCode(), reconciliation);
+        this.reconciliationById.put(reconciliation.getId(), reconciliation);
     }
 
-    public PaymentReconciliation getReconciliationByCode(String code) {
-        return reconciliationByCode.get(code);
+    public PaymentReconciliation getReconciliationByCode(int id) {
+        return reconciliationById.get(id);
     }
 
     public String getNotes() {
