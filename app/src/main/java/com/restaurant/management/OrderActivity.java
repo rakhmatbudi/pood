@@ -14,6 +14,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ProgressBar;
 import android.widget.Toast;
+import android.util.Log;
 
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -40,6 +41,12 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
+import com.chuckerteam.chucker.api.Chucker;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+
 public class OrderActivity extends AppCompatActivity {
     private static final int CANCEL_ITEM_REQUEST_CODE = 200;
     private static final int ADD_ITEM_REQUEST_CODE = 100;
@@ -54,6 +61,12 @@ public class OrderActivity extends AppCompatActivity {
     private double serviceRate = 0;
     private String serviceDescription = "Service Charge";
     private boolean ratesLoaded = false;
+
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private long lastUpdate = 0;
+    private float last_x, last_y, last_z;
+    private static final int SHAKE_THRESHOLD = 600;
 
     // Thermal printer constants
     private static final UUID PRINTER_UUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
@@ -100,6 +113,9 @@ public class OrderActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order_details);
 
+        // Initialize sensor manager for shake detection
+        initializeShakeDetection();
+
         // Initialize ApiService
         apiService = ApiClient.getApiService(); // Assuming you have an ApiClient to get the service
 
@@ -125,6 +141,75 @@ public class OrderActivity extends AppCompatActivity {
         }
 
         fetchOrderDetails();
+    }
+
+    private void initializeShakeDetection() {
+        try {
+            sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+            if (sensorManager != null) {
+                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                if (accelerometer != null) {
+                    sensorManager.registerListener(shakeListener, accelerometer,
+                            SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize shake detection", e);
+        }
+    }
+
+    private final SensorEventListener shakeListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            long curTime = System.currentTimeMillis();
+
+            if ((curTime - lastUpdate) > 100) {
+                long diffTime = (curTime - lastUpdate);
+                lastUpdate = curTime;
+
+                float x = event.values[0];
+                float y = event.values[1];
+                float z = event.values[2];
+
+                float speed = Math.abs(x + y + z - last_x - last_y - last_z) / diffTime * 10000;
+
+                if (speed > SHAKE_THRESHOLD) {
+                    try {
+                        startActivity(Chucker.getLaunchIntent(OrderActivity.this));
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to launch Chucker", e);
+                    }
+                }
+
+                last_x = x;
+                last_y = y;
+                last_z = z;
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            // Not needed
+        }
+    };
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Register the sensor listener when activity resumes
+        if (sensorManager != null) {
+            sensorManager.registerListener(shakeListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister the sensor listener when activity pauses
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
+        }
     }
 
     private void initializeHelpers() {
