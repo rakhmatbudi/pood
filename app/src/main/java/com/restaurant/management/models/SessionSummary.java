@@ -140,7 +140,7 @@ public class SessionSummary {
         this.reconciliationById.put(reconciliation.getId(), reconciliation);
     }
 
-    public PaymentReconciliation getReconciliationByCode(int id) {
+    public PaymentReconciliation getReconciliationById(int id) {
         return reconciliationById.get(id);
     }
 

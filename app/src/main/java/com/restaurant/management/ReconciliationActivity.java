@@ -90,8 +90,6 @@ public class ReconciliationActivity extends AppCompatActivity {
     private float last_x, last_y, last_z;
     private static final int SHAKE_THRESHOLD = 600;
 
-
-
     // Data
     private long sessionId;
     private String cashierName;
@@ -113,10 +111,6 @@ public class ReconciliationActivity extends AppCompatActivity {
             setContentView(R.layout.activity_reconciliation);
 
             // Initialize sensor manager for shake detection
-            //sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
-            //if (sensorManager != null) {
-            //    accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-            //}
             initializeShakeDetection();
 
             apiService = ApiClient.getApiService(this);

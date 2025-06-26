@@ -16,6 +16,12 @@ import com.restaurant.management.helpers.OrderListUiHelper;
 import com.restaurant.management.models.Order;
 import com.restaurant.management.models.OrderStatus;
 
+import com.chuckerteam.chucker.api.Chucker;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
+
 import java.util.List;
 
 public class OrderListActivity extends AppCompatActivity implements OrderAdapter.OnOrderClickListener {
@@ -27,11 +33,19 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
     private OrderListUiHelper uiHelper;
     private OrderDialogHelper dialogHelper;
 
+    private SensorManager sensorManager;
+    private Sensor accelerometer;
+    private long lastUpdate = 0;
+    private float last_x, last_y, last_z;
+    private static final int SHAKE_THRESHOLD = 600;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        Log.d(TAG, "onCreate started");
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_order_list);
+
+        // Initialize sensor manager for shake detection
+        initializeShakeDetection();
 
         initializeHelpers();
         setupToolbar();
@@ -48,6 +62,77 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
         uiHelper = new OrderListUiHelper(this);
         // Updated: No longer pass apiHelper to dialogHelper
         dialogHelper = new OrderDialogHelper(this);
+    }
+
+    private void initializeShakeDetection() {
+        try {
+            sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+            if (sensorManager != null) {
+                accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+                if (accelerometer != null) {
+                    sensorManager.registerListener(shakeListener, accelerometer,
+                            SensorManager.SENSOR_DELAY_NORMAL);
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to initialize shake detection", e);
+        }
+    }
+
+    private final SensorEventListener shakeListener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            long curTime = System.currentTimeMillis();
+
+            if ((curTime - lastUpdate) > 100) {
+                long diffTime = (curTime - lastUpdate);
+                lastUpdate = curTime;
+
+                float x = event.values[0];
+                float y = event.values[1];
+                float z = event.values[2];
+
+                float speed = Math.abs(x + y + z - last_x - last_y - last_z) / diffTime * 10000;
+
+                if (speed > SHAKE_THRESHOLD) {
+                    try {
+                        startActivity(Chucker.getLaunchIntent(OrderListActivity.this));
+                    } catch (Exception e) {
+                        Log.e(TAG, "Failed to launch Chucker", e);
+                    }
+                }
+
+                last_x = x;
+                last_y = y;
+                last_z = z;
+            }
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+            // Not needed
+        }
+    };
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Register the sensor listener when activity resumes
+        if (sensorManager != null) {
+            sensorManager.registerListener(shakeListener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL);
+        }
+
+        fetchOrders();
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // Unregister the sensor listener when activity pauses
+        if (sensorManager != null) {
+            sensorManager.unregisterListener(shakeListener);
+        }
     }
 
     private void setupToolbar() {
@@ -105,12 +190,6 @@ public class OrderListActivity extends AppCompatActivity implements OrderAdapter
             e.printStackTrace();
             Log.e(TAG, "Error setting up click listeners", e);
         }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        fetchOrders();
     }
 
     @Override
