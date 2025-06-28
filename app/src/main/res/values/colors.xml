@@ -19,10 +19,11 @@
     <color name="orange_accent">#FF9800</color>
     <color name="dark_green_accent">#00C853</color>
     <!-- Main Theme -->
-    <color name="colorPrimary">#6E0058</color>
-    <color name="colorPrimaryDark">#3A0926</color>
+    <!-- <color name="colorPrimary">#6E0058</color> -->
+    <color name="colorPrimary">#cc313d</color>
+    <color name="colorPrimaryDark">#902124</color>
     <color name="color_sub_header">#ffebfb</color>
-    <color name="price_color">#3A0926</color>
+    <color name="price_color">#902124</color>
 
     <color name="colorPrimary_v1">#3F51B5</color>
     <color name="colorPrimaryDark_v1">#303F9F</color>
